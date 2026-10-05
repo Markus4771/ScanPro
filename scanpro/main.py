@@ -11,6 +11,7 @@ from .db import Base, engine, get_db
 from .models import Destination, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
+    DestinationUpdate,
     ScanProfileCreate,
     ScanProfileUpdate,
     ScannerCreate,
@@ -19,6 +20,7 @@ from .schemas import (
     TestScanRequest,
     WorkflowCreate,
 )
+from .services.destinations import DestinationError, public_config, test_destination
 from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
 from .services.separation import validate_split
 
@@ -167,14 +169,85 @@ def get_job_file(job_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/destinations")
 def list_destinations(db: Session = Depends(get_db)):
-    return db.query(Destination).order_by(Destination.name).all()
+    rows = db.query(Destination).order_by(Destination.name).all()
+    return [
+        {
+            "id": row.id,
+            "name": row.name,
+            "type": row.type,
+            "enabled": row.enabled,
+            "config": public_config(row.type, row.config_json),
+        }
+        for row in rows
+    ]
 
 @app.post("/api/destinations")
 def create_destination(payload: DestinationCreate, db: Session = Depends(get_db)):
+    exists = db.query(Destination).filter(Destination.name == payload.name).first()
+    if exists:
+        raise HTTPException(409, "Ein Scanziel mit diesem Namen existiert bereits.")
     data = payload.model_dump(); config = data.pop("config")
+    if data["type"] not in {"local", "smb"}:
+        raise HTTPException(400, "Aktuell werden nur lokale und SMB-Ziele unterstützt.")
     obj = Destination(**data, config_json=json.dumps(config))
     db.add(obj); db.commit(); db.refresh(obj)
-    return obj
+    return {
+        "id": obj.id,
+        "name": obj.name,
+        "type": obj.type,
+        "enabled": obj.enabled,
+        "config": public_config(obj.type, obj.config_json),
+    }
+
+@app.patch("/api/destinations/{destination_id}")
+def update_destination(destination_id: int, payload: DestinationUpdate, db: Session = Depends(get_db)):
+    obj = db.get(Destination, destination_id)
+    if not obj:
+        raise HTTPException(404, "Scanziel wurde nicht gefunden.")
+    data = payload.model_dump(exclude_none=True)
+    if "name" in data and data["name"] != obj.name:
+        exists = db.query(Destination).filter(Destination.name == data["name"]).first()
+        if exists:
+            raise HTTPException(409, "Ein Scanziel mit diesem Namen existiert bereits.")
+    if "type" in data and data["type"] not in {"local", "smb"}:
+        raise HTTPException(400, "Aktuell werden nur lokale und SMB-Ziele unterstützt.")
+    if "config" in data:
+        cfg = data.pop("config")
+        if obj.type == "smb" and cfg.get("password") == "********":
+            previous = json.loads(obj.config_json or "{}")
+            cfg["password"] = previous.get("password", "")
+        obj.config_json = json.dumps(cfg)
+    for key, value in data.items():
+        setattr(obj, key, value)
+    db.commit(); db.refresh(obj)
+    return {
+        "id": obj.id,
+        "name": obj.name,
+        "type": obj.type,
+        "enabled": obj.enabled,
+        "config": public_config(obj.type, obj.config_json),
+    }
+
+@app.delete("/api/destinations/{destination_id}")
+def delete_destination(destination_id: int, db: Session = Depends(get_db)):
+    obj = db.get(Destination, destination_id)
+    if not obj:
+        raise HTTPException(404, "Scanziel wurde nicht gefunden.")
+    linked = db.query(Workflow).filter(Workflow.destination_id == destination_id).first()
+    if linked:
+        raise HTTPException(409, "Scanziel wird noch von einem Workflow verwendet.")
+    db.delete(obj); db.commit()
+    return {"deleted": True, "id": destination_id}
+
+@app.post("/api/destinations/{destination_id}/test")
+def test_destination_endpoint(destination_id: int, db: Session = Depends(get_db)):
+    obj = db.get(Destination, destination_id)
+    if not obj:
+        raise HTTPException(404, "Scanziel wurde nicht gefunden.")
+    try:
+        return test_destination(obj.type, obj.config_json)
+    except DestinationError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 @app.get("/api/profiles")
 def list_profiles(db: Session = Depends(get_db)):

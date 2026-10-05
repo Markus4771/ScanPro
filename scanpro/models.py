@@ -44,6 +44,15 @@ class ProfileShare(Base):
     share_name: Mapped[str] = mapped_column(String(80))
     path: Mapped[str] = mapped_column(String(255))
 
+class InboxImport(Base):
+    __tablename__ = "inbox_imports"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id"))
+    scan_job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"), unique=True)
+    source_path: Mapped[str] = mapped_column(Text)
+    imported_path: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 class Workflow(Base):
     __tablename__ = "workflows"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

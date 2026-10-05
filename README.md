@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.1.4-dev**
+Aktuell: **0.2.0-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -152,3 +152,28 @@ Verfügbare Trennmethoden:
 - manuell
 
 **Hinweis:** In 0.1.4-dev werden OCR- und Trenneinstellungen gespeichert und im Profil angezeigt. Die eigentliche OCR- bzw. Trennverarbeitung wird in späteren Versionen umgesetzt.
+
+
+## Scanziele in 0.2.0-dev
+
+Scanziele können jetzt im Webinterface angelegt, bearbeitet, aktiviert/deaktiviert, getestet und gelöscht werden.
+
+Unterstützte Zieltypen:
+
+- lokaler Ordner
+- SMB-Freigabe
+
+Für lokale Ziele wird ein echter Schreibtest durchgeführt.
+
+Für SMB-Ziele werden gespeichert:
+
+- Server/IP
+- Freigabe
+- optionaler Unterordner
+- Benutzer
+- Passwort
+- optionale Domäne
+
+Der Verbindungstest erfolgt mit `smbclient`.
+
+**Wichtig:** Die automatische Weiterleitung eines fertigen Scans an ein Scanziel und die SMB-Inbox sind noch nicht aktiv. Diese folgen als nächster Entwicklungsschritt.

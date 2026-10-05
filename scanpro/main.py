@@ -591,7 +591,9 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
         db.commit()
 
         processing = db.query(ProfileProcessing).filter(ProfileProcessing.profile_id == profile.id).first()
-        if processing and processing.remove_blank_pages:
+        if processing and processing.remove_blank_pages and not (
+            profile.split_enabled and profile.split_method == "blank-page"
+        ):
             try:
                 result = remove_blank_pages(str(output))
                 db.add(JobProcessing(

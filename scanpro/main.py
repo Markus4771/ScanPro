@@ -14,6 +14,7 @@ from .schemas import (
     ScanProfileCreate,
     ScannerCreate,
     ScannerImport,
+    ScannerUpdate,
     TestScanRequest,
     WorkflowCreate,
 )
@@ -46,6 +47,29 @@ def discover_scanners(driver: str = Query("sane", pattern="^(sane|escl)$")):
 def list_scanners(db: Session = Depends(get_db)):
     return db.query(Scanner).order_by(Scanner.name).all()
 
+@app.get("/api/scanners/status")
+def scanner_status(db: Session = Depends(get_db)):
+    scanners = db.query(Scanner).order_by(Scanner.name).all()
+    by_driver: dict[str, set[str]] = {}
+    result = []
+    for scanner in scanners:
+        if scanner.driver not in by_driver:
+            try:
+                devices = discover_devices(scanner.driver)
+                by_driver[scanner.driver] = {d["name"] for d in devices}
+            except Naps2Error:
+                by_driver[scanner.driver] = set()
+        online = scanner.name in by_driver[scanner.driver]
+        result.append({
+            "id": scanner.id,
+            "name": scanner.name,
+            "enabled": scanner.enabled,
+            "online": online,
+            "driver": scanner.driver,
+            "address": scanner.address,
+        })
+    return result
+
 @app.post("/api/scanners")
 def create_scanner(payload: ScannerCreate, db: Session = Depends(get_db)):
     obj = Scanner(**payload.model_dump())
@@ -67,6 +91,32 @@ def import_scanner(payload: ScannerImport, db: Session = Depends(get_db)):
     db.add(obj); db.commit(); db.refresh(obj)
     return obj
 
+@app.patch("/api/scanners/{scanner_id}")
+def update_scanner(scanner_id: int, payload: ScannerUpdate, db: Session = Depends(get_db)):
+    scanner = db.get(Scanner, scanner_id)
+    if not scanner:
+        raise HTTPException(404, "Scanner wurde nicht gefunden.")
+    data = payload.model_dump(exclude_none=True)
+    if "name" in data and data["name"] != scanner.name:
+        exists = db.query(Scanner).filter(Scanner.name == data["name"]).first()
+        if exists:
+            raise HTTPException(409, "Ein Scanner mit diesem Namen existiert bereits.")
+    for key, value in data.items():
+        setattr(scanner, key, value)
+    db.commit(); db.refresh(scanner)
+    return scanner
+
+@app.delete("/api/scanners/{scanner_id}")
+def delete_scanner(scanner_id: int, db: Session = Depends(get_db)):
+    scanner = db.get(Scanner, scanner_id)
+    if not scanner:
+        raise HTTPException(404, "Scanner wurde nicht gefunden.")
+    linked = db.query(Workflow).filter(Workflow.scanner_id == scanner_id).first()
+    if linked:
+        raise HTTPException(409, "Scanner wird noch von einem Workflow verwendet.")
+    db.delete(scanner); db.commit()
+    return {"deleted": True, "id": scanner_id}
+
 @app.post("/api/scanners/{scanner_id}/testscan")
 def test_scan(scanner_id: int, payload: TestScanRequest, db: Session = Depends(get_db)):
     scanner = db.get(Scanner, scanner_id)
@@ -82,7 +132,13 @@ def test_scan(scanner_id: int, payload: TestScanRequest, db: Session = Depends(g
     try:
         scan_to_pdf(output=output, device=scanner.name, driver=scanner.driver, dpi=payload.dpi, duplex=payload.duplex, color_mode=payload.color_mode)
         job.status = "finished"; job.error = None; db.commit(); db.refresh(job)
-        return {"job_id": job.id, "status": job.status, "scanner": scanner.name, "output_path": job.output_path}
+        return {
+            "job_id": job.id,
+            "status": job.status,
+            "scanner": scanner.name,
+            "output_path": job.output_path,
+            "file_url": f"/api/jobs/{job.id}/file",
+        }
     except Naps2Error as exc:
         job.status = "error"; job.error = str(exc); db.commit()
         raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc

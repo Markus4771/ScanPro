@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.8.0-dev**
+Aktuell: **0.8.1-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -834,3 +834,62 @@ Retries: 2
 Die Werte werden sowohl beim Testscan als auch bei Scanner-Workflows verwendet.
 
 Hinweis: mDNS wird über geroutete VPNs normalerweise nicht automatisch weitergeleitet. Für einen Scanner hinter VPN muss SANE/eSCL daher ggf. mit einer statischen Adresse konfiguriert werden. Ein ScanPro Remote Collector ist als spätere Erweiterung vorgesehen.
+
+
+## Remote-Scanner-Härtung in 0.8.1-dev
+
+Neu:
+
+- statische Scannerziele pro Scanner
+- direkte sane-airscan/eSCL-Ziele ohne mDNS
+- Standortfilter in der Weboberfläche
+- Fehlerklassifikation `network`, `discovery`, `scan`
+- statische Ziele gelten bei Erreichbarkeit nicht als Discovery-Fehler
+
+Neue Tabelle:
+
+```text
+scanner_static_targets
+```
+
+Neue API:
+
+```text
+GET /api/scanner-static-targets
+PUT /api/scanners/{scanner_id}/static-target
+```
+
+Bei aktiviertem statischem SANE-Ziel erzeugt ScanPro für den NAPS2-Prozess automatisch:
+
+```text
+SANE_AIRSCAN_DEVICE=escl:<NAME>:<URL>
+```
+
+Damit können eSCL/AirScan-Geräte hinter Routern oder VPNs ohne mDNS angesprochen werden.
+
+Beispiel:
+
+```text
+Name: Brother Außenstelle
+Adresse: 10.20.30.40
+Driver: sane
+statisch: ja
+```
+
+ScanPro verwendet dann sinngemäß:
+
+```text
+escl:Brother Außenstelle:http://10.20.30.40/eSCL
+```
+
+Alternativ kann als Adresse direkt eine vollständige eSCL-URL gespeichert werden.
+
+Jobfehler werden als:
+
+```text
+network_error
+discovery_error
+scan_error
+```
+
+klassifiziert.

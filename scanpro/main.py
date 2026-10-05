@@ -12,6 +12,7 @@ from .models import Destination, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     ScanProfileCreate,
+    ScanProfileUpdate,
     ScannerCreate,
     ScannerImport,
     ScannerUpdate,
@@ -182,9 +183,41 @@ def list_profiles(db: Session = Depends(get_db)):
 @app.post("/api/profiles")
 def create_profile(payload: ScanProfileCreate, db: Session = Depends(get_db)):
     validate_split(payload.split_enabled, payload.split_method)
+    exists = db.query(ScanProfile).filter(ScanProfile.name == payload.name).first()
+    if exists:
+        raise HTTPException(409, "Ein Scanprofil mit diesem Namen existiert bereits.")
     obj = ScanProfile(**payload.model_dump())
     db.add(obj); db.commit(); db.refresh(obj)
     return obj
+
+@app.patch("/api/profiles/{profile_id}")
+def update_profile(profile_id: int, payload: ScanProfileUpdate, db: Session = Depends(get_db)):
+    profile = db.get(ScanProfile, profile_id)
+    if not profile:
+        raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+    data = payload.model_dump(exclude_none=True)
+    split_enabled = data.get("split_enabled", profile.split_enabled)
+    split_method = data.get("split_method", profile.split_method)
+    validate_split(split_enabled, split_method)
+    if "name" in data and data["name"] != profile.name:
+        exists = db.query(ScanProfile).filter(ScanProfile.name == data["name"]).first()
+        if exists:
+            raise HTTPException(409, "Ein Scanprofil mit diesem Namen existiert bereits.")
+    for key, value in data.items():
+        setattr(profile, key, value)
+    db.commit(); db.refresh(profile)
+    return profile
+
+@app.delete("/api/profiles/{profile_id}")
+def delete_profile(profile_id: int, db: Session = Depends(get_db)):
+    profile = db.get(ScanProfile, profile_id)
+    if not profile:
+        raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+    linked = db.query(Workflow).filter(Workflow.profile_id == profile_id).first()
+    if linked:
+        raise HTTPException(409, "Scanprofil wird noch von einem Workflow verwendet.")
+    db.delete(profile); db.commit()
+    return {"deleted": True, "id": profile_id}
 
 @app.get("/api/workflows")
 def list_workflows(db: Session = Depends(get_db)):

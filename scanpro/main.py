@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, DATABASE_URL, engine, get_db, initialize_database
-from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileOutputSettings, ProfilePaperlessRules, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, ScannerConnectionSettings, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileOutputSettings, ProfilePaperlessRules, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, ScannerConnectionSettings, ScannerStaticTarget, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -25,6 +25,7 @@ from .schemas import (
     ScannerImport,
     ScannerUpdate,
     ScannerConnectionSettingsUpdate,
+    ScannerStaticTargetUpdate,
     TestScanRequest,
     WorkflowCreate,
     WorkflowUpdate,
@@ -33,7 +34,7 @@ from .services.blank_pages import BlankPageError, remove_blank_pages
 from .services.documents import apply_image_processing, prepare_job_documents
 from .services.destinations import DestinationError, public_config, test_destination
 from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
-from .services.scanner_connection import check_reachability, get_connection_settings
+from .services.scanner_connection import check_reachability, classify_scanner_state, effective_scanner_target, get_connection_settings, get_static_target
 from .services.profile_shares import ProfileShareError, normalize_share_name, profile_path, write_profile_samba_config
 from .services.image_processing import ImageProcessingError
 from .services.ocr import OcrError, apply_ocr
@@ -104,6 +105,56 @@ def discover_scanners(driver: str = Query("sane", pattern="^(sane|escl)$")):
 def list_scanners(db: Session = Depends(get_db)):
     return db.query(Scanner).order_by(Scanner.name).all()
 
+@app.get("/api/scanner-static-targets")
+def list_scanner_static_targets(db: Session = Depends(get_db)):
+    scanners = db.query(Scanner).order_by(Scanner.name).all()
+    result = []
+    for scanner in scanners:
+        row = get_static_target(db, scanner)
+        result.append({
+            "scanner_id": scanner.id,
+            "enabled": bool(row.enabled) if row else False,
+            "driver": row.driver if row else scanner.driver,
+            "device_name": row.device_name if row else scanner.name,
+            "device_id": row.device_id if row else (scanner.device_id or ""),
+            "address": row.address if row else (scanner.address or ""),
+        })
+    return result
+
+@app.put("/api/scanners/{scanner_id}/static-target")
+def update_scanner_static_target(
+    scanner_id: int,
+    payload: ScannerStaticTargetUpdate,
+    db: Session = Depends(get_db),
+):
+    scanner = db.get(Scanner, scanner_id)
+    if not scanner:
+        raise HTTPException(404, "Scanner wurde nicht gefunden.")
+
+    driver = payload.driver.strip().lower()
+    if driver not in {"sane", "escl"}:
+        raise HTTPException(400, "Driver muss sane oder escl sein.")
+
+    row = get_static_target(db, scanner)
+    if not row:
+        row = ScannerStaticTarget(scanner_id=scanner_id)
+        db.add(row)
+
+    row.enabled = payload.enabled
+    row.driver = driver
+    row.device_name = payload.device_name.strip() or scanner.name
+    row.device_id = payload.device_id.strip()
+    row.address = payload.address.strip()
+    db.commit(); db.refresh(row)
+    return {
+        "scanner_id": scanner_id,
+        "enabled": row.enabled,
+        "driver": row.driver,
+        "device_name": row.device_name,
+        "device_id": row.device_id,
+        "address": row.address,
+    }
+
 @app.get("/api/scanner-connection-settings")
 def list_scanner_connection_settings(db: Session = Depends(get_db)):
     scanners = db.query(Scanner).order_by(Scanner.name).all()
@@ -156,8 +207,15 @@ def scanner_reachability(scanner_id: int, db: Session = Depends(get_db)):
     if not scanner:
         raise HTTPException(404, "Scanner wurde nicht gefunden.")
     settings = get_connection_settings(db, scanner)
+    target = effective_scanner_target(db, scanner)
+    reachability_scanner = Scanner(
+        name=target["device_name"],
+        driver=target["driver"],
+        address=target["address"],
+        device_id=target["device_id"],
+    )
     result = check_reachability(
-        scanner,
+        reachability_scanner,
         timeout_seconds=4.0 if settings.connection_type == "vpn" else 2.0,
     )
     return {
@@ -182,23 +240,35 @@ def scanner_status(db: Session = Depends(get_db)):
             except Naps2Error:
                 by_driver[scanner.driver] = set()
         settings = get_connection_settings(db, scanner)
-        discovered = scanner.name in by_driver[scanner.driver]
+        target = effective_scanner_target(db, scanner)
+        discovered = target["device_name"] in by_driver.get(target["driver"], set())
+        reachability_scanner = Scanner(
+            name=target["device_name"],
+            driver=target["driver"],
+            address=target["address"],
+            device_id=target["device_id"],
+        )
         reachability = check_reachability(
-            scanner,
+            reachability_scanner,
             timeout_seconds=4.0 if settings.connection_type == "vpn" else 2.0,
         )
         online = discovered or reachability.reachable
+        state = classify_scanner_state(discovered, reachability.reachable)
         result.append({
             "id": scanner.id,
             "name": scanner.name,
             "enabled": scanner.enabled,
             "online": online,
+            "state": state,
             "discovered": discovered,
             "reachable": reachability.reachable,
             "reachability_method": reachability.method,
             "reachability_detail": reachability.detail,
-            "driver": scanner.driver,
-            "address": scanner.address,
+            "driver": target["driver"],
+            "address": target["address"],
+            "target_source": target["source"],
+            "target_device_name": target["device_name"],
+            "target_device_id": target["device_id"],
             "location": settings.location,
             "connection_type": settings.connection_type,
             "timeout_seconds": settings.timeout_seconds,
@@ -257,6 +327,13 @@ def delete_scanner(scanner_id: int, db: Session = Depends(get_db)):
     )
     if connection_settings:
         db.delete(connection_settings)
+    static_target = (
+        db.query(ScannerStaticTarget)
+        .filter(ScannerStaticTarget.scanner_id == scanner_id)
+        .first()
+    )
+    if static_target:
+        db.delete(static_target)
     db.delete(scanner); db.commit()
     return {"deleted": True, "id": scanner_id}
 
@@ -273,11 +350,12 @@ def test_scan(scanner_id: int, payload: TestScanRequest, db: Session = Depends(g
     output = JOBS_DIR / f"testscan-{job.id}-{timestamp}.pdf"
     job.output_path = str(output); job.status = "scanning"; db.commit()
     settings = get_connection_settings(db, scanner)
+    target = effective_scanner_target(db, scanner)
     try:
         scan_to_pdf(
             output=output,
-            device=scanner.name,
-            driver=scanner.driver,
+            device=target["device_name"],
+            driver=target["driver"],
             dpi=payload.dpi,
             duplex=payload.duplex,
             color_mode=payload.color_mode,
@@ -1072,11 +1150,12 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     connection_settings = get_connection_settings(db, scanner)
+    target = effective_scanner_target(db, scanner)
     try:
         scan_to_pdf(
             output=output,
-            device=scanner.name,
-            driver=scanner.driver,
+            device=target["device_name"],
+            driver=target["driver"],
             dpi=profile.dpi,
             duplex=profile.duplex,
             color_mode=profile.color_mode,

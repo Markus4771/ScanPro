@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, engine, get_db
-from .models import Destination, InboxImport, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, JobDelivery, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -20,11 +20,13 @@ from .schemas import (
     ScannerUpdate,
     TestScanRequest,
     WorkflowCreate,
+    WorkflowUpdate,
 )
 from .services.destinations import DestinationError, public_config, test_destination
 from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
 from .services.profile_shares import ProfileShareError, normalize_share_name, profile_path, write_profile_samba_config
 from .services.separation import validate_split
+from .services.workflows import deliver_job
 
 Base.metadata.create_all(bind=engine)
 
@@ -165,6 +167,7 @@ def list_jobs(db: Session = Depends(get_db)):
     for job in jobs:
         inbox = db.query(InboxImport).filter(InboxImport.scan_job_id == job.id).first()
         profile = db.get(ScanProfile, inbox.profile_id) if inbox else None
+        deliveries = db.query(JobDelivery).filter(JobDelivery.scan_job_id == job.id).order_by(JobDelivery.id).all()
         result.append({
             "id": job.id,
             "workflow_id": job.workflow_id,
@@ -176,6 +179,17 @@ def list_jobs(db: Session = Depends(get_db)):
             "profile_id": inbox.profile_id if inbox else None,
             "profile_name": profile.name if profile else None,
             "source": "profile-smb" if inbox else "scanner",
+            "deliveries": [
+                {
+                    "id": item.id,
+                    "destination_id": item.destination_id,
+                    "workflow_id": item.workflow_id,
+                    "status": item.status,
+                    "target_path": item.target_path,
+                    "error": item.error,
+                }
+                for item in deliveries
+            ],
         })
     return result
 
@@ -410,16 +424,138 @@ def delete_profile(profile_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/workflows")
 def list_workflows(db: Session = Depends(get_db)):
-    return db.query(Workflow).order_by(Workflow.name).all()
+    rows = db.query(Workflow).order_by(Workflow.name).all()
+    result = []
+    for row in rows:
+        scanner = db.get(Scanner, row.scanner_id) if row.scanner_id else None
+        profile = db.get(ScanProfile, row.profile_id)
+        destination = db.get(Destination, row.destination_id)
+        result.append({
+            "id": row.id,
+            "name": row.name,
+            "scanner_id": row.scanner_id,
+            "scanner_name": scanner.name if scanner else None,
+            "source_type": "scanner" if scanner else "profile-smb",
+            "profile_id": row.profile_id,
+            "profile_name": profile.name if profile else None,
+            "destination_id": row.destination_id,
+            "destination_name": destination.name if destination else None,
+            "enabled": row.enabled,
+        })
+    return result
 
 @app.post("/api/workflows")
 def create_workflow(payload: WorkflowCreate, db: Session = Depends(get_db)):
+    if db.query(Workflow).filter(Workflow.name == payload.name).first():
+        raise HTTPException(409, "Ein Workflow mit diesem Namen existiert bereits.")
     if not db.get(ScanProfile, payload.profile_id):
         raise HTTPException(400, "Scanprofil existiert nicht.")
-    if not db.get(Destination, payload.destination_id):
+    destination = db.get(Destination, payload.destination_id)
+    if not destination:
         raise HTTPException(400, "Scanziel existiert nicht.")
     if payload.scanner_id is not None and not db.get(Scanner, payload.scanner_id):
         raise HTTPException(400, "Scanner existiert nicht.")
     obj = Workflow(**payload.model_dump())
     db.add(obj); db.commit(); db.refresh(obj)
     return obj
+
+@app.patch("/api/workflows/{workflow_id}")
+def update_workflow(workflow_id: int, payload: WorkflowUpdate, db: Session = Depends(get_db)):
+    obj = db.get(Workflow, workflow_id)
+    if not obj:
+        raise HTTPException(404, "Workflow wurde nicht gefunden.")
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data and data["name"] != obj.name:
+        if db.query(Workflow).filter(Workflow.name == data["name"]).first():
+            raise HTTPException(409, "Ein Workflow mit diesem Namen existiert bereits.")
+    if "profile_id" in data and data["profile_id"] is not None and not db.get(ScanProfile, data["profile_id"]):
+        raise HTTPException(400, "Scanprofil existiert nicht.")
+    if "destination_id" in data and data["destination_id"] is not None and not db.get(Destination, data["destination_id"]):
+        raise HTTPException(400, "Scanziel existiert nicht.")
+    if "scanner_id" in data and data["scanner_id"] is not None and not db.get(Scanner, data["scanner_id"]):
+        raise HTTPException(400, "Scanner existiert nicht.")
+    for key, value in data.items():
+        setattr(obj, key, value)
+    db.commit(); db.refresh(obj)
+    return obj
+
+@app.delete("/api/workflows/{workflow_id}")
+def delete_workflow(workflow_id: int, db: Session = Depends(get_db)):
+    obj = db.get(Workflow, workflow_id)
+    if not obj:
+        raise HTTPException(404, "Workflow wurde nicht gefunden.")
+    used = db.query(ScanJob).filter(ScanJob.workflow_id == workflow_id).first()
+    if used:
+        raise HTTPException(409, "Workflow wurde bereits von ScanJobs verwendet und kann nicht gelöscht werden. Deaktiviere ihn stattdessen.")
+    db.delete(obj); db.commit()
+    return {"deleted": True, "id": workflow_id}
+
+@app.post("/api/workflows/{workflow_id}/run")
+def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
+    workflow = db.get(Workflow, workflow_id)
+    if not workflow:
+        raise HTTPException(404, "Workflow wurde nicht gefunden.")
+    if not workflow.enabled:
+        raise HTTPException(400, "Workflow ist deaktiviert.")
+    if workflow.scanner_id is None:
+        raise HTTPException(400, "SMB-Inbox-Workflows werden automatisch durch eingehende Dateien gestartet.")
+
+    scanner = db.get(Scanner, workflow.scanner_id)
+    profile = db.get(ScanProfile, workflow.profile_id)
+    destination = db.get(Destination, workflow.destination_id)
+    if not scanner or not scanner.enabled:
+        raise HTTPException(400, "Scanner ist nicht verfügbar oder deaktiviert.")
+    if not profile:
+        raise HTTPException(400, "Scanprofil existiert nicht.")
+    if not destination or not destination.enabled:
+        raise HTTPException(400, "Scanziel ist nicht verfügbar oder deaktiviert.")
+
+    job = ScanJob(workflow_id=workflow.id, status="scanning")
+    db.add(job); db.commit(); db.refresh(job)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    output = JOBS_DIR / f"workflow-{workflow.id}-job-{job.id}-{timestamp}.pdf"
+    job.output_path = str(output)
+    db.commit()
+
+    try:
+        scan_to_pdf(
+            output=output,
+            device=scanner.name,
+            driver=scanner.driver,
+            dpi=profile.dpi,
+            duplex=profile.duplex,
+            color_mode=profile.color_mode,
+        )
+        job.status = "finished"
+        job.error = None
+        db.commit()
+    except Naps2Error as exc:
+        job.status = "error"
+        job.error = str(exc)
+        db.commit()
+        raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
+
+    delivery = deliver_job(db, job, workflow, destination)
+    if delivery.status == "delivered":
+        job.status = "delivered"
+        job.error = None
+    else:
+        job.status = "delivery_error"
+        job.error = delivery.error
+    db.commit()
+
+    return {
+        "job_id": job.id,
+        "status": job.status,
+        "workflow": workflow.name,
+        "scanner": scanner.name,
+        "profile": profile.name,
+        "destination": destination.name,
+        "output_path": job.output_path,
+        "file_url": f"/api/jobs/{job.id}/file",
+        "delivery": {
+            "status": delivery.status,
+            "target_path": delivery.target_path,
+            "error": delivery.error,
+        },
+    }

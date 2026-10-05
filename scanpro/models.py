@@ -83,3 +83,11 @@ class JobDelivery(Base):
     target_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ProfileProcessing(Base):
+    __tablename__ = "profile_processing"
+    __table_args__ = (UniqueConstraint("profile_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
+    remove_blank_pages: Mapped[bool] = mapped_column(Boolean, default=False)

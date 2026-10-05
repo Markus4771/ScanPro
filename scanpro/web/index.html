@@ -757,9 +757,12 @@ async function loadJobs(){
       (j.profile_name?' · Profil: '+escapeHtml(j.profile_name):'')+
       (j.source==='profile-smb'?' · SMB-Inbox':'')+
       (j.blank_pages_removed?' · Leerseiten entfernt: '+j.blank_pages_removed:'')+
+      (j.documents&&j.documents.length>1?' · Dokumente: '+j.documents.length:'')+
       (j.deliveries&&j.deliveries.length?' · Versand: '+j.deliveries.map(d=>d.status).join(', '):'')+'</div>'+
       (j.error?'<div class="err">'+escapeHtml(j.error)+'</div>':'')+'</div>'+
-      '<div>'+((j.status==='finished'||j.status==='imported'||j.status==='delivered'||j.status==='delivery_error')?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':'')+'</div>'+
+      '<div>'+((j.documents&&j.documents.length>1)
+        ? j.documents.map(d=>'<a class="btn secondary" target="_blank" href="'+d.file_url+'">Dok. '+d.sequence+'</a>').join(' ')
+        : ((j.status==='finished'||j.status==='imported'||j.status==='delivered'||j.status==='delivery_error'||j.status==='separated')?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':''))+'</div>'+
       '</div>';
     box.appendChild(el);
   }

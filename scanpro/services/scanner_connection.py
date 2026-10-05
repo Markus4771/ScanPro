@@ -4,7 +4,7 @@ from ipaddress import ip_address
 
 from sqlalchemy.orm import Session
 
-from ..models import Scanner, ScannerConnectionSettings
+from ..models import Scanner, ScannerConnectionSettings, ScannerStaticTarget
 
 
 @dataclass
@@ -64,3 +64,45 @@ def check_reachability(scanner: Scanner, timeout_seconds: float = 2.0) -> Reacha
         "tcp",
         f"{host} antwortet auf keinem getesteten Scanner-Port ({', '.join(map(str, ports))}).",
     )
+
+
+
+def get_static_target(db: Session, scanner: Scanner) -> ScannerStaticTarget | None:
+    return (
+        db.query(ScannerStaticTarget)
+        .filter(ScannerStaticTarget.scanner_id == scanner.id)
+        .first()
+    )
+
+
+def effective_scanner_target(db: Session, scanner: Scanner) -> dict:
+    static = get_static_target(db, scanner)
+    if static and static.enabled:
+        return {
+            "source": "static",
+            "driver": static.driver or scanner.driver,
+            "device_name": static.device_name or scanner.name,
+            "device_id": static.device_id or scanner.device_id,
+            "address": static.address or scanner.address,
+        }
+    return {
+        "source": "discovered",
+        "driver": scanner.driver,
+        "device_name": scanner.name,
+        "device_id": scanner.device_id,
+        "address": scanner.address,
+    }
+
+
+def classify_scanner_state(
+    discovered: bool,
+    reachable: bool,
+    last_scan_error: str | None = None,
+) -> str:
+    if not reachable:
+        return "network"
+    if not discovered:
+        return "discovery"
+    if last_scan_error:
+        return "scan"
+    return "ok"

@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.6.1-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.7.0-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.6.1-dev","schema_version":2}
+{"status":"ok","version":"0.7.0-dev","schema_version":3}
 ```
 
 ## Scanner über ScanPro suchen
@@ -874,3 +874,36 @@ Beispiel OCR-Regel:
 Beim Paperless-Ziel kann nach dem Speichern über **Paperless-Werte laden** auf Korrespondenten, Dokumenttypen und Speicherpfade zugegriffen werden.
 
 Nach einem Upload kann in der Jobliste über **Paperless-Status** der Consumption-Task geprüft werden.
+
+
+## Foto-/Bildscan testen
+
+Ab 0.7.0-dev:
+
+1. Neues Scanprofil anlegen.
+2. Profilmodus **Foto / Bild** wählen.
+3. Ausgabeformat **JPEG** oder **PNG** wählen.
+4. Auflösung z. B. 600 dpi wählen.
+5. Optional Auto-Crop oder Randentfernung aktivieren.
+6. Profil speichern.
+7. Workflow mit lokalem oder SMB-Ziel starten.
+
+Bei JPEG kann zusätzlich die Qualität eingestellt werden, z. B.:
+
+```text
+92
+```
+
+Bei JPEG/PNG werden OCR und Dokumenttrennung automatisch deaktiviert.
+
+Mehrseitige Scans werden zu:
+
+```text
+..._001.jpg
+..._002.jpg
+..._003.jpg
+```
+
+bzw. PNG-Dateien.
+
+Hinweis: 1200 dpi funktioniert nur, wenn der verwendete Scanner diese Auflösung über SANE/eSCL tatsächlich unterstützt.

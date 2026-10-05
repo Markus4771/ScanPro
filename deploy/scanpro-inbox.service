@@ -12,6 +12,7 @@ Environment=PYTHONUNBUFFERED=1
 Environment=HOME=/var/lib/scanpro
 Environment=XDG_CONFIG_HOME=/var/lib/scanpro/.config
 Environment=XDG_CACHE_HOME=/var/lib/scanpro/.cache
+Environment=SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro/scanpro.db
 ExecStart=/opt/scanpro/.venv/bin/python -m scanpro.inbox_worker
 Restart=on-failure
 RestartSec=3

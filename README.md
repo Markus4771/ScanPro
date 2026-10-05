@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.2.2-dev**
+Aktuell: **0.2.3-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -236,3 +236,26 @@ Die Option wird direkt im Scanprofil aktiviert:
 Die Freigabe ist schreibbar und verwendet den Samba-Benutzer `scanpro`.
 
 Die Samba-Konfiguration wird automatisch aus den Profilen erzeugt und bei Änderungen neu geladen.
+
+
+## Profil-SMB-Inbox-Verarbeitung in 0.2.3-dev
+
+Profilbezogene SMB-Freigaben werden jetzt aktiv überwacht.
+
+Beispiel:
+
+```text
+\\SCANPRO-SERVER\Rechnungen
+```
+
+Wird dort eine PDF abgelegt, passiert automatisch:
+
+1. ScanPro wartet, bis die Datei stabil geschrieben wurde.
+2. Die PDF wird dem zugehörigen Scanprofil zugeordnet.
+3. Ein ScanJob wird angelegt.
+4. Die PDF wird nach `/var/lib/scanpro/jobs/inbox/<PROFIL-ID>/` übernommen.
+5. Der Job erhält den Status `imported`.
+6. In der Weboberfläche erscheint Profilname + Hinweis `SMB-Inbox`.
+7. Die PDF kann direkt aus der Jobliste geöffnet werden.
+
+Aktuell werden über die Profil-Inbox zunächst PDF-Dateien verarbeitet.

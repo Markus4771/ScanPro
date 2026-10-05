@@ -373,8 +373,8 @@ def create_destination(payload: DestinationCreate, db: Session = Depends(get_db)
     if exists:
         raise HTTPException(409, "Ein Scanziel mit diesem Namen existiert bereits.")
     data = payload.model_dump(); config = data.pop("config")
-    if data["type"] not in {"local", "smb"}:
-        raise HTTPException(400, "Aktuell werden nur lokale und SMB-Ziele unterstützt.")
+    if data["type"] not in {"local", "smb", "paperless"}:
+        raise HTTPException(400, "Unterstützte Zieltypen: lokal, SMB und Paperless-ngx.")
     obj = Destination(**data, config_json=json.dumps(config))
     db.add(obj); db.commit(); db.refresh(obj)
     return {
@@ -395,13 +395,15 @@ def update_destination(destination_id: int, payload: DestinationUpdate, db: Sess
         exists = db.query(Destination).filter(Destination.name == data["name"]).first()
         if exists:
             raise HTTPException(409, "Ein Scanziel mit diesem Namen existiert bereits.")
-    if "type" in data and data["type"] not in {"local", "smb"}:
-        raise HTTPException(400, "Aktuell werden nur lokale und SMB-Ziele unterstützt.")
+    if "type" in data and data["type"] not in {"local", "smb", "paperless"}:
+        raise HTTPException(400, "Unterstützte Zieltypen: lokal, SMB und Paperless-ngx.")
     if "config" in data:
         cfg = data.pop("config")
+        previous = json.loads(obj.config_json or "{}")
         if obj.type == "smb" and cfg.get("password") == "********":
-            previous = json.loads(obj.config_json or "{}")
             cfg["password"] = previous.get("password", "")
+        if obj.type == "paperless" and cfg.get("token") == "********":
+            cfg["token"] = previous.get("token", "")
         obj.config_json = json.dumps(cfg)
     for key, value in data.items():
         setattr(obj, key, value)

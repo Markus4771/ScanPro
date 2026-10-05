@@ -57,6 +57,13 @@
         <h2 style="margin-bottom:0">Gespeicherte Scanner</h2>
         <button class="secondary" onclick="loadSaved()">Status aktualisieren</button>
       </div>
+      <div class="row" style="margin-top:10px">
+        <label>Standortfilter
+          <select id="scannerLocationFilter" onchange="renderSavedScanners()">
+            <option value="">Alle Standorte</option>
+          </select>
+        </label>
+      </div>
       <div id="saved" class="muted" style="margin-top:12px">Lade…</div>
     </section>
   </div>
@@ -364,6 +371,8 @@ let profilePaperlessRulesCache=[];
 let profileOutputSettingsCache=[];
 let destinationsCache=[];
 let scannersCache=[];
+let scannerStatusCache=[];
+let scannerStaticTargetsCache=[];
 let workflowsCache=[];
 
 async function api(url, options={}) {
@@ -392,21 +401,57 @@ async function discover(driver='sane'){
 }
 async function importScanner(d){
   await api('/api/scanners/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+  await api('/api/scanners/'+s.id+'/static-target',{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      enabled:staticEnabled,
+      driver:staticDriver,
+      device_name:staticName,
+      device_id:staticDeviceId,
+      address:staticAddress
+    })
+  });
   await loadSaved();
 }
 async function loadSaved(){
-  const [data,status] = await Promise.all([api('/api/scanners'),api('/api/scanners/status')]);
+  const [data,status,staticTargets] = await Promise.all([
+    api('/api/scanners'),
+    api('/api/scanners/status'),
+    api('/api/scanner-static-targets')
+  ]);
   scannersCache=data;
+  scannerStatusCache=status;
+  scannerStaticTargetsCache=staticTargets;
   populateWorkflowSelectors();
-  const statusMap=new Map(status.map(x=>[x.id,x]));
+
+  const filter=document.getElementById('scannerLocationFilter');
+  const currentFilter=filter.value;
+  const locations=[...new Set(status.map(x=>x.location||'Lokal'))].sort();
+  filter.innerHTML='<option value="">Alle Standorte</option>';
+  for(const loc of locations){
+    const o=document.createElement('option'); o.value=loc; o.textContent=loc; filter.appendChild(o);
+  }
+  if([...filter.options].some(o=>o.value===currentFilter))filter.value=currentFilter;
+  renderSavedScanners();
+}
+function renderSavedScanners(){
+  const statusMap=new Map(scannerStatusCache.map(x=>[x.id,x]));
   const box=document.getElementById('saved'); const sel=document.getElementById('scanScanner');
+  const locationFilter=document.getElementById('scannerLocationFilter').value;
   box.innerHTML=''; sel.innerHTML='';
-  if(!data.length){box.innerHTML='<span class="muted">Noch kein Scanner gespeichert.</span>'; return;}
-  for(const s of data){
+  const visible=scannersCache.filter(s=>{
     const st=statusMap.get(s.id)||{};
+    return !locationFilter || (st.location||'Lokal')===locationFilter;
+  });
+  if(!visible.length){box.innerHTML='<span class="muted">Keine Scanner für diesen Standort.</span>'; return;}
+  for(const s of visible){
+    const st=statusMap.get(s.id)||{};
+    const stateLabel=st.state==='network'?'Netzwerk':st.state==='discovery'?'Discovery':st.state==='scan'?'Scanfehler':'OK';
     const badge=!s.enabled?'<span class="badge off">deaktiviert</span>':st.online?'<span class="badge ok">online</span>':'<span class="badge err">offline</span>';
+    const stateBadge='<span class="badge '+(st.state==='ok'?'ok':'err')+'">'+stateLabel+'</span>';
     const el=document.createElement('div'); el.className='item';
-    el.innerHTML='<strong>'+escapeHtml(s.name)+'</strong> '+badge+
+    el.innerHTML='<strong>'+escapeHtml(s.name)+'</strong> '+badge+' '+stateBadge+
       '<div class="muted">'+escapeHtml(s.address||'keine IP')+' · '+escapeHtml(s.driver)+
       ' · '+escapeHtml(st.location||'Lokal')+' · '+escapeHtml((st.connection_type||'local').toUpperCase())+'</div>'+
       '<div id="scannerReach-'+s.id+'" class="muted">'+escapeHtml(st.reachability_detail||'')+'</div>';
@@ -422,12 +467,24 @@ async function loadSaved(){
   }
 }
 async function editScanner(s,st={}){
+  const staticTarget=scannerStaticTargetsCache.find(x=>x.scanner_id===s.id)||{};
   const name=prompt('Scannername',s.name); if(name===null)return;
   const address=prompt('IP/Adresse',s.address||''); if(address===null)return;
   const location=prompt('Standort',st.location||'Lokal'); if(location===null)return;
   const type=prompt('Verbindungstyp: local oder vpn',st.connection_type||'local'); if(type===null)return;
   const timeout=prompt('Scan-Timeout in Sekunden',String(st.timeout_seconds||60)); if(timeout===null)return;
   const retries=prompt('Wiederholungen bei Fehlern (0-5)',String(st.retries??1)); if(retries===null)return;
+  const staticEnabled=confirm('Statisches Remote-Ziel verwenden?\nOK = ja, Abbrechen = nein');
+  let staticDriver=staticTarget.driver||s.driver;
+  let staticName=staticTarget.device_name||s.name;
+  let staticAddress=staticTarget.address||s.address||'';
+  let staticDeviceId=staticTarget.device_id||s.device_id||'';
+  if(staticEnabled){
+    staticDriver=prompt('Statischer Driver: sane oder escl',staticDriver)||staticDriver;
+    staticName=prompt('Statischer Gerätename',staticName)||staticName;
+    staticAddress=prompt('Statische IP oder eSCL-URL',staticAddress)||staticAddress;
+    staticDeviceId=prompt('Device-ID (optional)',staticDeviceId)||staticDeviceId;
+  }
   await api('/api/scanners/'+s.id,{
     method:'PATCH',
     headers:{'Content-Type':'application/json'},

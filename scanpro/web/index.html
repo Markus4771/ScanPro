@@ -160,6 +160,7 @@
         <select id="destinationType" onchange="toggleDestinationFields()">
           <option value="local">Lokaler Ordner</option>
           <option value="smb">SMB-Freigabe</option>
+          <option value="paperless">Paperless-ngx</option>
         </select>
       </label>
     </div>
@@ -191,6 +192,34 @@
           <input id="destinationDomain" placeholder="optional">
         </label>
       </div>
+    </div>
+
+    <div id="destinationPaperlessFields" style="display:none">
+      <div class="grid">
+        <label>Paperless-URL
+          <input id="destinationPaperlessUrl" placeholder="https://paperless.example.local">
+        </label>
+        <label>API-Token
+          <input id="destinationPaperlessToken" type="password" placeholder="Paperless API-Token">
+        </label>
+        <label>Titel
+          <input id="destinationPaperlessTitle" placeholder="leer = generierter ScanPro-Dateiname">
+        </label>
+        <label>Korrespondent-ID
+          <input id="destinationPaperlessCorrespondent" placeholder="optional">
+        </label>
+        <label>Dokumenttyp-ID
+          <input id="destinationPaperlessDocumentType" placeholder="optional">
+        </label>
+        <label>Speicherpfad-ID
+          <input id="destinationPaperlessStoragePath" placeholder="optional">
+        </label>
+        <label>Tag-IDs
+          <input id="destinationPaperlessTags" placeholder="z. B. 2,5,9">
+        </label>
+        <label class="check"><input type="checkbox" id="destinationPaperlessVerifySsl" checked> TLS-Zertifikat prüfen</label>
+      </div>
+      <div class="muted">Korrespondent, Dokumenttyp, Speicherpfad und Tags sind Paperless-interne IDs.</div>
     </div>
 
     <label class="check"><input type="checkbox" id="destinationEnabled" checked> Ziel aktiv</label>
@@ -582,6 +611,7 @@ function toggleDestinationFields(){
   const type=document.getElementById('destinationType').value;
   document.getElementById('destinationLocalFields').style.display=type==='local'?'block':'none';
   document.getElementById('destinationSmbFields').style.display=type==='smb'?'block':'none';
+  document.getElementById('destinationPaperlessFields').style.display=type==='paperless'?'block':'none';
 }
 function resetDestinationForm(){
   document.getElementById('destinationId').value='';
@@ -594,6 +624,14 @@ function resetDestinationForm(){
   document.getElementById('destinationUsername').value='';
   document.getElementById('destinationPassword').value='';
   document.getElementById('destinationDomain').value='';
+  document.getElementById('destinationPaperlessUrl').value='';
+  document.getElementById('destinationPaperlessToken').value='';
+  document.getElementById('destinationPaperlessTitle').value='';
+  document.getElementById('destinationPaperlessCorrespondent').value='';
+  document.getElementById('destinationPaperlessDocumentType').value='';
+  document.getElementById('destinationPaperlessStoragePath').value='';
+  document.getElementById('destinationPaperlessTags').value='';
+  document.getElementById('destinationPaperlessVerifySsl').checked=true;
   document.getElementById('destinationEnabled').checked=true;
   document.getElementById('destinationSaveButton').textContent='Ziel speichern';
   toggleDestinationFields();
@@ -602,6 +640,18 @@ function destinationConfigFromForm(){
   const type=document.getElementById('destinationType').value;
   if(type==='local'){
     return {path:document.getElementById('destinationLocalPath').value.trim()};
+  }
+  if(type==='paperless'){
+    return {
+      base_url:document.getElementById('destinationPaperlessUrl').value.trim(),
+      token:document.getElementById('destinationPaperlessToken').value,
+      title:document.getElementById('destinationPaperlessTitle').value.trim(),
+      correspondent:document.getElementById('destinationPaperlessCorrespondent').value.trim(),
+      document_type:document.getElementById('destinationPaperlessDocumentType').value.trim(),
+      storage_path:document.getElementById('destinationPaperlessStoragePath').value.trim(),
+      tags:document.getElementById('destinationPaperlessTags').value.split(',').map(x=>x.trim()).filter(Boolean),
+      verify_ssl:document.getElementById('destinationPaperlessVerifySsl').checked
+    };
   }
   return {
     server:document.getElementById('destinationServer').value.trim(),
@@ -641,6 +691,14 @@ function editDestination(d){
   document.getElementById('destinationUsername').value=c.username||'';
   document.getElementById('destinationPassword').value=c.password==='********'?'********':(c.password||'');
   document.getElementById('destinationDomain').value=c.domain||'';
+  document.getElementById('destinationPaperlessUrl').value=c.base_url||'';
+  document.getElementById('destinationPaperlessToken').value=c.token==='********'?'********':(c.token||'');
+  document.getElementById('destinationPaperlessTitle').value=c.title||'';
+  document.getElementById('destinationPaperlessCorrespondent').value=c.correspondent||'';
+  document.getElementById('destinationPaperlessDocumentType').value=c.document_type||'';
+  document.getElementById('destinationPaperlessStoragePath').value=c.storage_path||'';
+  document.getElementById('destinationPaperlessTags').value=Array.isArray(c.tags)?c.tags.join(','):(c.tags||'');
+  document.getElementById('destinationPaperlessVerifySsl').checked=c.verify_ssl!==false;
   document.getElementById('destinationSaveButton').textContent='Änderungen speichern';
   toggleDestinationFields();
 }
@@ -677,7 +735,11 @@ async function loadDestinations(){
   }
   for(const d of data){
     const c=d.config||{};
-    const summary=d.type==='local'?(c.path||'kein Pfad'):('//'+(c.server||'?')+'/'+(c.share||'?')+(c.subfolder?'/'+c.subfolder:''));
+    const summary=d.type==='local'
+      ? (c.path||'kein Pfad')
+      : d.type==='paperless'
+        ? (c.base_url||'keine URL')
+        : ('//'+(c.server||'?')+'/'+(c.share||'?')+(c.subfolder?'/'+c.subfolder:''));
     const el=document.createElement('div'); el.className='item';
     el.innerHTML='<strong>'+escapeHtml(d.name)+'</strong> '+
       '<span class="badge '+(d.enabled?'ok':'off')+'">'+(d.enabled?'aktiv':'deaktiviert')+'</span>'+

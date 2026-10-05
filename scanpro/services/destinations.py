@@ -118,6 +118,7 @@ def deliver_file(
     config_json: str,
     source_path: str,
     target_name: str | None = None,
+    metadata: dict | None = None,
 ) -> str:
     cfg = _load_config(config_json)
     source = Path(source_path)
@@ -143,7 +144,8 @@ def deliver_file(
         if not base_url or not token:
             raise DestinationError("Paperless-URL und API-Token sind erforderlich.")
 
-        title = str(cfg.get("title", "")).strip()
+        metadata = metadata or {}
+        title = str(metadata.get("title") or cfg.get("title", "")).strip()
         if not title and target_name:
             title = Path(target_name).stem
 
@@ -152,11 +154,11 @@ def deliver_file(
             data.append(("title", title))
 
         for key in ("correspondent", "document_type", "storage_path"):
-            value = cfg.get(key)
+            value = metadata.get(key, cfg.get(key))
             if value not in (None, ""):
                 data.append((key, str(value)))
 
-        tags = cfg.get("tags", [])
+        tags = metadata.get("tags", cfg.get("tags", []))
         if isinstance(tags, str):
             tags = [item.strip() for item in tags.split(",") if item.strip()]
         for tag in tags or []:

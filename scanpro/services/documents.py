@@ -72,7 +72,7 @@ def apply_image_processing(
 
     rows: list[JobImageProcessing] = []
     for document in documents:
-        result = process_pdf(document.path, options)
+        result = process_pdf(document.path, options, render_dpi=profile.dpi)
         row = JobImageProcessing(
             scan_job_id=job.id,
             document_id=document.id,

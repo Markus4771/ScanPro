@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ScanPro</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f4f6f8;color:#1f2937}
+    header{background:#111827;color:#fff;padding:18px 24px}
+    main{max-width:1100px;margin:24px auto;padding:0 16px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+    .card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+    h1,h2{margin-top:0}
+    button{cursor:pointer;border:0;border-radius:8px;padding:9px 14px;background:#111827;color:#fff}
+    button.secondary{background:#e5e7eb;color:#111827}
+    input,select{width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;margin-top:4px}
+    label{display:block;margin:10px 0}
+    .item{padding:10px 0;border-top:1px solid #e5e7eb}
+    .item:first-child{border-top:0}
+    .muted{color:#6b7280;font-size:.92rem}
+    .ok{color:#047857}
+    .err{color:#b91c1c}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    pre{white-space:pre-wrap;background:#f9fafb;padding:10px;border-radius:8px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>ScanPro <span id="version" class="muted"></span></h1>
+</header>
+<main>
+  <div class="grid">
+    <section class="card">
+      <h2>Scanner erkennen</h2>
+      <div class="row">
+        <button onclick="discover()">SANE suchen</button>
+        <button class="secondary" onclick="discover('escl')">eSCL suchen</button>
+      </div>
+      <div id="discovered" class="muted" style="margin-top:12px">Noch keine Suche durchgeführt.</div>
+    </section>
+
+    <section class="card">
+      <h2>Gespeicherte Scanner</h2>
+      <div id="saved" class="muted">Lade…</div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Testscan</h2>
+    <div class="grid">
+      <label>Scanner
+        <select id="scanScanner"></select>
+      </label>
+      <label>Auflösung
+        <select id="dpi">
+          <option>150</option><option>200</option><option selected>300</option><option>600</option>
+        </select>
+      </label>
+      <label>Farbmodus
+        <select id="color">
+          <option value="color">Farbe</option>
+          <option value="grayscale">Graustufen</option>
+          <option value="blackwhite">Schwarzweiß</option>
+        </select>
+      </label>
+      <label>Einzug
+        <select id="duplex">
+          <option value="false" selected>Einseitig</option>
+          <option value="true">Duplex</option>
+        </select>
+      </label>
+    </div>
+    <button onclick="testscan()">Scannen</button>
+    <div id="scanResult" style="margin-top:12px"></div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2>Letzte ScanJobs</h2>
+    <button class="secondary" onclick="loadJobs()">Aktualisieren</button>
+    <div id="jobs" class="muted" style="margin-top:12px">Lade…</div>
+  </section>
+</main>
+<script>
+async function api(url, options={}) {
+  const r = await fetch(url, options);
+  const data = await r.json().catch(()=>({}));
+  if (!r.ok) throw new Error(JSON.stringify(data.detail ?? data));
+  return data;
+}
+async function init(){
+  const h=await api('/health'); document.getElementById('version').textContent=h.version;
+  await loadSaved(); await loadJobs();
+}
+async function discover(driver='sane'){
+  const box=document.getElementById('discovered'); box.textContent='Suche…';
+  try{
+    const data=await api('/api/scanners/discover?driver='+encodeURIComponent(driver));
+    if(!data.devices.length){box.innerHTML='<span class="muted">Keine Scanner gefunden.</span>'; return;}
+    box.innerHTML='';
+    for(const d of data.devices){
+      const el=document.createElement('div'); el.className='item';
+      el.innerHTML='<strong>'+escapeHtml(d.name)+'</strong><div class="muted">'+escapeHtml(d.address||'keine IP')+' · '+escapeHtml(d.driver)+'</div>';
+      const b=document.createElement('button'); b.textContent='Übernehmen';
+      b.onclick=()=>importScanner(d);
+      el.appendChild(b); box.appendChild(el);
+    }
+  }catch(e){box.innerHTML='<span class="err">'+escapeHtml(e.message)+'</span>'}
+}
+async function importScanner(d){
+  await api('/api/scanners/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+  await loadSaved();
+}
+async function loadSaved(){
+  const data=await api('/api/scanners');
+  const box=document.getElementById('saved'); const sel=document.getElementById('scanScanner');
+  box.innerHTML=''; sel.innerHTML='';
+  if(!data.length){box.innerHTML='<span class="muted">Noch kein Scanner gespeichert.</span>'; return;}
+  for(const s of data){
+    const el=document.createElement('div'); el.className='item';
+    el.innerHTML='<strong>'+escapeHtml(s.name)+'</strong><div class="muted">'+escapeHtml(s.address||'keine IP')+' · '+escapeHtml(s.driver)+' · '+(s.enabled?'aktiv':'deaktiviert')+'</div>';
+    box.appendChild(el);
+    const o=document.createElement('option'); o.value=s.id; o.textContent=s.name; sel.appendChild(o);
+  }
+}
+async function testscan(){
+  const id=document.getElementById('scanScanner').value;
+  const out=document.getElementById('scanResult');
+  if(!id){out.innerHTML='<span class="err">Kein Scanner gespeichert.</span>';return;}
+  out.textContent='Scan läuft…';
+  try{
+    const body={dpi:Number(document.getElementById('dpi').value),duplex:document.getElementById('duplex').value==='true',color_mode:document.getElementById('color').value};
+    const r=await api('/api/scanners/'+id+'/testscan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    out.innerHTML='<span class="ok">Scan abgeschlossen.</span><pre>'+escapeHtml(JSON.stringify(r,null,2))+'</pre>';
+    await loadJobs();
+  }catch(e){out.innerHTML='<span class="err">'+escapeHtml(e.message)+'</span>'; await loadJobs();}
+}
+async function loadJobs(){
+  const data=await api('/api/jobs');
+  const box=document.getElementById('jobs'); box.innerHTML='';
+  if(!data.length){box.innerHTML='<span class="muted">Noch keine ScanJobs.</span>';return;}
+  for(const j of data){
+    const el=document.createElement('div'); el.className='item';
+    el.innerHTML='<strong>Job '+j.id+'</strong> · '+escapeHtml(j.status)+'<div class="muted">'+escapeHtml(j.output_path||'')+'</div>'+(j.error?'<div class="err">'+escapeHtml(j.error)+'</div>':'');
+    box.appendChild(el);
+  }
+}
+function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
+init();
+</script>
+</body>
+</html>

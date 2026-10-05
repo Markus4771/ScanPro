@@ -4,76 +4,86 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.2.3-dev**
+Aktueller Stand: **0.2.4-dev**
 
-## Neu in 0.2.3-dev
+## Neu in 0.2.4-dev
 
-Profilbezogene SMB-Freigaben werden jetzt automatisch überwacht.
+Workflows und automatische Weiterleitung sind umgesetzt.
 
-Beispiel:
-
-```text
-Profil: Rechnungen
-Freigabe: \\SCANPRO-SERVER\Rechnungen
-```
-
-Wenn dort eine PDF abgelegt wird:
-
-1. ScanPro erkennt die Datei.
-2. ScanPro wartet auf eine stabile Dateigröße.
-3. Die Datei wird dem Scanprofil zugeordnet.
-4. Ein ScanJob wird erzeugt.
-5. Die Datei wird nach `/var/lib/scanpro/jobs/inbox/<PROFIL-ID>/` verschoben.
-6. Der Job erhält Status `imported`.
-7. Profilname und Quelle `profile-smb` werden in der API ausgegeben.
-8. Die PDF kann in der Weboberfläche geöffnet werden.
-
-## Neue Komponenten
+## Workflow-Modell
 
 ```text
-scanpro/inbox_worker.py
-deploy/scanpro-inbox.service
+Quelle → Scanprofil → Scanziel
 ```
 
-Neue Tabelle:
+Quellen:
+
+- Scanner
+- Profil-SMB-Inbox
+
+Ziele:
+
+- lokaler Ordner
+- SMB-Freigabe
+
+## Scanner-Workflow
+
+Ein Workflow mit `scanner_id` kann im Webinterface über **Workflow starten** ausgeführt werden.
+
+Ablauf:
+
+1. Scanner starten
+2. Profilwerte verwenden
+3. PDF erzeugen
+4. PDF an Ziel weiterleiten
+5. Delivery speichern
+6. Jobstatus setzen
+
+## SMB-Inbox-Workflow
+
+Ein Workflow ohne `scanner_id` gilt als Profil-SMB-Inbox-Workflow.
+
+Ablauf:
+
+1. PDF kommt in Profilfreigabe an
+2. Inbox-Worker importiert PDF
+3. passende aktive Workflows für das Profil werden gesucht
+4. PDF wird automatisch an die konfigurierten Ziele weitergeleitet
+5. jeder Versand wird protokolliert
+
+## Neue Delivery-Tabelle
 
 ```text
-inbox_imports
+job_deliveries
 ```
 
-Sie speichert:
+Felder:
 
-- profile_id
 - scan_job_id
-- source_path
-- imported_path
+- workflow_id
+- destination_id
+- status
+- target_path
+- error
 - created_at
 
-Neue API:
+## Workflow-API
 
 ```text
-GET /api/inbox-imports
+GET    /api/workflows
+POST   /api/workflows
+PATCH  /api/workflows/{workflow_id}
+DELETE /api/workflows/{workflow_id}
+POST   /api/workflows/{workflow_id}/run
 ```
 
-Die bestehende Job-API liefert zusätzlich:
+## Status
 
-- profile_id
-- profile_name
-- source
-
-## Worker
-
-Systemd-Dienst:
+Weiterleitungsstatus:
 
 ```text
-scanpro-inbox.service
-```
-
-Prüfen:
-
-```bash
-systemctl status scanpro-inbox --no-pager
-journalctl -u scanpro-inbox -f
+delivered
+delivery_error
 ```
 
 ## Update
@@ -84,42 +94,40 @@ git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Danach:
+Prüfen:
 
 ```bash
 curl http://127.0.0.1:8100/health
+systemctl status scanpro --no-pager
+systemctl status scanpro-inbox --no-pager
 ```
 
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.2.3-dev"}
+{"status":"ok","version":"0.2.4-dev"}
 ```
 
-## Aktuelle Einschränkung
+## Noch nicht umgesetzt
 
-Der Profil-Inbox-Worker verarbeitet zunächst nur PDF-Dateien.
-
-Noch nicht umgesetzt:
-
-- automatische Weiterleitung an Scanziele
-- Workflow-Ausführung
-- OCR
+- OCR-Ausführung
 - Dokumenttrennung
+- QR-/Barcode-Erkennung
+- Dateinamenregeln und Metadaten
+- Paperless-ngx
 
 ## Nächster Entwicklungsschritt
 
-**0.2.4-dev – Workflows und automatische Weiterleitung**
+**0.3.0-dev – Dokumenttrennung**
 
 Geplant:
 
-1. Scanner oder Profil-SMB-Inbox als Quelle
-2. Scanprofil
-3. Scanziel
-4. Workflow im Webinterface
-5. automatische Weiterleitung an lokale Ziele
-6. automatische Weiterleitung an SMB-Ziele
-7. Status der Weiterleitung im ScanJob
+1. Leerseiten-Trennung
+2. Patch-T-Erkennung
+3. mehrere Dokumente aus einem ScanJob
+4. Trennung abhängig vom Scanprofil
+5. danach QR-/Barcode-Trennung
+6. anschließend OCR
 
 ## Einstieg in einem neuen Chat
 

@@ -92,7 +92,14 @@
     </div>
 
     <div class="row">
-      <label class="check"><input type="checkbox" id="profileOcr"> OCR aktivieren</label>
+      <label class="check"><input type="checkbox" id="profileOcr" onchange="toggleOcrOptions()"> OCR aktivieren</label>
+      <label id="profileOcrLanguageWrap" style="min-width:220px;display:none">OCR-Sprache
+        <select id="profileOcrLanguage">
+          <option value="deu" selected>Deutsch</option>
+          <option value="eng">Englisch</option>
+          <option value="deu+eng">Deutsch + Englisch</option>
+        </select>
+      </label>
       <label class="check"><input type="checkbox" id="profileRemoveBlank"> Leere Seiten aussortieren</label>
       <label class="check"><input type="checkbox" id="profileSplit" onchange="toggleSplitOptions()"> Trennung aktivieren</label>
       <label id="splitMethodWrap" style="min-width:220px;display:none">Trennmethode
@@ -275,6 +282,7 @@ let profilesCache=[];
 let profileSharesCache=[];
 let profileProcessingCache=[];
 let profileImageProcessingCache=[];
+let profileOcrSettingsCache=[];
 let destinationsCache=[];
 let scannersCache=[];
 let workflowsCache=[];
@@ -349,6 +357,9 @@ async function deleteScanner(s){
   }catch(e){alert(e.message)}
 }
 
+function toggleOcrOptions(){
+  document.getElementById('profileOcrLanguageWrap').style.display=document.getElementById('profileOcr').checked?'block':'none';
+}
 function toggleSplitOptions(){
   document.getElementById('splitMethodWrap').style.display=document.getElementById('profileSplit').checked?'block':'none';
 }
@@ -366,6 +377,7 @@ function resetProfileForm(){
   document.getElementById('profileColor').value='color';
   document.getElementById('profileDuplex').value='false';
   document.getElementById('profileOcr').checked=false;
+  document.getElementById('profileOcrLanguage').value='deu';
   document.getElementById('profileRemoveBlank').checked=false;
   document.getElementById('profileAutoRotate').checked=false;
   document.getElementById('profileDeskew').checked=false;
@@ -376,6 +388,8 @@ function resetProfileForm(){
   document.getElementById('profileShareEnabled').checked=false;
   document.getElementById('profileShareName').value='';
   document.getElementById('profileSaveButton').textContent='Profil speichern';
+  toggleOcrOptions();
+  toggleOcrOptions();
   toggleSplitOptions();
   toggleProfileShareOptions();
 }
@@ -422,6 +436,11 @@ async function saveProfile(){
         remove_borders:document.getElementById('profileRemoveBorders').checked
       })
     });
+    await api('/api/profiles/'+profileId+'/ocr-settings',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({language:document.getElementById('profileOcrLanguage').value})
+    });
     resetProfileForm();
     await loadProfiles();
   }catch(e){alert(e.message)}
@@ -433,6 +452,8 @@ function editProfile(p){
   document.getElementById('profileColor').value=p.color_mode;
   document.getElementById('profileDuplex').value=String(p.duplex);
   document.getElementById('profileOcr').checked=p.ocr_enabled;
+  const ocrSettings=profileOcrSettingsCache.find(x=>x.profile_id===p.id);
+  document.getElementById('profileOcrLanguage').value=ocrSettings?ocrSettings.language:'deu';
   document.getElementById('profileSplit').checked=p.split_enabled;
   document.getElementById('profileSplitMethod').value=p.split_method==='none'?'patch-t':p.split_method;
   const share=profileSharesCache.find(x=>x.profile_id===p.id);
@@ -458,16 +479,18 @@ async function deleteProfile(p){
   }catch(e){alert(e.message)}
 }
 async function loadProfiles(){
-  const [data,shares,processing,imageProcessing]=await Promise.all([
+  const [data,shares,processing,imageProcessing,ocrSettings]=await Promise.all([
     api('/api/profiles'),
     api('/api/profile-shares'),
     api('/api/profile-processing'),
-    api('/api/profile-image-processing')
+    api('/api/profile-image-processing'),
+    api('/api/profile-ocr-settings')
   ]);
   profilesCache=data;
   profileSharesCache=shares;
   profileProcessingCache=processing;
   profileImageProcessingCache=imageProcessing;
+  profileOcrSettingsCache=ocrSettings;
   populateWorkflowSelectors();
   const box=document.getElementById('profiles');
   const sel=document.getElementById('scanProfile');
@@ -481,7 +504,8 @@ async function loadProfiles(){
   }
   for(const p of data){
     const split=p.split_enabled?('Trennung: '+splitLabel(p.split_method)):'Trennung: aus';
-    const ocr=p.ocr_enabled?'OCR: an':'OCR: aus';
+    const ocrSettings=profileOcrSettingsCache.find(x=>x.profile_id===p.id);
+    const ocr=p.ocr_enabled?('OCR: '+(ocrSettings?ocrSettings.language:'deu')):'OCR: aus';
     const processing=profileProcessingCache.find(x=>x.profile_id===p.id);
     const imageProcessing=profileImageProcessingCache.find(x=>x.profile_id===p.id);
     const blank=processing&&processing.remove_blank_pages?'Leerseiten: entfernen':'Leerseiten: behalten';
@@ -802,12 +826,13 @@ async function loadJobs(){
       (j.image_processing&&j.image_processing.pages_deskewed?' · begradigt: '+j.image_processing.pages_deskewed:'')+
       (j.image_processing&&j.image_processing.pages_rotated?' · gedreht: '+j.image_processing.pages_rotated:'')+
       (j.image_processing&&j.image_processing.pages_cropped?' · zugeschnitten: '+j.image_processing.pages_cropped:'')+
+      (j.ocr&&j.ocr.documents?' · OCR: '+j.ocr.documents+' Dok. / '+j.ocr.characters+' Zeichen':'')+
       (j.deliveries&&j.deliveries.length?' · Versand: '+j.deliveries.map(d=>d.status).join(', '):'')+'</div>'+
       (j.separation_markers&&j.separation_markers.length?
         '<div class="muted">Erkannte Trenner: '+j.separation_markers.map(m=>'S.'+m.page+' '+escapeHtml(m.type)+': '+escapeHtml(m.value)).join(' | ')+'</div>':'')+
       (j.error?'<div class="err"><strong>Fehler:</strong> '+escapeHtml(j.error)+'</div>':'')+'</div>'+
       '<div>'+((j.documents&&j.documents.length>1)
-        ? j.documents.map(d=>'<a class="btn secondary" target="_blank" href="'+d.file_url+'">Dok. '+d.sequence+'</a>').join(' ')
+        ? j.documents.map(d=>'<a class="btn secondary" target="_blank" href="'+d.file_url+'">Dok. '+d.sequence+'</a>'+(j.ocr&&j.ocr.documents?' <a class="btn secondary" target="_blank" href="/api/job-documents/'+d.id+'/ocr">OCR '+d.sequence+'</a>':'')).join(' ')
         : ((j.status==='finished'||j.status==='imported'||j.status==='delivered'||j.status==='delivery_error'||j.status==='separated')?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':''))+'</div>'+
       '</div>';
     box.appendChild(el);

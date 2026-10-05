@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.2.5-dev**
+Aktuell: **0.3.0-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -300,3 +300,38 @@ ScanPro rendert die PDF-Seiten verkleinert in Graustufen und erkennt nahezu voll
 Die Anzahl der entfernten Seiten wird pro ScanJob gespeichert und in der Jobliste angezeigt.
 
 Wichtig: Die Leerseiten-Entfernung ist unabhängig von der Dokumenttrennung. Sie kann später z. B. gemeinsam mit Patch-T verwendet werden.
+
+
+## Dokumenttrennung in 0.3.0-dev
+
+ScanPro kann einen ScanJob jetzt in mehrere PDF-Dokumente zerlegen.
+
+Unterstützte Methoden:
+
+- **Leerseite als Trenner**
+- **Patch-T** über NAPS2
+
+Die erzeugten Teildokumente werden als eigene `job_documents` gespeichert und einzeln durch den Workflow weitergeleitet.
+
+### Leerseite als Trenner
+
+Bei aktiviertem Profil:
+
+```text
+Trennung aktivieren
+Trennmethode: Leerseite
+```
+
+werden leere Seiten als Dokumentgrenze verwendet. Die Trennseiten selbst werden nicht in die Ausgabedokumente übernommen.
+
+### Patch-T
+
+Patch-T wird über NAPS2 CLI mit `--splitpatcht` ausgeführt.
+
+Da NAPS2 Patch-Code-Unterstützung offiziell besonders für WIA/TWAIN dokumentiert, sollte Patch-T auf Linux/SANE mit dem Brother ADS-2600We praktisch getestet werden.
+
+### Wichtig
+
+`Leere Seiten aussortieren` und `Leerseite als Trenner` sind getrennte Funktionen.
+
+Wenn Leerseite als Trenner aktiv ist, entfernt ScanPro die Leerseiten nicht vor der Trennung.

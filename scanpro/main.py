@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, engine, get_db
-from .models import Destination, InboxImport, JobDelivery, JobDocument, JobProcessing, JobSeparationMarker, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobDocument, JobImageProcessing, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -16,6 +16,7 @@ from .schemas import (
     ScanProfileUpdate,
     ProfileShareUpdate,
     ProfileProcessingUpdate,
+    ProfileImageProcessingUpdate,
     ScannerCreate,
     ScannerImport,
     ScannerUpdate,
@@ -24,10 +25,11 @@ from .schemas import (
     WorkflowUpdate,
 )
 from .services.blank_pages import BlankPageError, remove_blank_pages
-from .services.documents import prepare_job_documents
+from .services.documents import apply_image_processing, prepare_job_documents
 from .services.destinations import DestinationError, public_config, test_destination
 from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
 from .services.profile_shares import ProfileShareError, normalize_share_name, profile_path, write_profile_samba_config
+from .services.image_processing import ImageProcessingError
 from .services.separation import SeparationError, validate_split
 from .services.workflows import deliver_job
 
@@ -174,6 +176,7 @@ def list_jobs(db: Session = Depends(get_db)):
         processing = db.query(JobProcessing).filter(JobProcessing.scan_job_id == job.id).first()
         documents = db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).order_by(JobDocument.sequence).all()
         markers = db.query(JobSeparationMarker).filter(JobSeparationMarker.scan_job_id == job.id).order_by(JobSeparationMarker.page).all()
+        image_rows = db.query(JobImageProcessing).filter(JobImageProcessing.scan_job_id == job.id).all()
         result.append({
             "id": job.id,
             "workflow_id": job.workflow_id,
@@ -187,6 +190,13 @@ def list_jobs(db: Session = Depends(get_db)):
             "source": "profile-smb" if inbox else "scanner",
             "blank_pages_removed": processing.blank_pages_removed if processing else 0,
             "blank_pages": json.loads(processing.blank_pages_json) if processing else [],
+            "image_processing": {
+                "pages_processed": sum(row.pages_processed for row in image_rows),
+                "pages_rotated": sum(row.pages_rotated for row in image_rows),
+                "pages_deskewed": sum(row.pages_deskewed for row in image_rows),
+                "pages_cropped": sum(row.pages_cropped for row in image_rows),
+                "pages_border_cleaned": sum(row.pages_border_cleaned for row in image_rows),
+            },
             "separation_markers": [
                 {
                     "id": marker.id,
@@ -350,6 +360,61 @@ def test_destination_endpoint(destination_id: int, db: Session = Depends(get_db)
 def list_profiles(db: Session = Depends(get_db)):
     return db.query(ScanProfile).order_by(ScanProfile.name).all()
 
+@app.get("/api/profile-image-processing")
+def list_profile_image_processing(db: Session = Depends(get_db)):
+    rows = db.query(ProfileImageProcessing).order_by(ProfileImageProcessing.profile_id).all()
+    return [
+        {
+            "id": row.id,
+            "profile_id": row.profile_id,
+            "auto_rotate": row.auto_rotate,
+            "deskew": row.deskew,
+            "auto_crop": row.auto_crop,
+            "remove_borders": row.remove_borders,
+        }
+        for row in rows
+    ]
+
+@app.put("/api/profiles/{profile_id}/image-processing")
+def update_profile_image_processing(
+    profile_id: int,
+    payload: ProfileImageProcessingUpdate,
+    db: Session = Depends(get_db),
+):
+    profile = db.get(ScanProfile, profile_id)
+    if not profile:
+        raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+
+    row = (
+        db.query(ProfileImageProcessing)
+        .filter(ProfileImageProcessing.profile_id == profile_id)
+        .first()
+    )
+    if row:
+        row.auto_rotate = payload.auto_rotate
+        row.deskew = payload.deskew
+        row.auto_crop = payload.auto_crop
+        row.remove_borders = payload.remove_borders
+    else:
+        row = ProfileImageProcessing(
+            profile_id=profile_id,
+            auto_rotate=payload.auto_rotate,
+            deskew=payload.deskew,
+            auto_crop=payload.auto_crop,
+            remove_borders=payload.remove_borders,
+        )
+        db.add(row)
+
+    db.commit(); db.refresh(row)
+    return {
+        "id": row.id,
+        "profile_id": row.profile_id,
+        "auto_rotate": row.auto_rotate,
+        "deskew": row.deskew,
+        "auto_crop": row.auto_crop,
+        "remove_borders": row.remove_borders,
+    }
+
 @app.get("/api/profile-processing")
 def list_profile_processing(db: Session = Depends(get_db)):
     rows = db.query(ProfileProcessing).order_by(ProfileProcessing.profile_id).all()
@@ -487,6 +552,9 @@ def delete_profile(profile_id: int, db: Session = Depends(get_db)):
     processing = db.query(ProfileProcessing).filter(ProfileProcessing.profile_id == profile_id).first()
     if processing:
         db.delete(processing)
+    image_processing = db.query(ProfileImageProcessing).filter(ProfileImageProcessing.profile_id == profile_id).first()
+    if image_processing:
+        db.delete(image_processing)
     db.delete(profile)
     db.commit()
     sync_profile_shares(db)
@@ -618,16 +686,24 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
                 db.commit()
                 raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
 
-        if profile.split_enabled:
-            try:
-                prepare_job_documents(db, job, profile)
+        try:
+            documents = prepare_job_documents(db, job, profile)
+            if profile.split_enabled:
                 job.status = "separated"
                 db.commit()
-            except SeparationError as exc:
-                job.status = "processing_error"
-                job.error = str(exc)
-                db.commit()
-                raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
+        except SeparationError as exc:
+            job.status = "processing_error"
+            job.error = str(exc)
+            db.commit()
+            raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
+
+        try:
+            apply_image_processing(db, job, profile, documents)
+        except ImageProcessingError as exc:
+            job.status = "processing_error"
+            job.error = str(exc)
+            db.commit()
+            raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
     except Naps2Error as exc:
         job.status = "error"
         job.error = str(exc)

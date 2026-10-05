@@ -565,13 +565,16 @@ async function loadJobs(){
   if(!data.length){box.innerHTML='<span class="muted">Noch keine ScanJobs.</span>';return;}
   for(const j of data){
     const el=document.createElement('div'); el.className='item';
-    const statusClass=j.status==='finished'?'ok':j.status==='error'?'err':'off';
+    const statusClass=(j.status==='finished'||j.status==='imported')?'ok':j.status==='error'?'err':'off';
     const filename=(j.output_path||'').split('/').pop()||'—';
     el.innerHTML='<div class="jobgrid">'+
       '<div><strong>Job '+j.id+'</strong></div>'+
       '<div><span class="badge '+statusClass+'">'+escapeHtml(j.status)+'</span></div>'+
-      '<div><div>'+escapeHtml(filename)+'</div><div class="muted">'+escapeHtml(j.created_at||'')+'</div>'+(j.error?'<div class="err">'+escapeHtml(j.error)+'</div>':'')+'</div>'+
-      '<div>'+(j.status==='finished'?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':'')+'</div>'+
+      '<div><div>'+escapeHtml(filename)+'</div><div class="muted">'+escapeHtml(j.created_at||'')+
+      (j.profile_name?' · Profil: '+escapeHtml(j.profile_name):'')+
+      (j.source==='profile-smb'?' · SMB-Inbox':'')+'</div>'+
+      (j.error?'<div class="err">'+escapeHtml(j.error)+'</div>':'')+'</div>'+
+      '<div>'+((j.status==='finished'||j.status==='imported')?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':'')+'</div>'+
       '</div>';
     box.appendChild(el);
   }

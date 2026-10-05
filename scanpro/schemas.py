@@ -94,5 +94,5 @@ class ProfileOcrSettingsUpdate(BaseModel):
 
 
 class ProfileNamingSettingsUpdate(BaseModel):
-    filename_template: str = "{date}_{profile}_{document}"
+    filename_template: str = "{date}_{profile}_{job}_{document}"
     use_ocr_first_line: bool = False

@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.3.1-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.4.0-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.3.1-dev"}
+{"status":"ok","version":"0.4.0-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -628,3 +628,34 @@ Das Installationsskript installiert dafür zusätzlich:
 ```text
 libzbar0
 ```
+
+
+## Bildoptimierung testen
+
+Ab 0.4.0-dev stehen im Scanprofil folgende Optionen zur Verfügung:
+
+```text
+Automatische Rotation
+Schiefe Seiten begradigen
+Automatisch zuschneiden
+Scanner-Ränder entfernen
+```
+
+Die Installation bringt dafür zusätzlich mit:
+
+```text
+tesseract-ocr
+tesseract-ocr-osd
+opencv-python-headless
+pytesseract
+```
+
+Empfohlener Test:
+
+1. Scanprofil öffnen.
+2. **Schiefe Seiten begradigen** aktivieren.
+3. Eine leicht schief eingelegte Seite scannen.
+4. Jobliste prüfen.
+5. Dort sollte bei erkannter Korrektur z. B. `begradigt: 1` erscheinen.
+
+Für die automatische Rotation sollte eine Seite testweise um 90° verdreht eingelegt werden.

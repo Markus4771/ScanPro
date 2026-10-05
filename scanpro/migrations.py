@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import Engine, text
 
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,11 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(
         version=1,
         description="Baseline for ScanPro 0.5.2-dev persistent database",
+        statements=(),
+    ),
+    Migration(
+        version=2,
+        description="Paperless profile metadata rules",
         statements=(),
     ),
 )

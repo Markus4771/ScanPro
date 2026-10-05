@@ -87,3 +87,7 @@ class ProfileImageProcessingUpdate(BaseModel):
     deskew: bool = False
     auto_crop: bool = False
     remove_borders: bool = False
+
+
+class ProfileOcrSettingsUpdate(BaseModel):
+    language: str = "deu"

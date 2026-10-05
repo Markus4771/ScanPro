@@ -90,7 +90,7 @@ def resolve_document_metadata(
         .filter(ProfileNamingSettings.profile_id == profile.id)
         .first()
     )
-    template = settings.filename_template if settings else "{date}_{profile}_{document}"
+    template = settings.filename_template if settings else "{date}_{profile}_{job}_{document}"
     use_ocr_first_line = settings.use_ocr_first_line if settings else False
 
     marker = _marker_for_document(db, job.id, document.sequence)

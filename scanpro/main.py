@@ -71,17 +71,13 @@ def health():
 
 @app.get("/api/system/database")
 def database_status():
-    import sqlite3
     db_path = DATABASE_URL.removeprefix("sqlite:///") if DATABASE_URL.startswith("sqlite:///") else DATABASE_URL
     journal_mode = None
     foreign_keys = None
     if DATABASE_URL.startswith("sqlite:///"):
-        connection = sqlite3.connect(db_path, timeout=5)
-        try:
-            journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
-            foreign_keys = connection.execute("PRAGMA foreign_keys").fetchone()[0]
-        finally:
-            connection.close()
+        with engine.connect() as connection:
+            journal_mode = connection.exec_driver_sql("PRAGMA journal_mode").scalar()
+            foreign_keys = connection.exec_driver_sql("PRAGMA foreign_keys").scalar()
     return {
         "database_url": DATABASE_URL,
         "path": db_path,

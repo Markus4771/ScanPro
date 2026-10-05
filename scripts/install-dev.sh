@@ -9,10 +9,17 @@ fi
 apt-get update
 apt-get install -y python3 python3-venv nginx git sane-utils
 
-id scanpro >/dev/null 2>&1 || useradd --system --home /opt/scanpro --shell /usr/sbin/nologin scanpro
+if ! id scanpro >/dev/null 2>&1; then
+  useradd --system --home /var/lib/scanpro --shell /usr/sbin/nologin scanpro
+else
+  usermod --home /var/lib/scanpro scanpro
+fi
 
 mkdir -p /opt/scanpro
 mkdir -p /var/lib/scanpro/jobs
+mkdir -p /var/lib/scanpro/.config
+mkdir -p /var/lib/scanpro/.cache
+
 cp -a . /opt/scanpro/
 
 python3 -m venv /opt/scanpro/.venv

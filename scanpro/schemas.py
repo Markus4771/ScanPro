@@ -110,3 +110,10 @@ class ProfileOutputSettingsUpdate(BaseModel):
     mode: str = "document"
     output_format: str = "pdf"
     jpeg_quality: int = 92
+
+
+class ScannerConnectionSettingsUpdate(BaseModel):
+    location: str = "Lokal"
+    connection_type: str = "local"
+    timeout_seconds: int = 60
+    retries: int = 1

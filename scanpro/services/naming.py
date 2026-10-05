@@ -116,6 +116,16 @@ def resolve_document_metadata(
 
     stem = _sanitize(stem, 180)
     final_filename = f"{stem}.pdf"
+    duplicate = (
+        db.query(JobDocumentMetadata)
+        .filter(
+            JobDocumentMetadata.scan_job_id == job.id,
+            JobDocumentMetadata.final_filename == final_filename,
+        )
+        .first()
+    )
+    if duplicate:
+        final_filename = f"{stem}-{document.sequence:03d}.pdf"
 
     metadata = {
         "profile": profile.name,

@@ -217,3 +217,15 @@ class ScannerConnectionSettings(Base):
     connection_type: Mapped[str] = mapped_column(String(30), default="local")
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=60)
     retries: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class ScannerStaticTarget(Base):
+    __tablename__ = "scanner_static_targets"
+    __table_args__ = (UniqueConstraint("scanner_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scanner_id: Mapped[int] = mapped_column(ForeignKey("scanners.id", ondelete="CASCADE"))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    driver: Mapped[str] = mapped_column(String(30), default="sane")
+    device_name: Mapped[str] = mapped_column(String(255), default="")
+    device_id: Mapped[str] = mapped_column(String(255), default="")
+    address: Mapped[str] = mapped_column(String(255), default="")

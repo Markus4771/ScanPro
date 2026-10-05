@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.3.1-dev**
+Aktuell: **0.4.0-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -445,3 +445,47 @@ Unterstützte Barcode-Typen umfassen unter anderem:
 - Interleaved 2 of 5
 
 Die Jobliste zeigt erkannte Trenner und Fehler jetzt deutlicher an.
+
+
+## Bildoptimierung in 0.4.0-dev
+
+Scanprofile können jetzt optional folgende Bildoptimierungen aktivieren:
+
+- **Automatische Rotation**
+- **Schiefe Seiten begradigen (Deskew)**
+- **Automatisch zuschneiden (Auto-Crop)**
+- **Scanner-Ränder entfernen**
+
+Die Verarbeitung erfolgt nach Leerseiten-/Dokumenttrennung und vor der Weiterleitung.
+
+Ablauf:
+
+```text
+Scan / SMB-Eingang
+→ Leerseiten-Verarbeitung
+→ Dokumenttrennung
+→ Rotation
+→ Deskew
+→ Randentfernung
+→ Auto-Crop
+→ später OCR
+→ Scanziel
+```
+
+### Automatische Rotation
+
+Tesseract OSD erkennt eine Seitenorientierung von 90°, 180° oder 270° und dreht die Seite automatisch.
+
+### Deskew
+
+OpenCV erkennt kleine Schräglagen und korrigiert sie. Extreme Winkel werden bewusst nicht automatisch korrigiert.
+
+### Auto-Crop
+
+ScanPro schneidet überflüssige Außenbereiche ab, verhindert aber ein aggressives Zuschneiden auf reine Textblöcke.
+
+### Scanner-Ränder entfernen
+
+Dunkle Scanner-/Einzugsränder am äußeren Seitenbereich können automatisch abgeschnitten werden.
+
+Die Ergebnisse werden pro Job protokolliert, z. B. Anzahl gedrehter, begradigter oder zugeschnittener Seiten.

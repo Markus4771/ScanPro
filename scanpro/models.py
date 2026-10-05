@@ -121,3 +121,27 @@ class JobSeparationMarker(Base):
     marker_type: Mapped[str] = mapped_column(String(40))
     value: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ProfileImageProcessing(Base):
+    __tablename__ = "profile_image_processing"
+    __table_args__ = (UniqueConstraint("profile_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
+    auto_rotate: Mapped[bool] = mapped_column(Boolean, default=False)
+    deskew: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_crop: Mapped[bool] = mapped_column(Boolean, default=False)
+    remove_borders: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class JobImageProcessing(Base):
+    __tablename__ = "job_image_processing"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scan_job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"))
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("job_documents.id"), nullable=True)
+    pages_processed: Mapped[int] = mapped_column(Integer, default=0)
+    pages_rotated: Mapped[int] = mapped_column(Integer, default=0)
+    pages_deskewed: Mapped[int] = mapped_column(Integer, default=0)
+    pages_cropped: Mapped[int] = mapped_column(Integer, default=0)
+    pages_border_cleaned: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

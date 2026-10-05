@@ -350,3 +350,36 @@ Ziel:
 - Verarbeitung nach Dokumenttrennung und vor OCR
 
 Die Funktion soll später zusätzlich mit Seitenrotation und weiterer Bildoptimierung kombinierbar sein.
+
+
+## Backlog: Bilder und Fotos scannen
+
+ScanPro soll neben Dokumenten auch **Bilder/Fotos** als eigenen Scanmodus unterstützen.
+
+Geplant als eigener Profiltyp bzw. Profiloption:
+
+- Ausgabe als JPEG oder PNG
+- optional weiterhin PDF
+- höhere Auflösungen, z. B. 300 / 600 / 1200 dpi je nach Scanner
+- Farbe als Standard
+- keine Dokumenttrennung
+- OCR standardmäßig aus
+- optionale Bildoptimierung
+- automatische Rotation
+- Deskew / Begradigen
+- Zuschneiden auf Bildinhalt
+- optional Rand entfernen
+- Dateinamenregeln für Fotos/Bilder
+- direkte Ablage in lokale oder SMB-Ziele
+
+Beispiel:
+
+```text
+Profil: Foto 600 dpi
+Ausgabe: JPEG
+Farbe: Farbe
+Trennung: aus
+OCR: aus
+Deskew: optional
+Ziel: \\NAS\Bilder\Scans
+```

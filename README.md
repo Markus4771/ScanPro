@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.2.4-dev**
+Aktuell: **0.2.5-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -284,3 +284,19 @@ Unterstützte Ziele:
 - SMB-Freigabe
 
 Jede Weiterleitung wird in `job_deliveries` protokolliert. Der ScanJob kann dadurch unter anderem die Status `delivered` oder `delivery_error` erhalten.
+
+
+## Optionale Leerseiten-Entfernung in 0.2.5-dev
+
+Jedes Scanprofil kann jetzt optional **Leere Seiten aussortieren** aktivieren.
+
+Das gilt für:
+
+- Scanner-Workflows
+- profilbezogene SMB-Inboxen
+
+ScanPro rendert die PDF-Seiten verkleinert in Graustufen und erkennt nahezu vollständig weiße Seiten. Erkannte Leerseiten werden vor der Weiterleitung aus der PDF entfernt.
+
+Die Anzahl der entfernten Seiten wird pro ScanJob gespeichert und in der Jobliste angezeigt.
+
+Wichtig: Die Leerseiten-Entfernung ist unabhängig von der Dokumenttrennung. Sie kann später z. B. gemeinsam mit Patch-T verwendet werden.

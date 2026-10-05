@@ -4,7 +4,9 @@ import subprocess
 from pathlib import Path
 
 class Naps2Error(RuntimeError):
-    pass
+    def __init__(self, message: str, category: str = "scan"):
+        super().__init__(message)
+        self.category = category
 
 NAPS2_WORKDIR = Path("/var/lib/scanpro")
 
@@ -38,7 +40,7 @@ def _run(
                 timeout=max(5, timeout_seconds),
             )
         except FileNotFoundError as exc:
-            raise Naps2Error("NAPS2 wurde nicht gefunden.") from exc
+            raise Naps2Error("NAPS2 wurde nicht gefunden.", category="scan") from exc
         except subprocess.TimeoutExpired:
             last_error = f"NAPS2-Zeitlimit nach {timeout_seconds} Sekunden überschritten."
         except subprocess.CalledProcessError as exc:
@@ -48,14 +50,18 @@ def _run(
             import time
             time.sleep(min(5, attempt * 2))
 
-    raise Naps2Error(last_error)
+    category = "network" if "Zeitlimit" in last_error else "scan"
+    raise Naps2Error(last_error, category=category)
 
 def _console_args(*args: str) -> list[str]:
     return ["naps2", "console", *args]
 
 def list_devices(driver: str = "sane") -> str:
-    result = _run(_console_args("--listdevices", "--driver", driver))
-    return result.stdout
+    try:
+        result = _run(_console_args("--listdevices", "--driver", driver))
+        return result.stdout
+    except Naps2Error as exc:
+        raise Naps2Error(str(exc), category="discovery") from exc
 
 def discover_devices(driver: str = "sane") -> list[dict[str, str | None]]:
     raw = list_devices(driver)

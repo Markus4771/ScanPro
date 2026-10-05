@@ -4,110 +4,139 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.6.0-dev**
+Aktueller Stand: **0.6.1-dev**
 
-## Neu in 0.6.0-dev
+## Neu in 0.6.1-dev
 
-Paperless-ngx ist als eigener Scanziel-Typ integriert.
+Paperless-Metadatenregeln und API-Komfortfunktionen sind umgesetzt.
 
-## Zieltyp
+## Paperless-Auswahllisten
 
-```text
-paperless
-```
-
-## Konfiguration
-
-- `base_url`
-- `token`
-- `title`
-- `correspondent`
-- `document_type`
-- `storage_path`
-- `tags`
-- `verify_ssl`
-
-## Authentifizierung
-
-ScanPro verwendet:
+Endpoint:
 
 ```text
-Authorization: Token <TOKEN>
-Accept: application/json; version=10
+GET /api/destinations/{destination_id}/paperless/choices
 ```
 
-## Verbindungstest
+Geladen werden:
 
-Der Zieltest führt einen authentifizierten Request auf:
-
-```text
-GET /api/documents/?page_size=1
-```
-
-aus.
-
-## Upload
-
-PDFs werden hochgeladen über:
-
-```text
-POST /api/documents/post_document/
-```
-
-als Multipart-Feld:
-
-```text
-document
-```
-
-Optional werden übergeben:
-
-- title
-- correspondent
-- document_type
-- storage_path
+- correspondents
+- document_types
+- storage_paths
 - tags
 
-Wenn kein fester Titel konfiguriert ist, wird der von ScanPro erzeugte Dateiname ohne PDF-Endung verwendet.
-
-## Async-Verarbeitung
-
-Paperless gibt beim Upload eine Consumption-Task-ID zurück.
-
-ScanPro speichert:
+Im Webinterface:
 
 ```text
-paperless-task:<UUID>
+Paperless-Werte laden
 ```
 
-in `job_deliveries.target_path`.
+## Paperless-Taskstatus
 
-## Webinterface
+Upload-Task-ID wird weiterhin in `job_deliveries.target_path` gespeichert.
 
-Unter **Scanziele** steht nun zur Auswahl:
+Status:
 
 ```text
-Lokaler Ordner
-SMB-Freigabe
-Paperless-ngx
+GET /api/deliveries/{delivery_id}/paperless-task
 ```
 
-Paperless-Felder:
+Intern:
 
-- URL
-- API-Token
-- Titel
-- Korrespondent-ID
-- Dokumenttyp-ID
-- Speicherpfad-ID
-- Tag-IDs
-- TLS-Prüfung
+```text
+GET /api/tasks/?task_id=<UUID>
+```
 
-## Sicherheit
+Im Webinterface:
 
-Der API-Token wird im Web/API maskiert.
+```text
+Paperless-Status
+```
 
-Im aktuellen Entwicklungsstand liegt er noch im SQLite-Konfigurationsfeld. Später sollte ein Secret Store eingeführt werden.
+## Profilbezogene Regeln
+
+Neue Tabelle:
+
+```text
+profile_paperless_rules
+```
+
+Felder:
+
+- profile_id
+- title_template
+- correspondent_map_json
+- document_type_map_json
+- tags_map_json
+- ocr_contains_rules_json
+
+API:
+
+```text
+GET /api/profile-paperless-rules
+PUT /api/profiles/{profile_id}/paperless-rules
+```
+
+## Titelvariablen
+
+```text
+{filename}
+{profile}
+{job}
+{document}
+{code}
+{ocr_first_line}
+```
+
+## QR-/Barcode-Mapping
+
+Beispiel Korrespondent:
+
+```json
+{"KUNDE4711":12}
+```
+
+Beispiel Dokumenttyp:
+
+```json
+{"RECHNUNG":3}
+```
+
+Beispiel Tags:
+
+```json
+{"RECHNUNG":[2,5]}
+```
+
+## OCR-Enthält-Regeln
+
+Beispiel:
+
+```json
+[
+  {
+    "contains":"Telekom",
+    "correspondent":4,
+    "document_type":3,
+    "tags":[2]
+  }
+]
+```
+
+Regeln werden pro erzeugtem Dokument angewendet.
+
+## Priorität
+
+- Zielkonfiguration liefert Standardwerte.
+- Profilregel kann sie pro Dokument überschreiben.
+- QR-/Barcode-Regeln werden vor OCR-Regeln angewendet.
+- OCR-Regeln können Korrespondent, Dokumenttyp und Tags ergänzen/überschreiben.
+
+## Schema-Version
+
+```text
+2
+```
 
 ## Update
 
@@ -126,31 +155,29 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.6.0-dev","schema_version":1}
+{"status":"ok","version":"0.6.1-dev","schema_version":2}
 ```
 
 ## Nächster Entwicklungsschritt
 
 Empfohlen:
 
-**0.6.1-dev – Paperless-Metadatenregeln**
+**0.7.0-dev – Foto-/Bildscan**
 
-- QR-/Barcode-Werte auf Paperless-Felder abbilden
-- OCR-Ergebnisse auf Titel/Korrespondent/Dokumenttyp/Tags abbilden
-- Consumption-Task-Status nachverfolgen
-- Paperless-IDs komfortabel aus der API laden statt manuell einzutragen
+- JPEG/PNG-Ausgabe
+- eigener Profilmodus
+- 600/1200 dpi
+- kein OCR als Standard
+- kein Split als Standard
+- Auto-Crop/Bildoptimierung
+- lokale/SMB-Ziele
 
 Danach:
 
-- Foto-/Bildscan JPEG/PNG
 - VPN-/Remote-Scanner
-
-## Weiterer Backlog
-
-- Secret Store für Tokens und Passwörter
-- Patch-T Praxistest
-- Dokumentklassifikation
-- Cleanup-Regeln für Jobdateien
+- Secret Store
+- Paperless Custom Fields
+- automatische Dokumentklassifikation
 
 ## Einstieg in einem neuen Chat
 

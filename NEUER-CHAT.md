@@ -4,138 +4,104 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.6.1-dev**
+Aktueller Stand: **0.7.0-dev**
 
-## Neu in 0.6.1-dev
+## Neu in 0.7.0-dev
 
-Paperless-Metadatenregeln und API-Komfortfunktionen sind umgesetzt.
+Foto-/Bildscan ist umgesetzt.
 
-## Paperless-Auswahllisten
+## Profilmodus
 
-Endpoint:
-
-```text
-GET /api/destinations/{destination_id}/paperless/choices
-```
-
-Geladen werden:
-
-- correspondents
-- document_types
-- storage_paths
-- tags
-
-Im Webinterface:
+Neue Profil-Ausgabeeinstellungen:
 
 ```text
-Paperless-Werte laden
+mode: document | photo
+output_format: pdf | jpeg | png
+jpeg_quality: 1..100
 ```
-
-## Paperless-Taskstatus
-
-Upload-Task-ID wird weiterhin in `job_deliveries.target_path` gespeichert.
-
-Status:
-
-```text
-GET /api/deliveries/{delivery_id}/paperless-task
-```
-
-Intern:
-
-```text
-GET /api/tasks/?task_id=<UUID>
-```
-
-Im Webinterface:
-
-```text
-Paperless-Status
-```
-
-## Profilbezogene Regeln
 
 Neue Tabelle:
 
 ```text
-profile_paperless_rules
+profile_output_settings
 ```
 
-Felder:
-
-- profile_id
-- title_template
-- correspondent_map_json
-- document_type_map_json
-- tags_map_json
-- ocr_contains_rules_json
-
-API:
+## API
 
 ```text
-GET /api/profile-paperless-rules
-PUT /api/profiles/{profile_id}/paperless-rules
+GET /api/profile-output-settings
+PUT /api/profiles/{profile_id}/output-settings
 ```
 
-## Titelvariablen
+## Foto-Modus
+
+Im Webinterface:
 
 ```text
-{filename}
-{profile}
-{job}
-{document}
-{code}
-{ocr_first_line}
+Profilmodus: Foto / Bild
+Ausgabeformat: JPEG oder PNG
+JPEG-Qualität
+Auflösung bis 1200 dpi
 ```
 
-## QR-/Barcode-Mapping
+Für JPEG/PNG setzt ScanPro automatisch:
 
-Beispiel Korrespondent:
+- OCR aus
+- Trennung aus
+- Farbe
 
-```json
-{"KUNDE4711":12}
+## Verarbeitung
+
+ScanPro verwendet weiterhin NAPS2 mit PDF als robustem Zwischenformat:
+
+```text
+Scanner
+→ NAPS2 PDF
+→ Bildoptimierung
+→ JPEG/PNG
+→ Dateinamensregeln
+→ Ziel
 ```
 
-Beispiel Dokumenttyp:
+Mehrseitige PDFs werden in einzelne Bilddateien zerlegt.
 
-```json
-{"RECHNUNG":3}
+Bilddateien liegen intern unter:
+
+```text
+/var/lib/scanpro/jobs/images/<JOB-ID>/
 ```
 
-Beispiel Tags:
+## Bildoptimierung
 
-```json
-{"RECHNUNG":[2,5]}
+Rotation, Deskew, Auto-Crop und Randentfernung können auch für Foto-Profile genutzt werden.
+
+Die Verarbeitung rendert jetzt mit der DPI des Profils statt fest mit 300 dpi.
+
+## Dateinamen
+
+Die Namensengine übernimmt automatisch die Dateiendung des erzeugten Formats.
+
+Beispiele:
+
+```text
+2026-10-05_Fotos_120_001.jpg
+2026-10-05_Fotos_120_002.jpg
 ```
 
-## OCR-Enthält-Regeln
+## Ziele
 
-Beispiel:
+Unterstützt:
 
-```json
-[
-  {
-    "contains":"Telekom",
-    "correspondent":4,
-    "document_type":3,
-    "tags":[2]
-  }
-]
-```
+- lokaler Ordner
+- SMB
+- Paperless technisch weiterhin möglich
 
-Regeln werden pro erzeugtem Dokument angewendet.
-
-## Priorität
-
-- Zielkonfiguration liefert Standardwerte.
-- Profilregel kann sie pro Dokument überschreiben.
-- QR-/Barcode-Regeln werden vor OCR-Regeln angewendet.
-- OCR-Regeln können Korrespondent, Dokumenttyp und Tags ergänzen/überschreiben.
+Für Foto-/Bildprofile sind lokale und SMB-Ziele der primäre Anwendungsfall.
 
 ## Schema-Version
 
 ```text
-2
+3
 ```
 
 ## Update
@@ -155,29 +121,29 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.6.1-dev","schema_version":2}
+{"status":"ok","version":"0.7.0-dev","schema_version":3}
 ```
 
 ## Nächster Entwicklungsschritt
 
 Empfohlen:
 
-**0.7.0-dev – Foto-/Bildscan**
+**0.8.0-dev – VPN-/Remote-Scanner**
 
-- JPEG/PNG-Ausgabe
-- eigener Profilmodus
-- 600/1200 dpi
-- kein OCR als Standard
-- kein Split als Standard
-- Auto-Crop/Bildoptimierung
-- lokale/SMB-Ziele
+- Standort pro Scanner
+- lokal/VPN
+- Reachability-Test
+- längere Timeouts
+- Retry bei temporären VPN-Problemen
+- Gruppierung nach Standort
+- Vorbereitung für Remote Collector
 
 Danach:
 
-- VPN-/Remote-Scanner
 - Secret Store
 - Paperless Custom Fields
 - automatische Dokumentklassifikation
+- Cleanup/Retention
 
 ## Einstieg in einem neuen Chat
 

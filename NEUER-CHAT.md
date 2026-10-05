@@ -4,66 +4,115 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.2.1-dev**
+Aktueller Stand: **0.2.2-dev**
 
-## Neu in 0.2.1-dev
+## Neu in 0.2.2-dev
 
-ScanPro stellt nun selbst SMB-Freigaben bereit.
+Jedes Scanprofil kann optional eine eigene SMB-Freigabe auf dem ScanPro-Server erhalten.
 
-### Freigaben
+### Beispiel
+
+```text
+Profil: Rechnungen
+Freigabe: \\SCANPRO-SERVER\Rechnungen
+```
+
+Interner Pfad:
+
+```text
+/var/lib/scanpro/profile-inbox/<PROFIL-ID>
+```
+
+## Umsetzung
+
+Neue Tabelle:
+
+```text
+profile_shares
+```
+
+Sie enthält:
+
+- profile_id
+- enabled
+- share_name
+- path
+
+Neue API:
+
+```text
+GET /api/profile-shares
+PUT /api/profiles/{profile_id}/share
+```
+
+Im Webinterface gibt es im Scanprofil:
+
+- Checkbox **Eigene SMB-Freigabe auf ScanPro**
+- Feld **Freigabename**
+
+Die Freigabe kann unabhängig vom Profil aktiviert/deaktiviert werden.
+
+## Samba
+
+Statische ScanPro-Freigaben:
 
 ```text
 ScanPro-Inbox
 ScanPro-Jobs
 ```
 
-Pfade:
+Dynamische Profilfreigaben werden erzeugt in:
 
 ```text
-/var/lib/scanpro/inbox
-/var/lib/scanpro/jobs
+/var/lib/scanpro/samba-profile-shares.conf
 ```
 
-Netzwerkzugriff:
+Diese Datei wird über:
 
 ```text
-\\SCANPRO-SERVER\ScanPro-Inbox
-\\SCANPRO-SERVER\ScanPro-Jobs
+include = /var/lib/scanpro/samba-profile-shares.conf
 ```
 
-### Rechte
+in Samba eingebunden.
 
-- `ScanPro-Inbox`: schreibbar
-- `ScanPro-Jobs`: nur lesbar
-- gültiger Samba-Benutzer: `scanpro`
+Ein systemd Path-Service:
 
-Einmalig:
+```text
+scanpro-samba-reload.path
+```
+
+überwacht Änderungen und lädt Samba automatisch neu.
+
+## Installation / Update
+
+```bash
+cd ~/ScanPro
+git pull
+sudo bash scripts/install-dev.sh
+```
+
+Einmalig Samba-Passwort:
 
 ```bash
 sudo smbpasswd -a scanpro
 ```
 
-Das Installationsskript:
+Danach prüfen:
 
-- installiert Samba und smbclient
-- legt Inbox und Jobs an
-- setzt Rechte
-- installiert `/etc/samba/scanpro.conf`
-- bindet die Datei in `/etc/samba/smb.conf` ein
-- prüft Samba mit `testparm`
-- aktiviert `smbd`
+```bash
+curl http://127.0.0.1:8100/health
+smbclient -L localhost -U scanpro
+```
 
-## Externe SMB-Ziele
+Erwartete Version:
 
-Weiterhin vorhanden:
-
-- lokale Scanziele
-- externe SMB-Scanziele
-- Verbindungstest über smbclient
+```json
+{"status":"ok","version":"0.2.2-dev"}
+```
 
 ## Noch nicht umgesetzt
 
-- automatische Verarbeitung von Dateien aus ScanPro-Inbox
+- automatische Verarbeitung von Dateien aus den profilbezogenen SMB-Freigaben
 - Workflow-Ausführung
 - automatische Weiterleitung
 - echte OCR
@@ -71,31 +120,14 @@ Weiterhin vorhanden:
 
 ## Nächster Entwicklungsschritt
 
-**0.2.2-dev – SMB-Inbox-Verarbeitung und Workflows**
+**Profil-SMB-Inbox-Verarbeitung**
 
-Geplant:
+Neue Dateien in einer Profilfreigabe sollen automatisch:
 
-1. ScanPro-Inbox überwachen
-2. neue PDFs automatisch als ScanJob übernehmen
-3. Eingangsprofil zuordnen
-4. Scanner-/Profil-/Ziel-Workflow im Webinterface
-5. lokale und SMB-Weiterleitung
-6. danach Dokumenttrennung
-
-## Update
-
-```bash
-cd ~/ScanPro
-git pull
-sudo bash scripts/install-dev.sh
-sudo smbpasswd -a scanpro
-```
-
-Danach prüfen:
-
-```bash
-smbclient -L localhost -U scanpro
-```
+1. erkannt werden
+2. dem richtigen Scanprofil zugeordnet werden
+3. als ScanJob angelegt werden
+4. anschließend an das konfigurierte Scanziel weiterlaufen
 
 ## Einstieg in einem neuen Chat
 

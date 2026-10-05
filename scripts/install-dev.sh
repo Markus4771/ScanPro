@@ -43,6 +43,7 @@ chmod 0660 /var/lib/scanpro/samba-profile-shares.conf
 cp /opt/scanpro/deploy/scanpro.service /etc/systemd/system/scanpro.service
 cp /opt/scanpro/deploy/scanpro-samba-reload.service /etc/systemd/system/scanpro-samba-reload.service
 cp /opt/scanpro/deploy/scanpro-samba-reload.path /etc/systemd/system/scanpro-samba-reload.path
+cp /opt/scanpro/deploy/scanpro-inbox.service /etc/systemd/system/scanpro-inbox.service
 
 cp /opt/scanpro/deploy/nginx.conf /etc/nginx/sites-available/scanpro
 ln -sf /etc/nginx/sites-available/scanpro /etc/nginx/sites-enabled/scanpro
@@ -56,6 +57,8 @@ fi
 systemctl daemon-reload
 systemctl enable scanpro
 systemctl restart scanpro
+systemctl enable --now scanpro-inbox.service
+systemctl restart scanpro-inbox.service
 systemctl enable --now scanpro-samba-reload.path
 
 nginx -t

@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.2.0-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.2.1-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.2.0-dev"}
+{"status":"ok","version":"0.2.1-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -250,7 +250,7 @@ Die Weboberfläche bietet aktuell:
 - Einseitig/Duplex wählen
 - letzte ScanJobs anzeigen
 
-## Update auf 0.2.0-dev
+## Update auf 0.2.1-dev
 
 ```bash
 cd ~/ScanPro
@@ -324,3 +324,57 @@ Benutzer: scanpro
 Die Verbindung kann direkt im Webinterface über **Verbindung testen** geprüft werden.
 
 Hinweis: Die automatische Weiterleitung eines Scans an das Ziel ist in 0.2.0-dev noch nicht aktiv.
+
+
+## SMB-Freigaben auf dem ScanPro-Server
+
+Ab 0.2.1-dev richtet das Installationsskript Samba automatisch ein.
+
+Es werden folgende Verzeichnisse angelegt:
+
+```text
+/var/lib/scanpro/inbox
+/var/lib/scanpro/jobs
+```
+
+und folgende Freigaben bereitgestellt:
+
+```text
+\\SCANPRO-SERVER\ScanPro-Inbox
+\\SCANPRO-SERVER\ScanPro-Jobs
+```
+
+### Einmalig Samba-Passwort setzen
+
+Nach Installation oder Update:
+
+```bash
+sudo smbpasswd -a scanpro
+```
+
+Danach Samba prüfen:
+
+```bash
+sudo testparm -s
+sudo systemctl status smbd --no-pager
+```
+
+Freigaben lokal anzeigen:
+
+```bash
+smbclient -L localhost -U scanpro
+```
+
+### Rechte
+
+`ScanPro-Inbox` ist schreibbar.
+
+`ScanPro-Jobs` ist nur lesbar.
+
+Damit kann ein Netzwerk-Scanner direkt nach:
+
+```text
+\\IP-DES-SCANPRO-SERVERS\ScanPro-Inbox
+```
+
+scannen.

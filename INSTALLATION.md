@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.7.0-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.8.0-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.7.0-dev","schema_version":3}
+{"status":"ok","version":"0.8.0-dev","schema_version":4}
 ```
 
 ## Scanner über ScanPro suchen
@@ -907,3 +907,44 @@ Mehrseitige Scans werden zu:
 bzw. PNG-Dateien.
 
 Hinweis: 1200 dpi funktioniert nur, wenn der verwendete Scanner diese Auflösung über SANE/eSCL tatsächlich unterstützt.
+
+
+## VPN-/Remote-Scanner testen
+
+Ab 0.8.0-dev kann jeder Scanner einem Standort und Verbindungstyp zugeordnet werden.
+
+Im Webinterface beim Scanner auf **Bearbeiten**:
+
+```text
+Standort: Außenstelle
+Verbindungstyp: vpn
+Scan-Timeout: 120
+Wiederholungen: 2
+```
+
+Danach **Erreichbarkeit testen** verwenden.
+
+Alternativ per API:
+
+```bash
+curl -X PUT http://127.0.0.1:8100/api/scanners/1/connection-settings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "location":"Außenstelle",
+    "connection_type":"vpn",
+    "timeout_seconds":120,
+    "retries":2
+  }'
+```
+
+Reachability:
+
+```bash
+curl -X POST http://127.0.0.1:8100/api/scanners/1/reachability
+```
+
+Hinweis zu VPN und mDNS:
+
+Geroutete WireGuard-/IPsec-Verbindungen übertragen mDNS normalerweise nicht. Wenn ein AirScan/eSCL-Gerät deshalb nicht automatisch gefunden wird, muss der Scanner über eine statische SANE/eSCL-Konfiguration erreichbar gemacht werden.
+
+Der Erreichbarkeitstest ersetzt diese Scanner-Konfiguration nicht; er prüft nur, ob das entfernte Gerät über typische TCP-Ports erreichbar ist.

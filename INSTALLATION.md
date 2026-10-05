@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.6.0-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.6.1-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.6.0-dev","schema_version":1}
+{"status":"ok","version":"0.6.1-dev","schema_version":2}
 ```
 
 ## Scanner über ScanPro suchen
@@ -837,3 +837,40 @@ Tag-IDs werden kommasepariert eingegeben:
 Danach kann das Paperless-Ziel wie ein lokales oder SMB-Ziel in einem Workflow ausgewählt werden.
 
 Der Upload wird von Paperless asynchron verarbeitet. Ein erfolgreicher HTTP-Upload bedeutet, dass Paperless die Verarbeitung gestartet hat; die zurückgegebene Task-ID wird von ScanPro gespeichert.
+
+
+## Paperless-Regeln testen
+
+Ab 0.6.1-dev können Paperless-Metadaten pro Scanprofil geregelt werden.
+
+Im Profil stehen zur Verfügung:
+
+```text
+Paperless-Titelvorlage
+QR-/Barcode → Korrespondent
+QR-/Barcode → Dokumenttyp
+QR-/Barcode → Tags
+OCR-Enthält-Regeln
+```
+
+Beispiel Titel:
+
+```text
+{profile}_{code}_{document}
+```
+
+Beispiel Dokumenttyp-Mapping:
+
+```json
+{"RECHNUNG":3}
+```
+
+Beispiel OCR-Regel:
+
+```json
+[{"contains":"Telekom","correspondent":4,"document_type":3,"tags":[2]}]
+```
+
+Beim Paperless-Ziel kann nach dem Speichern über **Paperless-Werte laden** auf Korrespondenten, Dokumenttypen und Speicherpfade zugegriffen werden.
+
+Nach einem Upload kann in der Jobliste über **Paperless-Status** der Consumption-Task geprüft werden.

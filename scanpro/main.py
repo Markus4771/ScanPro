@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, engine, get_db
-from .models import Destination, InboxImport, JobDelivery, JobDocument, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileOcrSettings, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -18,6 +18,7 @@ from .schemas import (
     ProfileProcessingUpdate,
     ProfileImageProcessingUpdate,
     ProfileOcrSettingsUpdate,
+    ProfileNamingSettingsUpdate,
     ScannerCreate,
     ScannerImport,
     ScannerUpdate,
@@ -32,6 +33,7 @@ from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
 from .services.profile_shares import ProfileShareError, normalize_share_name, profile_path, write_profile_samba_config
 from .services.image_processing import ImageProcessingError
 from .services.ocr import OcrError, apply_ocr
+from .services.naming import NamingError, resolve_document_metadata
 from .services.separation import SeparationError, validate_split
 from .services.workflows import deliver_job
 
@@ -173,13 +175,17 @@ def list_jobs(db: Session = Depends(get_db)):
     result = []
     for job in jobs:
         inbox = db.query(InboxImport).filter(InboxImport.scan_job_id == job.id).first()
-        profile = db.get(ScanProfile, inbox.profile_id) if inbox else None
+        workflow = db.get(Workflow, job.workflow_id) if job.workflow_id else None
+        profile_id = inbox.profile_id if inbox else (workflow.profile_id if workflow else None)
+        profile = db.get(ScanProfile, profile_id) if profile_id else None
         deliveries = db.query(JobDelivery).filter(JobDelivery.scan_job_id == job.id).order_by(JobDelivery.id).all()
         processing = db.query(JobProcessing).filter(JobProcessing.scan_job_id == job.id).first()
         documents = db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).order_by(JobDocument.sequence).all()
         markers = db.query(JobSeparationMarker).filter(JobSeparationMarker.scan_job_id == job.id).order_by(JobSeparationMarker.page).all()
         image_rows = db.query(JobImageProcessing).filter(JobImageProcessing.scan_job_id == job.id).all()
         ocr_rows = db.query(JobOcrResult).filter(JobOcrResult.scan_job_id == job.id).all()
+        metadata_rows = db.query(JobDocumentMetadata).filter(JobDocumentMetadata.scan_job_id == job.id).all()
+        metadata_by_document = {row.document_id: row for row in metadata_rows}
         result.append({
             "id": job.id,
             "workflow_id": job.workflow_id,
@@ -188,7 +194,7 @@ def list_jobs(db: Session = Depends(get_db)):
             "output_path": job.output_path,
             "error": job.error,
             "created_at": job.created_at,
-            "profile_id": inbox.profile_id if inbox else None,
+            "profile_id": profile_id,
             "profile_name": profile.name if profile else None,
             "source": "profile-smb" if inbox else "scanner",
             "blank_pages_removed": processing.blank_pages_removed if processing else 0,
@@ -220,6 +226,8 @@ def list_jobs(db: Session = Depends(get_db)):
                     "sequence": document.sequence,
                     "path": document.path,
                     "split_method": document.split_method,
+                    "final_filename": metadata_by_document.get(document.id).final_filename if metadata_by_document.get(document.id) else None,
+                    "metadata": json.loads(metadata_by_document.get(document.id).metadata_json) if metadata_by_document.get(document.id) else None,
                     "file_url": f"/api/job-documents/{document.id}/file",
                 }
                 for document in documents
@@ -387,6 +395,67 @@ def test_destination_endpoint(destination_id: int, db: Session = Depends(get_db)
 @app.get("/api/profiles")
 def list_profiles(db: Session = Depends(get_db)):
     return db.query(ScanProfile).order_by(ScanProfile.name).all()
+
+@app.get("/api/profile-naming-settings")
+def list_profile_naming_settings(db: Session = Depends(get_db)):
+    rows = db.query(ProfileNamingSettings).order_by(ProfileNamingSettings.profile_id).all()
+    return [
+        {
+            "id": row.id,
+            "profile_id": row.profile_id,
+            "filename_template": row.filename_template,
+            "use_ocr_first_line": row.use_ocr_first_line,
+        }
+        for row in rows
+    ]
+
+@app.put("/api/profiles/{profile_id}/naming-settings")
+def update_profile_naming_settings(
+    profile_id: int,
+    payload: ProfileNamingSettingsUpdate,
+    db: Session = Depends(get_db),
+):
+    profile = db.get(ScanProfile, profile_id)
+    if not profile:
+        raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+
+    template = payload.filename_template.strip()
+    if not template:
+        raise HTTPException(400, "Dateinamensvorlage darf nicht leer sein.")
+
+    allowed = {"date", "time", "datetime", "profile", "job", "document", "code", "code_type", "ocr_first_line"}
+    import string
+    formatter = string.Formatter()
+    try:
+        for _, field_name, _, _ in formatter.parse(template):
+            if field_name and field_name not in allowed:
+                raise HTTPException(400, f"Unbekannte Variable: {field_name}")
+    except ValueError as exc:
+        raise HTTPException(400, f"Ungültige Dateinamensvorlage: {exc}") from exc
+
+    row = (
+        db.query(ProfileNamingSettings)
+        .filter(ProfileNamingSettings.profile_id == profile_id)
+        .first()
+    )
+    if row:
+        row.filename_template = template
+        row.use_ocr_first_line = payload.use_ocr_first_line
+    else:
+        row = ProfileNamingSettings(
+            profile_id=profile_id,
+            filename_template=template,
+            use_ocr_first_line=payload.use_ocr_first_line,
+        )
+        db.add(row)
+
+    db.commit(); db.refresh(row)
+    return {
+        "id": row.id,
+        "profile_id": row.profile_id,
+        "filename_template": row.filename_template,
+        "use_ocr_first_line": row.use_ocr_first_line,
+    }
 
 @app.get("/api/profile-ocr-settings")
 def list_profile_ocr_settings(db: Session = Depends(get_db)):
@@ -630,6 +699,9 @@ def delete_profile(profile_id: int, db: Session = Depends(get_db)):
     ocr_settings = db.query(ProfileOcrSettings).filter(ProfileOcrSettings.profile_id == profile_id).first()
     if ocr_settings:
         db.delete(ocr_settings)
+    naming_settings = db.query(ProfileNamingSettings).filter(ProfileNamingSettings.profile_id == profile_id).first()
+    if naming_settings:
+        db.delete(naming_settings)
     db.delete(profile)
     db.commit()
     sync_profile_shares(db)
@@ -794,8 +866,35 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
         raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
 
     documents = db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).order_by(JobDocument.sequence).all()
-    sources = [document.path for document in documents] if documents else [job.output_path or ""]
-    deliveries = [deliver_job(db, job, workflow, destination, source_path=source) for source in sources]
+    deliveries = []
+    if documents:
+        for document in documents:
+            try:
+                metadata = resolve_document_metadata(db, job, profile, document)
+                deliveries.append(
+                    deliver_job(
+                        db,
+                        job,
+                        workflow,
+                        destination,
+                        source_path=document.path,
+                        target_name=metadata.final_filename,
+                    )
+                )
+            except NamingError as exc:
+                delivery = JobDelivery(
+                    scan_job_id=job.id,
+                    workflow_id=workflow.id,
+                    destination_id=destination.id,
+                    status="error",
+                    error=str(exc),
+                )
+                db.add(delivery)
+                db.commit()
+                db.refresh(delivery)
+                deliveries.append(delivery)
+    else:
+        deliveries.append(deliver_job(db, job, workflow, destination, source_path=job.output_path or ""))
 
     if deliveries and all(item.status == "delivered" for item in deliveries):
         job.status = "delivered"
@@ -820,6 +919,16 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
                 "id": document.id,
                 "sequence": document.sequence,
                 "path": document.path,
+                "final_filename": (
+                    db.query(JobDocumentMetadata)
+                    .filter(JobDocumentMetadata.document_id == document.id)
+                    .first()
+                    .final_filename
+                    if db.query(JobDocumentMetadata)
+                    .filter(JobDocumentMetadata.document_id == document.id)
+                    .first()
+                    else None
+                ),
                 "file_url": f"/api/job-documents/{document.id}/file",
             }
             for document in documents

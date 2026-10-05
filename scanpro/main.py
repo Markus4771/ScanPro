@@ -8,12 +8,13 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, engine, get_db
-from .models import Destination, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
     ScanProfileCreate,
     ScanProfileUpdate,
+    ProfileShareUpdate,
     ScannerCreate,
     ScannerImport,
     ScannerUpdate,
@@ -22,9 +23,20 @@ from .schemas import (
 )
 from .services.destinations import DestinationError, public_config, test_destination
 from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
+from .services.profile_shares import ProfileShareError, normalize_share_name, profile_path, write_profile_samba_config
 from .services.separation import validate_split
 
 Base.metadata.create_all(bind=engine)
+
+
+def sync_profile_shares(db: Session) -> None:
+    shares = db.query(ProfileShare).filter(ProfileShare.enabled.is_(True)).order_by(ProfileShare.id).all()
+    rendered: list[tuple[str, str]] = []
+    for share in shares:
+        path = Path(share.path)
+        path.mkdir(parents=True, exist_ok=True)
+        rendered.append((share.share_name, str(path)))
+    write_profile_samba_config(rendered)
 
 app = FastAPI(title="ScanPro", version=__version__)
 JOBS_DIR = Path("/var/lib/scanpro/jobs")
@@ -253,6 +265,71 @@ def test_destination_endpoint(destination_id: int, db: Session = Depends(get_db)
 def list_profiles(db: Session = Depends(get_db)):
     return db.query(ScanProfile).order_by(ScanProfile.name).all()
 
+@app.get("/api/profile-shares")
+def list_profile_shares(db: Session = Depends(get_db)):
+    rows = db.query(ProfileShare).order_by(ProfileShare.profile_id).all()
+    return [
+        {
+            "id": row.id,
+            "profile_id": row.profile_id,
+            "enabled": row.enabled,
+            "share_name": row.share_name,
+            "path": row.path,
+        }
+        for row in rows
+    ]
+
+@app.put("/api/profiles/{profile_id}/share")
+def configure_profile_share(profile_id: int, payload: ProfileShareUpdate, db: Session = Depends(get_db)):
+    profile = db.get(ScanProfile, profile_id)
+    if not profile:
+        raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+
+    share = db.query(ProfileShare).filter(ProfileShare.profile_id == profile_id).first()
+
+    if payload.enabled:
+        try:
+            share_name = normalize_share_name(payload.share_name or profile.name)
+        except ProfileShareError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+        duplicate = db.query(ProfileShare).filter(
+            ProfileShare.share_name == share_name,
+            ProfileShare.profile_id != profile_id,
+        ).first()
+        if duplicate:
+            raise HTTPException(409, "Dieser SMB-Freigabename wird bereits verwendet.")
+
+        path = str(profile_path(profile_id))
+        if share:
+            share.enabled = True
+            share.share_name = share_name
+            share.path = path
+        else:
+            share = ProfileShare(
+                profile_id=profile_id,
+                enabled=True,
+                share_name=share_name,
+                path=path,
+            )
+            db.add(share)
+    elif share:
+        share.enabled = False
+
+    db.commit()
+    sync_profile_shares(db)
+
+    if not share:
+        return {"profile_id": profile_id, "enabled": False, "share_name": None, "path": None}
+    db.refresh(share)
+    return {
+        "id": share.id,
+        "profile_id": share.profile_id,
+        "enabled": share.enabled,
+        "share_name": share.share_name,
+        "path": share.path,
+    }
+
 @app.post("/api/profiles")
 def create_profile(payload: ScanProfileCreate, db: Session = Depends(get_db)):
     validate_split(payload.split_enabled, payload.split_method)
@@ -289,7 +366,12 @@ def delete_profile(profile_id: int, db: Session = Depends(get_db)):
     linked = db.query(Workflow).filter(Workflow.profile_id == profile_id).first()
     if linked:
         raise HTTPException(409, "Scanprofil wird noch von einem Workflow verwendet.")
-    db.delete(profile); db.commit()
+    share = db.query(ProfileShare).filter(ProfileShare.profile_id == profile_id).first()
+    if share:
+        db.delete(share)
+    db.delete(profile)
+    db.commit()
+    sync_profile_shares(db)
     return {"deleted": True, "id": profile_id}
 
 @app.get("/api/workflows")

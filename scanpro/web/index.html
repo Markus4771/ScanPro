@@ -122,7 +122,7 @@
 
     <div class="grid" style="margin-top:8px">
       <label>Dateinamensvorlage
-        <input id="profileFilenameTemplate" value="{date}_{profile}_{document}" placeholder="{date}_{profile}_{document}">
+        <input id="profileFilenameTemplate" value="{date}_{profile}_{job}_{document}" placeholder="{date}_{profile}_{job}_{document}">
         <span class="muted">Variablen: {date}, {time}, {datetime}, {profile}, {job}, {document}, {code}, {code_type}, {ocr_first_line}</span>
       </label>
       <label class="check" style="align-self:end"><input type="checkbox" id="profileUseOcrFirstLine"> OCR-Erstzeile für {ocr_first_line} verwenden</label>
@@ -387,7 +387,7 @@ function resetProfileForm(){
   document.getElementById('profileDuplex').value='false';
   document.getElementById('profileOcr').checked=false;
   document.getElementById('profileOcrLanguage').value='deu';
-  document.getElementById('profileFilenameTemplate').value='{date}_{profile}_{document}';
+  document.getElementById('profileFilenameTemplate').value='{date}_{profile}_{job}_{document}';
   document.getElementById('profileUseOcrFirstLine').checked=false;
   document.getElementById('profileRemoveBlank').checked=false;
   document.getElementById('profileAutoRotate').checked=false;
@@ -474,7 +474,7 @@ function editProfile(p){
   const ocrSettings=profileOcrSettingsCache.find(x=>x.profile_id===p.id);
   const namingSettings=profileNamingSettingsCache.find(x=>x.profile_id===p.id);
   document.getElementById('profileOcrLanguage').value=ocrSettings?ocrSettings.language:'deu';
-  document.getElementById('profileFilenameTemplate').value=namingSettings?namingSettings.filename_template:'{date}_{profile}_{document}';
+  document.getElementById('profileFilenameTemplate').value=namingSettings?namingSettings.filename_template:'{date}_{profile}_{job}_{document}';
   document.getElementById('profileUseOcrFirstLine').checked=!!(namingSettings&&namingSettings.use_ocr_first_line);
   document.getElementById('profileSplit').checked=p.split_enabled;
   document.getElementById('profileSplitMethod').value=p.split_method==='none'?'patch-t':p.split_method;
@@ -541,7 +541,7 @@ async function loadProfiles(){
     const imageText=imageFlags.length?'Bild: '+imageFlags.join(', '):'Bildoptimierung: aus';
     const share=profileSharesCache.find(x=>x.profile_id===p.id);
     const namingSettings=profileNamingSettingsCache.find(x=>x.profile_id===p.id);
-    const namingText=namingSettings?('Name: '+namingSettings.filename_template):'Name: {date}_{profile}_{document}';
+    const namingText=namingSettings?('Name: '+namingSettings.filename_template):'Name: {date}_{profile}_{job}_{document}';
     const shareText=share&&share.enabled?('SMB: \\\\SCANPRO\\'+share.share_name):'SMB: aus';
     const el=document.createElement('div'); el.className='item';
     el.innerHTML='<div class="profilegrid">'+

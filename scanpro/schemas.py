@@ -34,6 +34,12 @@ class DestinationCreate(BaseModel):
     enabled: bool = True
     config: dict = Field(default_factory=dict)
 
+class DestinationUpdate(BaseModel):
+    name: str | None = None
+    type: str | None = None
+    enabled: bool | None = None
+    config: dict | None = None
+
 class ScanProfileCreate(BaseModel):
     name: str
     dpi: int = 300

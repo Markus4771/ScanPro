@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.8.0-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.8.1-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.8.0-dev","schema_version":4}
+{"status":"ok","version":"0.8.1-dev","schema_version":5}
 ```
 
 ## Scanner über ScanPro suchen
@@ -948,3 +948,59 @@ Hinweis zu VPN und mDNS:
 Geroutete WireGuard-/IPsec-Verbindungen übertragen mDNS normalerweise nicht. Wenn ein AirScan/eSCL-Gerät deshalb nicht automatisch gefunden wird, muss der Scanner über eine statische SANE/eSCL-Konfiguration erreichbar gemacht werden.
 
 Der Erreichbarkeitstest ersetzt diese Scanner-Konfiguration nicht; er prüft nur, ob das entfernte Gerät über typische TCP-Ports erreichbar ist.
+
+
+## Statischen Remote-Scanner konfigurieren
+
+Ab 0.8.1-dev kann ein Scanner ohne mDNS als statisches Ziel hinterlegt werden.
+
+Im Webinterface:
+
+1. Scanner **Bearbeiten**
+2. Standort und VPN-Einstellungen setzen
+3. **Statisches Remote-Ziel verwenden** bestätigen
+4. Driver `sane`
+5. Gerätename setzen
+6. IP oder vollständige eSCL-URL eintragen
+
+Beispiel IP:
+
+```text
+10.20.30.40
+```
+
+ScanPro erzeugt daraus intern:
+
+```text
+http://10.20.30.40/eSCL
+```
+
+Oder direkt:
+
+```text
+http://10.20.30.40:8080/eSCL
+```
+
+API-Beispiel:
+
+```bash
+curl -X PUT http://127.0.0.1:8100/api/scanners/1/static-target \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled":true,
+    "driver":"sane",
+    "device_name":"Brother Außenstelle",
+    "device_id":"",
+    "address":"10.20.30.40"
+  }'
+```
+
+Fehlerzustände werden getrennt ausgewiesen:
+
+```text
+network
+discovery
+scan
+```
+
+Die Scannerliste kann nach Standort gefiltert werden.

@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.5.0-dev**
+Aktuell: **0.5.1-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -522,3 +522,63 @@ OCR-Text eines Dokuments:
 ```text
 GET /api/job-documents/{document_id}/ocr
 ```
+
+
+## Dateinamen und Metadaten in 0.5.1-dev
+
+ScanPro kann pro Scanprofil jetzt eine Dateinamensvorlage speichern und vor der Weiterleitung auflösen.
+
+Standard:
+
+```text
+{date}_{profile}_{job}_{document}
+```
+
+Verfügbare Variablen:
+
+- `{date}` – Datum
+- `{time}` – Uhrzeit
+- `{datetime}` – Datum + Uhrzeit
+- `{profile}` – Scanprofil
+- `{job}` – ScanJob-ID
+- `{document}` – laufende Dokumentnummer
+- `{code}` – erkannter QR-/Barcode-Inhalt
+- `{code_type}` – Typ des Codes
+- `{ocr_first_line}` – erste nichtleere OCR-Zeile
+
+Beispiel:
+
+```text
+{date}_{profile}_{code}_{document}
+```
+
+kann zu:
+
+```text
+2026-10-05_Rechnungen_KUNDE4711_002.pdf
+```
+
+werden.
+
+Die interne Arbeitsdatei bleibt unverändert. Der finale Name wird erst beim Versand an das lokale oder SMB-Ziel verwendet.
+
+Zusätzlich speichert ScanPro pro Dokument Metadaten:
+
+- Profil
+- Job-ID
+- Dokumentnummer
+- QR-/Barcode-Inhalt
+- QR-/Barcode-Typ
+- OCR-Erstzeile
+- Quelldateiname
+- finaler Dateiname
+
+API:
+
+```text
+GET /api/profile-naming-settings
+PUT /api/profiles/{profile_id}/naming-settings
+GET /api/job-documents/{document_id}/metadata
+```
+
+Die Jobliste zeigt den erzeugten Dateinamen an.

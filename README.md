@@ -383,3 +383,32 @@ OCR: aus
 Deskew: optional
 Ziel: \\NAS\Bilder\Scans
 ```
+
+
+## Backlog: Scanner über VPN / entfernte Standorte
+
+ScanPro soll Scanner unterstützen, die nicht im lokalen LAN stehen, sondern über VPN bzw. an entfernten Standorten erreichbar sind.
+
+Geplant:
+
+- Scanner mit Standort kennzeichnen
+- Verbindungstyp `lokal` / `VPN`
+- Erreichbarkeit und Online-/Offline-Status über VPN prüfen
+- längere Timeouts für entfernte Scanner
+- robuste Behandlung von Paketverlust und Verbindungsabbrüchen
+- Retry-Logik bei temporären VPN-Problemen
+- ScanJobs bei Abbruch sauber als Fehler markieren
+- optional Standortname im Webinterface anzeigen
+- Scanner nach Standort gruppieren
+- Unterstützung für SANE/eSCL über geroutete VPN-Netze
+- optional eigener Gateway-/Remote-Collector für Standorte, an denen direkte Scannerprotokolle über VPN nicht zuverlässig funktionieren
+
+Beispiel:
+
+```text
+Scanner: Außenstelle
+Standort: Filiale 1
+Verbindung: VPN
+IP: 192.168.50.20
+Backend: SANE/eSCL
+```

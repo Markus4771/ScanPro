@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.4.0-dev**
+Aktuell: **0.5.0-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -489,3 +489,36 @@ ScanPro schneidet überflüssige Außenbereiche ab, verhindert aber ein aggressi
 Dunkle Scanner-/Einzugsränder am äußeren Seitenbereich können automatisch abgeschnitten werden.
 
 Die Ergebnisse werden pro Job protokolliert, z. B. Anzahl gedrehter, begradigter oder zugeschnittener Seiten.
+
+
+## OCR in 0.5.0-dev
+
+ScanPro führt OCR jetzt tatsächlich aus und erzeugt durchsuchbare PDFs.
+
+Pro Scanprofil kann die OCR aktiviert und die Sprache gewählt werden:
+
+- Deutsch (`deu`)
+- Englisch (`eng`)
+- Deutsch + Englisch (`deu+eng`)
+
+Die OCR läuft nach Dokumenttrennung und Bildoptimierung, aber vor der Weiterleitung an das Scanziel.
+
+```text
+Scan / SMB-Eingang
+→ Leerseiten
+→ Dokumenttrennung
+→ Bildoptimierung
+→ OCR
+→ durchsuchbare PDF
+→ Scanziel
+```
+
+Technisch verwendet ScanPro OCRmyPDF mit Tesseract.
+
+Zusätzlich wird der erkannte Text pro Dokument gespeichert. Dadurch kann der OCR-Inhalt später für Dateinamen, Metadaten, Dokumentklassifikation oder Paperless-ngx verwendet werden.
+
+OCR-Text eines Dokuments:
+
+```text
+GET /api/job-documents/{document_id}/ocr
+```

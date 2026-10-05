@@ -401,17 +401,6 @@ async function discover(driver='sane'){
 }
 async function importScanner(d){
   await api('/api/scanners/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
-  await api('/api/scanners/'+s.id+'/static-target',{
-    method:'PUT',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({
-      enabled:staticEnabled,
-      driver:staticDriver,
-      device_name:staticName,
-      device_id:staticDeviceId,
-      address:staticAddress
-    })
-  });
   await loadSaved();
 }
 async function loadSaved(){
@@ -498,6 +487,17 @@ async function editScanner(s,st={}){
       connection_type:type.trim().toLowerCase(),
       timeout_seconds:Number(timeout),
       retries:Number(retries)
+    })
+  });
+  await api('/api/scanners/'+s.id+'/static-target',{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      enabled:staticEnabled,
+      driver:staticDriver,
+      device_name:staticName,
+      device_id:staticDeviceId,
+      address:staticAddress
     })
   });
   await loadSaved();

@@ -58,6 +58,10 @@ class ScanProfileUpdate(BaseModel):
     split_enabled: bool | None = None
     split_method: str | None = None
 
+class ProfileShareUpdate(BaseModel):
+    enabled: bool
+    share_name: str | None = None
+
 class WorkflowCreate(BaseModel):
     name: str
     scanner_id: int | None = None

@@ -8,14 +8,16 @@
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f4f6f8;color:#1f2937}
     header{background:#111827;color:#fff;padding:18px 24px}
     main{max-width:1180px;margin:24px auto;padding:0 16px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
     .card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-    h1,h2{margin-top:0}
+    h1,h2,h3{margin-top:0}
     button,a.btn{cursor:pointer;border:0;border-radius:8px;padding:9px 14px;background:#111827;color:#fff;text-decoration:none;display:inline-block}
     button.secondary,a.secondary{background:#e5e7eb;color:#111827}
     button.danger{background:#b91c1c}
     input,select{width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;margin-top:4px}
+    input[type=checkbox]{width:auto;margin-right:7px}
     label{display:block;margin:10px 0}
+    .check{display:flex;align-items:center;gap:4px}
     .item{padding:12px 0;border-top:1px solid #e5e7eb}
     .item:first-child{border-top:0}
     .muted{color:#6b7280;font-size:.92rem}
@@ -29,7 +31,10 @@
     .badge.off{background:#f3f4f6;color:#6b7280}
     .jobgrid{display:grid;grid-template-columns:120px 120px 1fr auto;gap:12px;align-items:center}
     .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-    @media(max-width:760px){.jobgrid{grid-template-columns:1fr}}
+    .profilegrid{display:grid;grid-template-columns:1.4fr .8fr .9fr .8fr .7fr 1fr auto;gap:10px;align-items:center}
+    .divider{height:1px;background:#e5e7eb;margin:18px 0}
+    @media(max-width:900px){.profilegrid{grid-template-columns:1fr 1fr}}
+    @media(max-width:760px){.jobgrid,.profilegrid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -57,10 +62,69 @@
   </div>
 
   <section class="card" style="margin-top:16px">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin-bottom:0">Scanprofile</h2>
+      <button class="secondary" onclick="resetProfileForm()">Neues Profil</button>
+    </div>
+
+    <div class="grid" style="margin-top:12px">
+      <label>Name
+        <input id="profileName" placeholder="z. B. Rechnung">
+      </label>
+      <label>Auflösung
+        <select id="profileDpi">
+          <option>150</option><option>200</option><option selected>300</option><option>600</option>
+        </select>
+      </label>
+      <label>Farbmodus
+        <select id="profileColor">
+          <option value="color">Farbe</option>
+          <option value="grayscale">Graustufen</option>
+          <option value="blackwhite">Schwarzweiß</option>
+        </select>
+      </label>
+      <label>Einzug
+        <select id="profileDuplex">
+          <option value="false" selected>Einseitig</option>
+          <option value="true">Duplex</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="row">
+      <label class="check"><input type="checkbox" id="profileOcr"> OCR aktivieren</label>
+      <label class="check"><input type="checkbox" id="profileSplit" onchange="toggleSplitOptions()"> Trennung aktivieren</label>
+      <label id="splitMethodWrap" style="min-width:220px;display:none">Trennmethode
+        <select id="profileSplitMethod">
+          <option value="patch-t">Patch-T</option>
+          <option value="qr">QR-Code</option>
+          <option value="barcode">Barcode</option>
+          <option value="blank-page">Leerseite</option>
+          <option value="manual">Manuell</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="actions">
+      <button id="profileSaveButton" onclick="saveProfile()">Profil speichern</button>
+      <button class="secondary" onclick="resetProfileForm()">Abbrechen</button>
+    </div>
+    <input type="hidden" id="profileId">
+
+    <div class="divider"></div>
+    <div id="profiles" class="muted">Lade Profile…</div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
     <h2>Testscan</h2>
     <div class="grid">
       <label>Scanner
         <select id="scanScanner"></select>
+      </label>
+      <label>Scanprofil
+        <select id="scanProfile" onchange="applySelectedProfile()">
+          <option value="">Manuelle Einstellungen</option>
+        </select>
       </label>
       <label>Auflösung
         <select id="dpi">
@@ -81,6 +145,7 @@
         </select>
       </label>
     </div>
+    <div id="profileInfo" class="muted" style="margin:8px 0 12px"></div>
     <button onclick="testscan()">Scannen</button>
     <div id="scanResult" style="margin-top:12px"></div>
   </section>
@@ -94,6 +159,8 @@
   </section>
 </main>
 <script>
+let profilesCache=[];
+
 async function api(url, options={}) {
   const r = await fetch(url, options);
   const data = await r.json().catch(()=>({}));
@@ -102,7 +169,7 @@ async function api(url, options={}) {
 }
 async function init(){
   const h=await api('/health'); document.getElementById('version').textContent=h.version;
-  await loadSaved(); await loadJobs();
+  await loadSaved(); await loadProfiles(); await loadJobs();
 }
 async function discover(driver='sane'){
   const box=document.getElementById('discovered'); box.textContent='Suche…';
@@ -161,6 +228,116 @@ async function deleteScanner(s){
     await loadSaved();
   }catch(e){alert(e.message)}
 }
+
+function toggleSplitOptions(){
+  document.getElementById('splitMethodWrap').style.display=document.getElementById('profileSplit').checked?'block':'none';
+}
+function resetProfileForm(){
+  document.getElementById('profileId').value='';
+  document.getElementById('profileName').value='';
+  document.getElementById('profileDpi').value='300';
+  document.getElementById('profileColor').value='color';
+  document.getElementById('profileDuplex').value='false';
+  document.getElementById('profileOcr').checked=false;
+  document.getElementById('profileSplit').checked=false;
+  document.getElementById('profileSplitMethod').value='patch-t';
+  document.getElementById('profileSaveButton').textContent='Profil speichern';
+  toggleSplitOptions();
+}
+async function saveProfile(){
+  const id=document.getElementById('profileId').value;
+  const name=document.getElementById('profileName').value.trim();
+  if(!name){alert('Bitte einen Profilnamen eingeben.');return;}
+  const split=document.getElementById('profileSplit').checked;
+  const body={
+    name,
+    dpi:Number(document.getElementById('profileDpi').value),
+    color_mode:document.getElementById('profileColor').value,
+    duplex:document.getElementById('profileDuplex').value==='true',
+    ocr_enabled:document.getElementById('profileOcr').checked,
+    split_enabled:split,
+    split_method:split?document.getElementById('profileSplitMethod').value:'none'
+  };
+  try{
+    await api(id?'/api/profiles/'+id:'/api/profiles',{
+      method:id?'PATCH':'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    resetProfileForm();
+    await loadProfiles();
+  }catch(e){alert(e.message)}
+}
+function editProfile(p){
+  document.getElementById('profileId').value=p.id;
+  document.getElementById('profileName').value=p.name;
+  document.getElementById('profileDpi').value=String(p.dpi);
+  document.getElementById('profileColor').value=p.color_mode;
+  document.getElementById('profileDuplex').value=String(p.duplex);
+  document.getElementById('profileOcr').checked=p.ocr_enabled;
+  document.getElementById('profileSplit').checked=p.split_enabled;
+  document.getElementById('profileSplitMethod').value=p.split_method==='none'?'patch-t':p.split_method;
+  document.getElementById('profileSaveButton').textContent='Änderungen speichern';
+  toggleSplitOptions();
+  window.scrollTo({top:document.getElementById('profileName').getBoundingClientRect().top+window.scrollY-120,behavior:'smooth'});
+}
+async function deleteProfile(p){
+  if(!confirm('Scanprofil "'+p.name+'" wirklich löschen?'))return;
+  try{
+    await api('/api/profiles/'+p.id,{method:'DELETE'});
+    await loadProfiles();
+  }catch(e){alert(e.message)}
+}
+async function loadProfiles(){
+  const data=await api('/api/profiles');
+  profilesCache=data;
+  const box=document.getElementById('profiles');
+  const sel=document.getElementById('scanProfile');
+  const current=sel.value;
+  box.innerHTML='';
+  sel.innerHTML='<option value="">Manuelle Einstellungen</option>';
+  if(!data.length){
+    box.innerHTML='<span class="muted">Noch keine Scanprofile angelegt.</span>';
+    document.getElementById('profileInfo').textContent='';
+    return;
+  }
+  for(const p of data){
+    const split=p.split_enabled?('Trennung: '+splitLabel(p.split_method)):'Trennung: aus';
+    const ocr=p.ocr_enabled?'OCR: an':'OCR: aus';
+    const el=document.createElement('div'); el.className='item';
+    el.innerHTML='<div class="profilegrid">'+
+      '<div><strong>'+escapeHtml(p.name)+'</strong></div>'+
+      '<div>'+p.dpi+' dpi</div>'+
+      '<div>'+escapeHtml(colorLabel(p.color_mode))+'</div>'+
+      '<div>'+(p.duplex?'Duplex':'Einseitig')+'</div>'+
+      '<div>'+ocr+'</div>'+
+      '<div>'+escapeHtml(split)+'</div>'+
+      '<div class="actions"></div>'+
+      '</div>';
+    const actions=el.querySelector('.actions');
+    const edit=document.createElement('button'); edit.className='secondary'; edit.textContent='Bearbeiten'; edit.onclick=()=>editProfile(p);
+    const del=document.createElement('button'); del.className='danger'; del.textContent='Löschen'; del.onclick=()=>deleteProfile(p);
+    actions.append(edit,del);
+    box.appendChild(el);
+    const opt=document.createElement('option'); opt.value=p.id; opt.textContent=p.name; sel.appendChild(opt);
+  }
+  if([...sel.options].some(o=>o.value===current))sel.value=current;
+  applySelectedProfile();
+}
+function applySelectedProfile(){
+  const id=Number(document.getElementById('scanProfile').value);
+  const info=document.getElementById('profileInfo');
+  if(!id){info.textContent='';return;}
+  const p=profilesCache.find(x=>x.id===id);
+  if(!p)return;
+  document.getElementById('dpi').value=String(p.dpi);
+  document.getElementById('color').value=p.color_mode;
+  document.getElementById('duplex').value=String(p.duplex);
+  info.textContent=(p.ocr_enabled?'OCR aktiviert · ':'OCR aus · ')+(p.split_enabled?'Trennung: '+splitLabel(p.split_method):'Trennung aus');
+}
+function colorLabel(v){return ({color:'Farbe',grayscale:'Graustufen',blackwhite:'Schwarzweiß'})[v]||v}
+function splitLabel(v){return ({'patch-t':'Patch-T',qr:'QR-Code',barcode:'Barcode','blank-page':'Leerseite',manual:'Manuell',none:'Keine'})[v]||v}
+
 async function testscan(){
   const id=document.getElementById('scanScanner').value;
   const out=document.getElementById('scanResult');

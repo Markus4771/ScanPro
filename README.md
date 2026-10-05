@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.2.0-dev**
+Aktuell: **0.2.1-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -177,3 +177,39 @@ Für SMB-Ziele werden gespeichert:
 Der Verbindungstest erfolgt mit `smbclient`.
 
 **Wichtig:** Die automatische Weiterleitung eines fertigen Scans an ein Scanziel und die SMB-Inbox sind noch nicht aktiv. Diese folgen als nächster Entwicklungsschritt.
+
+
+## SMB-Freigaben auf dem ScanPro-Server
+
+ScanPro stellt jetzt selbst zwei Samba-Freigaben bereit:
+
+```text
+\\SCANPRO-SERVER\ScanPro-Inbox
+\\SCANPRO-SERVER\ScanPro-Jobs
+```
+
+### ScanPro-Inbox
+
+Pfad:
+
+```text
+/var/lib/scanpro/inbox
+```
+
+Die Freigabe ist schreibbar und dient später als Eingang für Scan-to-Network-Geräte.
+
+### ScanPro-Jobs
+
+Pfad:
+
+```text
+/var/lib/scanpro/jobs
+```
+
+Die Freigabe ist nur lesbar und ermöglicht Zugriff auf erzeugte PDF-Dateien.
+
+Beide Freigaben verwenden den Samba-Benutzer `scanpro`. Das Samba-Passwort wird einmalig auf dem Server gesetzt:
+
+```bash
+sudo smbpasswd -a scanpro
+```

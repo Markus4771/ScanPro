@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.3.0-dev**
+Aktuell: **0.3.1-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -412,3 +412,36 @@ Verbindung: VPN
 IP: 192.168.50.20
 Backend: SANE/eSCL
 ```
+
+
+## QR- und Barcode-Trennung in 0.3.1-dev
+
+ScanPro unterstützt jetzt zusätzlich:
+
+- QR-Code als Dokumenttrenner
+- Barcode als Dokumenttrenner
+
+Die Trennerseite wird nicht in das Ausgabedokument übernommen.
+
+Erkannte Marker werden gespeichert mit:
+
+- Seitennummer
+- Codetyp
+- Codeinhalt
+
+Diese Informationen können später für Dateinamen, Dokumenttypen oder Metadaten verwendet werden.
+
+Technisch verwendet ScanPro `zbar` über `pyzbar`.
+
+Unterstützte Barcode-Typen umfassen unter anderem:
+
+- Code 128
+- Code 39
+- EAN-13
+- EAN-8
+- UPC-A
+- UPC-E
+- Codabar
+- Interleaved 2 of 5
+
+Die Jobliste zeigt erkannte Trenner und Fehler jetzt deutlicher an.

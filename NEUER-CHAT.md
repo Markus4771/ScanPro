@@ -4,20 +4,21 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.4.0-dev**
+Aktueller Stand: **0.5.0-dev**
 
-## Neu in 0.4.0-dev
+## Neu in 0.5.0-dev
 
-Die Bildoptimierung ist umgesetzt.
+OCR ist jetzt vollständig in die Verarbeitung integriert.
 
-## Profiloptionen
+## OCR-Profiloptionen
 
-Jedes Scanprofil kann optional aktivieren:
+OCR kann pro Scanprofil aktiviert werden.
 
-- automatische Rotation
-- Deskew / schiefe Seiten begradigen
-- Auto-Crop
-- Scanner-Ränder entfernen
+Sprachen:
+
+- `deu`
+- `eng`
+- `deu+eng`
 
 ## Verarbeitungskette
 
@@ -26,74 +27,67 @@ Scan / SMB-Eingang
 → Leerseiten-Verarbeitung
 → Dokumenttrennung
 → Bildoptimierung
-→ später OCR
+→ OCR
 → Weiterleitung
 ```
 
-Die Bildoptimierung läuft sowohl für:
-
-- Scanner-Workflows
-- Profil-SMB-Inbox-Workflows
-- getrennte Teildokumente
-- ungetrennte PDFs
+OCR läuft sowohl für Scanner-Workflows als auch Profil-SMB-Inboxen.
 
 ## Technische Umsetzung
 
 Neue Datei:
 
 ```text
-scanpro/services/image_processing.py
+scanpro/services/ocr.py
 ```
 
 Verwendet:
 
-- OpenCV
-- PyMuPDF
-- Tesseract OSD
-- pytesseract
+- OCRmyPDF
+- Tesseract
+
+OCRmyPDF erzeugt eine durchsuchbare PDF und zusätzlich Sidecar-Text.
 
 ## Neue Tabellen
 
 ```text
-profile_image_processing
-job_image_processing
+profile_ocr_settings
+job_ocr_results
 ```
-
-### profile_image_processing
-
-- profile_id
-- auto_rotate
-- deskew
-- auto_crop
-- remove_borders
-
-### job_image_processing
-
-- scan_job_id
-- document_id
-- pages_processed
-- pages_rotated
-- pages_deskewed
-- pages_cropped
-- pages_border_cleaned
 
 ## API
 
 ```text
-GET /api/profile-image-processing
-PUT /api/profiles/{profile_id}/image-processing
+GET /api/profile-ocr-settings
+PUT /api/profiles/{profile_id}/ocr-settings
+GET /api/job-documents/{document_id}/ocr
 ```
 
 ## Webinterface
 
-Die vier Bildoptionen sind direkt im Scanprofil konfigurierbar.
-
-Die Jobliste zeigt erkannte Optimierungen wie:
+Im Profil:
 
 ```text
-gedreht: 1
-begradigt: 2
-zugeschnitten: 2
+OCR aktivieren
+OCR-Sprache
+```
+
+Verfügbare Sprachen:
+
+```text
+Deutsch
+Englisch
+Deutsch + Englisch
+```
+
+## Installation
+
+Das Installationsskript installiert zusätzlich:
+
+```text
+ocrmypdf
+tesseract-ocr-deu
+tesseract-ocr-eng
 ```
 
 ## Update
@@ -104,7 +98,7 @@ git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Danach:
+Prüfen:
 
 ```bash
 curl http://127.0.0.1:8100/health
@@ -113,30 +107,37 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.4.0-dev"}
+{"status":"ok","version":"0.5.0-dev"}
 ```
 
 ## Nächster Entwicklungsschritt
 
-Empfohlen:
+**0.5.1-dev – Dateinamen und Metadaten**
 
-**0.5.0-dev – OCR**
+Geplant:
 
-- OCR wirklich ausführen
-- OCR-Sprache pro Profil
-- durchsuchbare PDF
-- OCR-Text speichern
-- später Metadaten/Dateinamen aus OCR und QR-/Barcode-Inhalten
+- Dateinamenregeln pro Profil
+- Datum/Uhrzeit/Profilname
+- QR-/Barcode-Inhalt als Variable
+- OCR-Inhalt als Variable
+- Dokumentnummern
+- saubere Dateinamen für lokale und SMB-Ziele
+
+Danach:
+
+- Paperless-ngx
+- Foto-/Bildscan JPEG/PNG
+- VPN-/Remote-Scanner
 
 ## Backlog
 
 Weiterhin geplant:
 
-- Bilder/Fotos scannen mit JPEG/PNG
+- Bilder/Fotos scannen
 - Scanner über VPN / entfernte Standorte
 - Patch-T Praxistest mit Brother ADS-2600We
 - Paperless-ngx
-- Dateinamen-/Metadatenregeln
+- Datenbank nach `/var/lib/scanpro/` verlagern und Migrationen einführen
 
 ## Einstieg in einem neuen Chat
 

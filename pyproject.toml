@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scanpro"
-version = "0.2.3.dev0"
+version = "0.2.4.dev0"
 description = "Modular Linux scan station"
 requires-python = ">=3.11"
 dependencies = [

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, engine, get_db
-from .models import Destination, InboxImport, JobDelivery, JobDocument, JobProcessing, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobDocument, JobProcessing, JobSeparationMarker, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -173,6 +173,7 @@ def list_jobs(db: Session = Depends(get_db)):
         deliveries = db.query(JobDelivery).filter(JobDelivery.scan_job_id == job.id).order_by(JobDelivery.id).all()
         processing = db.query(JobProcessing).filter(JobProcessing.scan_job_id == job.id).first()
         documents = db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).order_by(JobDocument.sequence).all()
+        markers = db.query(JobSeparationMarker).filter(JobSeparationMarker.scan_job_id == job.id).order_by(JobSeparationMarker.page).all()
         result.append({
             "id": job.id,
             "workflow_id": job.workflow_id,
@@ -186,6 +187,15 @@ def list_jobs(db: Session = Depends(get_db)):
             "source": "profile-smb" if inbox else "scanner",
             "blank_pages_removed": processing.blank_pages_removed if processing else 0,
             "blank_pages": json.loads(processing.blank_pages_json) if processing else [],
+            "separation_markers": [
+                {
+                    "id": marker.id,
+                    "page": marker.page,
+                    "type": marker.marker_type,
+                    "value": marker.value,
+                }
+                for marker in markers
+            ],
             "documents": [
                 {
                     "id": document.id,

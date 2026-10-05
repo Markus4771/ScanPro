@@ -272,6 +272,26 @@ def get_job_file(job_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Scan-Datei wurde nicht gefunden.")
     return FileResponse(path, media_type="application/pdf", filename=path.name)
 
+@app.get("/api/job-documents/{document_id}/ocr")
+def get_job_document_ocr(document_id: int, db: Session = Depends(get_db)):
+    document = db.get(JobDocument, document_id)
+    if not document:
+        raise HTTPException(404, "Dokument wurde nicht gefunden.")
+    row = (
+        db.query(JobOcrResult)
+        .filter(JobOcrResult.document_id == document_id)
+        .order_by(JobOcrResult.id.desc())
+        .first()
+    )
+    if not row:
+        raise HTTPException(404, "Für dieses Dokument liegt kein OCR-Ergebnis vor.")
+    return {
+        "document_id": document_id,
+        "language": row.language,
+        "characters": row.characters,
+        "text": row.text,
+    }
+
 @app.get("/api/job-documents/{document_id}/file")
 def get_job_document_file(document_id: int, db: Session = Depends(get_db)):
     document = db.get(JobDocument, document_id)

@@ -56,8 +56,6 @@ def apply_ocr(
         command = [
             "ocrmypdf",
             "--skip-text",
-            "--deskew",
-            "--clean-final",
             "--optimize",
             "1",
             "--language",

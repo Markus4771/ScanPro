@@ -4,73 +4,96 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.3.1-dev**
+Aktueller Stand: **0.4.0-dev**
 
-## Neu in 0.3.1-dev
+## Neu in 0.4.0-dev
 
-QR- und Barcode-Trennung sind umgesetzt.
+Die Bildoptimierung ist umgesetzt.
 
-## Unterstützte Trennmethoden
+## Profiloptionen
 
-- Leerseite
-- Patch-T
-- QR-Code
-- Barcode
+Jedes Scanprofil kann optional aktivieren:
 
-## QR-/Barcode-Verarbeitung
+- automatische Rotation
+- Deskew / schiefe Seiten begradigen
+- Auto-Crop
+- Scanner-Ränder entfernen
 
-PDF-Seiten werden gerendert und über `pyzbar` / `zbar` analysiert.
-
-Wenn ein passender Code erkannt wird:
-
-1. aktuelle Dokumentgruppe wird beendet
-2. Trennerseite wird verworfen
-3. neuer Dokumentabschnitt beginnt
-4. Code-Marker wird gespeichert
-
-## Marker
-
-Neue Tabelle:
+## Verarbeitungskette
 
 ```text
-job_separation_markers
+Scan / SMB-Eingang
+→ Leerseiten-Verarbeitung
+→ Dokumenttrennung
+→ Bildoptimierung
+→ später OCR
+→ Weiterleitung
 ```
 
-Felder:
+Die Bildoptimierung läuft sowohl für:
+
+- Scanner-Workflows
+- Profil-SMB-Inbox-Workflows
+- getrennte Teildokumente
+- ungetrennte PDFs
+
+## Technische Umsetzung
+
+Neue Datei:
+
+```text
+scanpro/services/image_processing.py
+```
+
+Verwendet:
+
+- OpenCV
+- PyMuPDF
+- Tesseract OSD
+- pytesseract
+
+## Neue Tabellen
+
+```text
+profile_image_processing
+job_image_processing
+```
+
+### profile_image_processing
+
+- profile_id
+- auto_rotate
+- deskew
+- auto_crop
+- remove_borders
+
+### job_image_processing
 
 - scan_job_id
-- page
-- marker_type
-- value
-- created_at
+- document_id
+- pages_processed
+- pages_rotated
+- pages_deskewed
+- pages_cropped
+- pages_border_cleaned
 
-Die Job-API liefert jetzt:
+## API
 
 ```text
-separation_markers
+GET /api/profile-image-processing
+PUT /api/profiles/{profile_id}/image-processing
 ```
-
-Diese Daten können später für Dateinamen und Metadaten genutzt werden.
 
 ## Webinterface
 
-Die Jobliste zeigt:
+Die vier Bildoptionen sind direkt im Scanprofil konfigurierbar.
 
-- Anzahl getrennter Dokumente
-- Anzahl erkannter Trenner
-- Seite des Trenners
-- Codetyp
-- Codeinhalt
-- verständlichere Trennfehler
-
-## Abhängigkeiten
-
-Neu:
+Die Jobliste zeigt erkannte Optimierungen wie:
 
 ```text
-libzbar0
-Pillow
-pyzbar
+gedreht: 1
+begradigt: 2
+zugeschnitten: 2
 ```
 
 ## Update
@@ -81,7 +104,7 @@ git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Prüfen:
+Danach:
 
 ```bash
 curl http://127.0.0.1:8100/health
@@ -90,33 +113,30 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.3.1-dev"}
+{"status":"ok","version":"0.4.0-dev"}
 ```
 
 ## Nächster Entwicklungsschritt
 
 Empfohlen:
 
-**0.4.0-dev – Bildoptimierung**
+**0.5.0-dev – OCR**
 
-- automatische Rotation
-- Deskew / Begradigen
-- Auto-Crop
-- Randentfernung
-
-Danach:
-
-- OCR
-- Dateinamen-/Metadatenregeln
-- Paperless-ngx
+- OCR wirklich ausführen
+- OCR-Sprache pro Profil
+- durchsuchbare PDF
+- OCR-Text speichern
+- später Metadaten/Dateinamen aus OCR und QR-/Barcode-Inhalten
 
 ## Backlog
 
 Weiterhin geplant:
 
-- Bilder/Fotos scannen
+- Bilder/Fotos scannen mit JPEG/PNG
 - Scanner über VPN / entfernte Standorte
 - Patch-T Praxistest mit Brother ADS-2600We
+- Paperless-ngx
+- Dateinamen-/Metadatenregeln
 
 ## Einstieg in einem neuen Chat
 

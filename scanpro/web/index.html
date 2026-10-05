@@ -400,7 +400,6 @@ function resetProfileForm(){
   document.getElementById('profileShareName').value='';
   document.getElementById('profileSaveButton').textContent='Profil speichern';
   toggleOcrOptions();
-  toggleOcrOptions();
   toggleSplitOptions();
   toggleProfileShareOptions();
 }
@@ -489,6 +488,7 @@ function editProfile(p){
   document.getElementById('profileShareEnabled').checked=!!(share&&share.enabled);
   document.getElementById('profileShareName').value=share?share.share_name:p.name;
   document.getElementById('profileSaveButton').textContent='Änderungen speichern';
+  toggleOcrOptions();
   toggleSplitOptions();
   toggleProfileShareOptions();
   window.scrollTo({top:document.getElementById('profileName').getBoundingClientRect().top+window.scrollY-120,behavior:'smooth'});

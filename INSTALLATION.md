@@ -2,18 +2,14 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.1.0-dev** auf Debian 13.
-
-ScanPro befindet sich noch in Entwicklung. Der aktuelle Stand stellt die Basis für Scannerverwaltung, Scanprofile, Scanziele, Workflows und NAPS2-Anbindung bereit.
+Diese Anleitung gilt für **ScanPro 0.1.1-dev** auf Debian 13.
 
 ## Voraussetzungen
-
-Vor der Installation sollte das System folgende Voraussetzungen erfüllen:
 
 - Debian 13
 - Root- oder sudo-Zugriff
 - Netzwerkzugriff auf die Scanner
-- Internetzugang für Paketinstallation
+- Internetzugang
 - Python 3.11 oder neuer
 - Git
 - Nginx
@@ -22,15 +18,8 @@ Vor der Installation sollte das System folgende Voraussetzungen erfüllen:
 
 ## System vorbereiten
 
-Zuerst Paketlisten aktualisieren:
-
 ```bash
 sudo apt update
-```
-
-Empfohlene Grundpakete installieren:
-
-```bash
 sudo apt install -y \
   git \
   curl \
@@ -44,60 +33,58 @@ sudo apt install -y \
   sane-utils
 ```
 
-Hinweise:
-
-- `git` wird zum Klonen und Aktualisieren des Repositories benötigt.
-- `curl` und `wget` werden für Tests und Downloads verwendet.
-- `python3`, `python3-venv` und `python3-pip` werden für ScanPro benötigt.
-- `nginx` stellt ScanPro später über Port 80 bereit.
-- `sane-utils` wird zur Scanner-Erkennung und Diagnose verwendet.
-- `samba` wird für spätere SMB-Scan-Eingänge und Netzwerkfreigaben benötigt.
-
-Für den ersten Start von ScanPro ist Samba noch nicht zwingend erforderlich, wird für den geplanten Funktionsumfang aber empfohlen.
-
-## NAPS2 vor ScanPro installieren
+## NAPS2 installieren
 
 NAPS2 wird als Scan-Engine verwendet und muss aktuell noch separat installiert werden.
 
-Nach der Installation prüfen:
+Danach prüfen:
 
 ```bash
-naps2.console --version
-```
-
-Scanner über eSCL suchen:
-
-```bash
-naps2.console --listdevices --driver escl
+naps2 --version
 ```
 
 Scanner über SANE suchen:
 
 ```bash
-naps2.console --listdevices --driver sane
+naps2 console --listdevices --driver sane
 ```
 
-Der genaue Installationsweg von NAPS2 soll später in das ScanPro-Installationsskript integriert werden.
-
-## Scanner-Verbindung vorab prüfen
-
-Der Scanner sollte vom ScanPro-Server aus erreichbar sein.
-
-Beispiel:
+Scanner über eSCL suchen:
 
 ```bash
-ping IP-DES-SCANNERS
+naps2 console --listdevices --driver escl
 ```
 
-SANE-Geräte prüfen:
+Wichtig: Unter Linux verwendet ScanPro den Befehl `naps2 console`, nicht `naps2.console`.
+
+## Scanner-Verbindung prüfen
 
 ```bash
 scanimage -L
 ```
 
-Wenn der Scanner über eSCL oder SANE erkannt wird, ist die Grundlage für die spätere ScanPro-Anbindung vorhanden.
+Beim Brother ADS-2600We wurde erfolgreich getestet:
 
-Für den Brother ADS-2600We ist vorgesehen, zunächst eSCL und SANE zu testen.
+```text
+Brother ADS-2600We (airscan:ip=192.168.0.172)
+```
+
+Direkter Testscan:
+
+```bash
+mkdir -p ~/scantest
+
+naps2 console \
+  -o ~/scantest/testscan.pdf \
+  --noprofile \
+  --driver sane \
+  --device "Brother ADS-2600We" \
+  --source feeder \
+  --dpi 300 \
+  --bitdepth color \
+  --pagesize a4 \
+  -v
+```
 
 ## Repository klonen
 
@@ -108,52 +95,31 @@ cd ScanPro
 
 ## Entwicklungsinstallation
 
-Im Repository liegt bereits ein Installationsskript:
-
 ```bash
 sudo bash scripts/install-dev.sh
 ```
 
 Das Skript:
 
-- installiert Python, venv, Nginx und Git
+- installiert die ScanPro-Grundabhängigkeiten
 - legt den Systembenutzer `scanpro` an
 - kopiert ScanPro nach `/opt/scanpro`
 - erstellt eine Python-Virtualenv
 - installiert die Python-Abhängigkeiten
+- legt `/var/lib/scanpro/jobs` an
+- setzt die benötigten Rechte
 - installiert den systemd-Dienst
-- richtet Nginx als Reverse Proxy auf Port 80 ein
-- startet ScanPro
+- richtet Nginx auf Port 80 ein
+- startet bzw. aktualisiert ScanPro
+- prüft, ob NAPS2 vorhanden ist
 
-Wichtig:
+NAPS2 selbst wird derzeit noch nicht automatisch installiert.
 
-**NAPS2 wird aktuell noch nicht durch `install-dev.sh` installiert.**
-
-Danach sollte ScanPro erreichbar sein unter:
-
-```text
-http://<IP-DES-SCANPRO-SERVERS>/
-```
-
-Der interne FastAPI-Dienst läuft auf:
-
-```text
-127.0.0.1:8100
-```
-
-## Dienst prüfen
+## ScanPro prüfen
 
 ```bash
-systemctl status scanpro
+systemctl status scanpro --no-pager
 ```
-
-Logs anzeigen:
-
-```bash
-journalctl -u scanpro -f
-```
-
-Health-Check:
 
 ```bash
 curl http://127.0.0.1:8100/health
@@ -162,95 +128,104 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.1.0-dev"}
+{"status":"ok","version":"0.1.1-dev"}
 ```
 
-## Nginx prüfen
+## Scanner über ScanPro suchen
 
 ```bash
-nginx -t
-systemctl status nginx
+curl "http://127.0.0.1:8100/api/scanners/discover?driver=sane"
 ```
 
-## NAPS2
+Die Antwort sollte den Brother ADS-2600We und weitere von NAPS2 erkannte SANE-Geräte enthalten.
 
-NAPS2 wird als Scan-Engine verwendet.
+## Scanner speichern
 
-Für die Entwicklung ist vorgesehen, Scanner über folgende Wege anzusprechen:
-
-- eSCL
-- SANE
-- später USB/SANE und weitere Backends
-
-Direkter Test auf der Shell:
+Beispiel für den Brother:
 
 ```bash
-naps2.console --listdevices --driver escl
+curl -X POST http://127.0.0.1:8100/api/scanners/import \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name":"Brother ADS-2600We",
+    "driver":"sane",
+    "address":"192.168.0.172",
+    "device_id":"airscan:ip=192.168.0.172"
+  }'
 ```
 
-alternativ:
+Danach gespeicherte Scanner anzeigen:
 
 ```bash
-naps2.console --listdevices --driver sane
+curl http://127.0.0.1:8100/api/scanners
 ```
 
-## Verzeichnisstruktur
+## Testscan über ScanPro
 
-Geplanter Betriebsaufbau:
+Zuerst die Scanner-ID aus `/api/scanners` ermitteln.
+
+Beispiel mit Scanner-ID 1:
+
+```bash
+curl -X POST http://127.0.0.1:8100/api/scanners/1/testscan \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dpi":300,
+    "duplex":false,
+    "color_mode":"color"
+  }'
+```
+
+Vor dem Aufruf ein Blatt in den ADF legen.
+
+Erfolgreiche Testscans werden gespeichert unter:
 
 ```text
-/opt/scanpro/          Anwendung
-/var/lib/scanpro/      Datenbank und Arbeitsdaten
-/var/lib/scanpro/inbox Eingehende Scans
-/var/lib/scanpro/jobs  Scan-Jobs
-/var/log/scanpro/      optionale zusätzliche Logs
+/var/lib/scanpro/jobs/
 ```
 
-Im aktuellen Entwicklungsstand liegt die SQLite-Datenbank noch relativ zum Arbeitsverzeichnis als:
+Jobs anzeigen:
+
+```bash
+curl http://127.0.0.1:8100/api/jobs
+```
+
+## Nginx
+
+ScanPro sollte zusätzlich über Port 80 erreichbar sein:
 
 ```text
-scanpro.db
+http://<IP-DES-SCANPRO-SERVERS>/
 ```
-
-Das wird vor dem produktiven Einsatz auf `/var/lib/scanpro/` umgestellt.
 
 ## Update
 
-Aktuell erfolgt ein Update noch manuell:
-
 ```bash
-cd ScanPro
+cd ~/ScanPro
 git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Später soll ein eigenes Update-Verfahren ergänzt werden.
-
-## Deinstallation des Entwicklungsstands
-
-Dienst stoppen:
+## Logs
 
 ```bash
-sudo systemctl disable --now scanpro
+journalctl -u scanpro -f
 ```
 
-Dateien entfernen:
+## Verzeichnisstruktur
 
-```bash
-sudo rm -f /etc/systemd/system/scanpro.service
-sudo rm -f /etc/nginx/sites-enabled/scanpro
-sudo rm -f /etc/nginx/sites-available/scanpro
-sudo rm -rf /opt/scanpro
-sudo systemctl daemon-reload
-sudo systemctl reload nginx
+```text
+/opt/scanpro/           Anwendung
+/var/lib/scanpro/jobs/  erzeugte ScanJobs/PDFs
 ```
 
-## Nächster Schritt
+Die SQLite-Datenbank liegt im aktuellen Entwicklungsstand weiterhin im ScanPro-Arbeitsverzeichnis. Eine Verlagerung nach `/var/lib/scanpro/` folgt vor dem produktiven Einsatz.
 
-Für **0.1.1-dev** sind vorgesehen:
+## Nächster Entwicklungsschritt
 
-1. NAPS2-Scannererkennung über eSCL und SANE
-2. Scanner in ScanPro speichern
-3. Testscan auslösen
-4. ScanJob mit Status und Fehlern speichern
-5. Scan-PDF in einem lokalen Arbeitsverzeichnis ablegen
+Nach erfolgreichem API-Testscan:
+
+1. Weboberfläche für Scanner-Erkennung und Scannerverwaltung
+2. Testscan-Button im Webinterface
+3. SMB-Inbox
+4. Patch-T-Trennung

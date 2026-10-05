@@ -4,90 +4,115 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.5.0-dev**
+Aktueller Stand: **0.5.1-dev**
 
-## Neu in 0.5.0-dev
+## Neu in 0.5.1-dev
 
-OCR ist jetzt vollständig in die Verarbeitung integriert.
+Dateinamenregeln und Dokumentmetadaten sind umgesetzt.
 
-## OCR-Profiloptionen
+## Dateinamensvorlage pro Profil
 
-OCR kann pro Scanprofil aktiviert werden.
-
-Sprachen:
-
-- `deu`
-- `eng`
-- `deu+eng`
-
-## Verarbeitungskette
+Standard:
 
 ```text
-Scan / SMB-Eingang
-→ Leerseiten-Verarbeitung
-→ Dokumenttrennung
-→ Bildoptimierung
-→ OCR
-→ Weiterleitung
+{date}_{profile}_{job}_{document}
 ```
 
-OCR läuft sowohl für Scanner-Workflows als auch Profil-SMB-Inboxen.
+Unterstützte Variablen:
+
+```text
+{date}
+{time}
+{datetime}
+{profile}
+{job}
+{document}
+{code}
+{code_type}
+{ocr_first_line}
+```
+
+## Beispiele
+
+Normale Ablage:
+
+```text
+{date}_{profile}_{job}_{document}
+```
+
+QR-/Barcode-basiert:
+
+```text
+{date}_{profile}_{code}_{document}
+```
+
+OCR-basiert:
+
+```text
+{date}_{ocr_first_line}_{document}
+```
 
 ## Technische Umsetzung
+
+Neue Tabellen:
+
+```text
+profile_naming_settings
+job_document_metadata
+```
+
+### profile_naming_settings
+
+- profile_id
+- filename_template
+- use_ocr_first_line
+
+### job_document_metadata
+
+- scan_job_id
+- document_id
+- final_filename
+- metadata_json
+- created_at
 
 Neue Datei:
 
 ```text
-scanpro/services/ocr.py
+scanpro/services/naming.py
 ```
 
-Verwendet:
+## Verhalten
 
-- OCRmyPDF
-- Tesseract
+Die internen Arbeits-PDFs werden nicht umbenannt.
 
-OCRmyPDF erzeugt eine durchsuchbare PDF und zusätzlich Sidecar-Text.
+Der finale Dateiname wird unmittelbar vor der Weiterleitung erzeugt und an:
 
-## Neue Tabellen
+- lokale Ziele
+- SMB-Ziele
 
-```text
-profile_ocr_settings
-job_ocr_results
-```
+übergeben.
+
+Damit bleiben OCR, Trennung und interne Jobpfade stabil.
+
+## Metadaten
+
+Pro Dokument speichert ScanPro:
+
+- Profil
+- Job-ID
+- Dokumentnummer
+- Codeinhalt
+- Codetyp
+- OCR-Erstzeile
+- Quelldateiname
+- finaler Dateiname
 
 ## API
 
 ```text
-GET /api/profile-ocr-settings
-PUT /api/profiles/{profile_id}/ocr-settings
-GET /api/job-documents/{document_id}/ocr
-```
-
-## Webinterface
-
-Im Profil:
-
-```text
-OCR aktivieren
-OCR-Sprache
-```
-
-Verfügbare Sprachen:
-
-```text
-Deutsch
-Englisch
-Deutsch + Englisch
-```
-
-## Installation
-
-Das Installationsskript installiert zusätzlich:
-
-```text
-ocrmypdf
-tesseract-ocr-deu
-tesseract-ocr-eng
+GET /api/profile-naming-settings
+PUT /api/profiles/{profile_id}/naming-settings
+GET /api/job-documents/{document_id}/metadata
 ```
 
 ## Update
@@ -107,21 +132,21 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.5.0-dev"}
+{"status":"ok","version":"0.5.1-dev"}
 ```
 
 ## Nächster Entwicklungsschritt
 
-**0.5.1-dev – Dateinamen und Metadaten**
+Vor dem weiteren Funktionsausbau empfohlen:
 
-Geplant:
+**0.5.2-dev – Datenbank und Produktionshärtung**
 
-- Dateinamenregeln pro Profil
-- Datum/Uhrzeit/Profilname
-- QR-/Barcode-Inhalt als Variable
-- OCR-Inhalt als Variable
-- Dokumentnummern
-- saubere Dateinamen für lokale und SMB-Ziele
+- SQLite nach `/var/lib/scanpro/scanpro.db`
+- bestehende Daten automatisch migrieren
+- SQLite WAL
+- Foreign Keys aktivieren
+- Schema-Migrationen einführen
+- robustere Transaktionen
 
 Danach:
 
@@ -131,13 +156,12 @@ Danach:
 
 ## Backlog
 
-Weiterhin geplant:
-
-- Bilder/Fotos scannen
-- Scanner über VPN / entfernte Standorte
-- Patch-T Praxistest mit Brother ADS-2600We
 - Paperless-ngx
-- Datenbank nach `/var/lib/scanpro/` verlagern und Migrationen einführen
+- Bilder/Fotos scannen
+- Scanner über VPN
+- Patch-T Praxistest
+- weitere Dateinamen-/Metadatenregeln
+- Dokumentklassifikation aus OCR
 
 ## Einstieg in einem neuen Chat
 

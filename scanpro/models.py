@@ -100,3 +100,14 @@ class JobProcessing(Base):
     scan_job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"))
     blank_pages_removed: Mapped[int] = mapped_column(Integer, default=0)
     blank_pages_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class JobDocument(Base):
+    __tablename__ = "job_documents"
+    __table_args__ = (UniqueConstraint("scan_job_id", "sequence"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scan_job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"))
+    sequence: Mapped[int] = mapped_column(Integer)
+    path: Mapped[str] = mapped_column(Text)
+    split_method: Mapped[str] = mapped_column(String(30), default="none")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

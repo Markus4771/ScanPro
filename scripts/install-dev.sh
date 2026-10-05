@@ -7,7 +7,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 apt-get update
-apt-get install -y python3 python3-venv nginx git sane-utils samba smbclient libzbar0 tesseract-ocr tesseract-ocr-osd
+apt-get install -y python3 python3-venv nginx git sane-utils samba smbclient libzbar0 tesseract-ocr tesseract-ocr-osd tesseract-ocr-deu tesseract-ocr-eng ocrmypdf
 
 if ! id scanpro >/dev/null 2>&1; then
   useradd --system --home /var/lib/scanpro --shell /usr/sbin/nologin scanpro

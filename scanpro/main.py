@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, engine, get_db
-from .models import Destination, InboxImport, JobDelivery, JobProcessing, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobDocument, JobProcessing, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -24,10 +24,11 @@ from .schemas import (
     WorkflowUpdate,
 )
 from .services.blank_pages import BlankPageError, remove_blank_pages
+from .services.documents import prepare_job_documents
 from .services.destinations import DestinationError, public_config, test_destination
 from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
 from .services.profile_shares import ProfileShareError, normalize_share_name, profile_path, write_profile_samba_config
-from .services.separation import validate_split
+from .services.separation import SeparationError, validate_split
 from .services.workflows import deliver_job
 
 Base.metadata.create_all(bind=engine)
@@ -171,6 +172,7 @@ def list_jobs(db: Session = Depends(get_db)):
         profile = db.get(ScanProfile, inbox.profile_id) if inbox else None
         deliveries = db.query(JobDelivery).filter(JobDelivery.scan_job_id == job.id).order_by(JobDelivery.id).all()
         processing = db.query(JobProcessing).filter(JobProcessing.scan_job_id == job.id).first()
+        documents = db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).order_by(JobDocument.sequence).all()
         result.append({
             "id": job.id,
             "workflow_id": job.workflow_id,
@@ -184,6 +186,16 @@ def list_jobs(db: Session = Depends(get_db)):
             "source": "profile-smb" if inbox else "scanner",
             "blank_pages_removed": processing.blank_pages_removed if processing else 0,
             "blank_pages": json.loads(processing.blank_pages_json) if processing else [],
+            "documents": [
+                {
+                    "id": document.id,
+                    "sequence": document.sequence,
+                    "path": document.path,
+                    "split_method": document.split_method,
+                    "file_url": f"/api/job-documents/{document.id}/file",
+                }
+                for document in documents
+            ],
             "deliveries": [
                 {
                     "id": item.id,
@@ -230,6 +242,16 @@ def get_job_file(job_id: int, db: Session = Depends(get_db)):
     path = Path(job.output_path)
     if not path.exists() or JOBS_DIR not in path.parents:
         raise HTTPException(404, "Scan-Datei wurde nicht gefunden.")
+    return FileResponse(path, media_type="application/pdf", filename=path.name)
+
+@app.get("/api/job-documents/{document_id}/file")
+def get_job_document_file(document_id: int, db: Session = Depends(get_db)):
+    document = db.get(JobDocument, document_id)
+    if not document:
+        raise HTTPException(404, "Dokument wurde nicht gefunden.")
+    path = Path(document.path)
+    if not path.exists() or JOBS_DIR not in path.parents:
+        raise HTTPException(404, "Dokumentdatei wurde nicht gefunden.")
     return FileResponse(path, media_type="application/pdf", filename=path.name)
 
 @app.get("/api/destinations")
@@ -583,19 +605,34 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
                 job.error = str(exc)
                 db.commit()
                 raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
+
+        if profile.split_enabled:
+            try:
+                prepare_job_documents(db, job, profile)
+                job.status = "separated"
+                db.commit()
+            except SeparationError as exc:
+                job.status = "processing_error"
+                job.error = str(exc)
+                db.commit()
+                raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
     except Naps2Error as exc:
         job.status = "error"
         job.error = str(exc)
         db.commit()
         raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
 
-    delivery = deliver_job(db, job, workflow, destination)
-    if delivery.status == "delivered":
+    documents = db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).order_by(JobDocument.sequence).all()
+    sources = [document.path for document in documents] if documents else [job.output_path or ""]
+    deliveries = [deliver_job(db, job, workflow, destination, source_path=source) for source in sources]
+
+    if deliveries and all(item.status == "delivered" for item in deliveries):
         job.status = "delivered"
         job.error = None
     else:
         job.status = "delivery_error"
-        job.error = delivery.error
+        errors = [item.error for item in deliveries if item.error]
+        job.error = " | ".join(errors) if errors else "Weiterleitung fehlgeschlagen."
     db.commit()
 
     return {
@@ -607,9 +644,21 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
         "destination": destination.name,
         "output_path": job.output_path,
         "file_url": f"/api/jobs/{job.id}/file",
-        "delivery": {
-            "status": delivery.status,
-            "target_path": delivery.target_path,
-            "error": delivery.error,
-        },
+        "documents": [
+            {
+                "id": document.id,
+                "sequence": document.sequence,
+                "path": document.path,
+                "file_url": f"/api/job-documents/{document.id}/file",
+            }
+            for document in documents
+        ],
+        "deliveries": [
+            {
+                "status": item.status,
+                "target_path": item.target_path,
+                "error": item.error,
+            }
+            for item in deliveries
+        ],
     }

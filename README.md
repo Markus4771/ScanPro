@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.5.2-dev**
+Aktuell: **0.6.0-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -631,3 +631,39 @@ Datenbankstatus:
 ```text
 GET /api/system/database
 ```
+
+
+## Paperless-ngx in 0.6.0-dev
+
+Paperless-ngx steht jetzt als eigener Scanziel-Typ zur Verfügung.
+
+Konfigurierbar sind:
+
+- Paperless-Basis-URL
+- API-Token
+- optional fester Titel
+- optional Korrespondent-ID
+- optional Dokumenttyp-ID
+- optional Speicherpfad-ID
+- optionale Tag-IDs
+- TLS-Zertifikatsprüfung
+
+Der Verbindungstest nutzt die Paperless REST API.
+
+Der Dokumentupload erfolgt über:
+
+```text
+POST /api/documents/post_document/
+```
+
+ScanPro sendet die PDF als Multipart-Upload und verwendet explizit Paperless API Version 10.
+
+Wenn kein fester Titel gesetzt ist, verwendet ScanPro den zuvor generierten Dateinamen ohne `.pdf` als Paperless-Titel.
+
+Paperless verarbeitet Uploads asynchron. ScanPro speichert die zurückgegebene Consumption-Task-ID im Delivery-Zielpfad:
+
+```text
+paperless-task:<UUID>
+```
+
+Der API-Token wird in API-Antworten maskiert. Im aktuellen Entwicklungsstand liegt er wie SMB-Zugangsdaten noch verschlüsselt-unabhängig im SQLite-Konfigurationsfeld und sollte später in einen Secret Store ausgelagert werden.

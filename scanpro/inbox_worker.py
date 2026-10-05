@@ -13,6 +13,8 @@ ALLOWED_SUFFIXES = {".pdf"}
 
 Base.metadata.create_all(bind=engine)
 
+from .services.workflows import deliver_to_matching_inbox_workflows
+
 
 def _safe_filename(name: str) -> str:
     return Path(name).name.replace("/", "_").replace("\\", "_")
@@ -51,6 +53,7 @@ def import_file(profile_id: int, source: Path) -> int:
             )
         )
         db.commit()
+        deliver_to_matching_inbox_workflows(db, job, profile_id)
         return job.id
     finally:
         db.close()

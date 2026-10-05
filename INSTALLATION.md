@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.2.3-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.2.4-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.2.3-dev"}
+{"status":"ok","version":"0.2.4-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -473,3 +473,47 @@ Die importierte Datei liegt anschließend unter:
 ```
 
 Der Worker verarbeitet aktuell PDF-Dateien.
+
+
+## Workflows in 0.2.4-dev
+
+Im Webinterface steht jetzt der Bereich **Workflows** zur Verfügung.
+
+Ein Workflow verbindet:
+
+```text
+Quelle → Scanprofil → Scanziel
+```
+
+### Scanner als Quelle
+
+Beispiel:
+
+```text
+Brother ADS-2600We → Rechnung → NAS-Rechnungen
+```
+
+Der Workflow kann über **Workflow starten** ausgelöst werden.
+
+### Profil-SMB-Inbox als Quelle
+
+Beispiel:
+
+```text
+\\SCANPRO\Rechnungen → Profil Rechnung → NAS-Rechnungen
+```
+
+Dieser Workflow startet automatisch, sobald eine PDF in der Profilfreigabe angekommen ist.
+
+### Weiterleitungsstatus
+
+Die Jobliste zeigt zusätzlich den Versandstatus an.
+
+Mögliche Zustände:
+
+```text
+delivered
+delivery_error
+```
+
+Bei lokalen Zielen wird die PDF kopiert. Bei SMB-Zielen erfolgt die Übertragung mit `smbclient put`.

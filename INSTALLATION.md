@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.2.2-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.2.3-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.2.2-dev"}
+{"status":"ok","version":"0.2.3-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -250,7 +250,7 @@ Die Weboberfläche bietet aktuell:
 - Einseitig/Duplex wählen
 - letzte ScanJobs anzeigen
 
-## Update auf 0.2.2-dev
+## Update auf 0.2.3-dev
 
 ```bash
 cd ~/ScanPro
@@ -419,3 +419,57 @@ systemctl status scanpro-samba-reload.path --no-pager
 sudo testparm -s
 smbclient -L localhost -U scanpro
 ```
+
+
+## Profil-SMB-Inbox-Worker
+
+Ab 0.2.3-dev läuft zusätzlich:
+
+```text
+scanpro-inbox.service
+```
+
+Status prüfen:
+
+```bash
+systemctl status scanpro-inbox --no-pager
+```
+
+Logs:
+
+```bash
+journalctl -u scanpro-inbox -f
+```
+
+### Funktion testen
+
+1. Im Webinterface ein Scanprofil mit eigener SMB-Freigabe anlegen.
+2. Freigaben prüfen:
+
+```bash
+smbclient -L localhost -U scanpro
+```
+
+3. Eine PDF in die Profilfreigabe kopieren, z. B.:
+
+```text
+\\IP-DES-SCANPRO-SERVERS\Rechnungen
+```
+
+4. Nach wenigen Sekunden im Webinterface die ScanJob-Liste aktualisieren.
+
+Der neue Job sollte den Status:
+
+```text
+imported
+```
+
+und den Profilnamen anzeigen.
+
+Die importierte Datei liegt anschließend unter:
+
+```text
+/var/lib/scanpro/jobs/inbox/<PROFIL-ID>/
+```
+
+Der Worker verarbeitet aktuell PDF-Dateien.

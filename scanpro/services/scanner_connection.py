@@ -78,12 +78,19 @@ def get_static_target(db: Session, scanner: Scanner) -> ScannerStaticTarget | No
 def effective_scanner_target(db: Session, scanner: Scanner) -> dict:
     static = get_static_target(db, scanner)
     if static and static.enabled:
+        address = static.address or scanner.address or ""
+        device_name = static.device_name or scanner.name
+        airscan_device = None
+        if static.driver == "sane" and address:
+            url = address if address.startswith(("http://", "https://")) else f"http://{address}/eSCL"
+            airscan_device = f"escl:{device_name}:{url}"
         return {
             "source": "static",
             "driver": static.driver or scanner.driver,
-            "device_name": static.device_name or scanner.name,
+            "device_name": device_name,
             "device_id": static.device_id or scanner.device_id,
-            "address": static.address or scanner.address,
+            "address": address,
+            "airscan_device": airscan_device,
         }
     return {
         "source": "discovered",
@@ -91,6 +98,7 @@ def effective_scanner_target(db: Session, scanner: Scanner) -> dict:
         "device_name": scanner.name,
         "device_id": scanner.device_id,
         "address": scanner.address,
+        "airscan_device": None,
     }
 
 

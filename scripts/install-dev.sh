@@ -7,7 +7,10 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 apt-get update
-apt-get install -y python3 python3-venv nginx git sane-utils samba smbclient libzbar0 tesseract-ocr tesseract-ocr-osd tesseract-ocr-deu tesseract-ocr-eng ocrmypdf
+apt-get install -y python3 python3-venv nginx git sane-utils samba smbclient sqlite3 libzbar0 tesseract-ocr tesseract-ocr-osd tesseract-ocr-deu tesseract-ocr-eng ocrmypdf
+
+systemctl stop scanpro-inbox 2>/dev/null || true
+systemctl stop scanpro 2>/dev/null || true
 
 if ! id scanpro >/dev/null 2>&1; then
   useradd --system --home /var/lib/scanpro --shell /usr/sbin/nologin scanpro
@@ -25,7 +28,31 @@ mkdir -p /var/lib/scanpro/inbox
 mkdir -p /var/lib/scanpro/profile-inbox
 mkdir -p /var/lib/scanpro/.config
 mkdir -p /var/lib/scanpro/.cache
+mkdir -p /var/lib/scanpro/backups
 touch /var/lib/scanpro/samba-profile-shares.conf
+
+DB_TARGET="/var/lib/scanpro/scanpro.db"
+LEGACY_DB="/opt/scanpro/scanpro.db"
+BACKUP_STAMP="$(date +%Y%m%d-%H%M%S)"
+
+if [[ -f "$DB_TARGET" ]]; then
+  echo "Sichere bestehende ScanPro-Datenbank..."
+  sqlite3 "$DB_TARGET" ".backup '/var/lib/scanpro/backups/scanpro-$BACKUP_STAMP.db'"
+elif [[ -f "$LEGACY_DB" ]]; then
+  echo "Übernehme bestehende Datenbank von $LEGACY_DB nach $DB_TARGET..."
+  sqlite3 "$LEGACY_DB" ".backup '$DB_TARGET'"
+  sqlite3 "$LEGACY_DB" ".backup '/var/lib/scanpro/backups/scanpro-pre-0.5.2-$BACKUP_STAMP.db'"
+else
+  echo "Keine bestehende Datenbank gefunden; ScanPro legt eine neue Datenbank an."
+fi
+
+if [[ -f "$DB_TARGET" ]]; then
+  integrity="$(sqlite3 "$DB_TARGET" 'PRAGMA integrity_check;')"
+  if [[ "$integrity" != "ok" ]]; then
+    echo "FEHLER: SQLite-Integritätsprüfung fehlgeschlagen: $integrity"
+    exit 1
+  fi
+fi
 
 cp -a . /opt/scanpro/
 
@@ -35,6 +62,7 @@ python3 -m venv /opt/scanpro/.venv
 
 chown -R scanpro:scanpro /opt/scanpro
 chown -R scanpro:scanpro /var/lib/scanpro
+[[ -f "$DB_TARGET" ]] && chmod 0660 "$DB_TARGET" || true
 chmod 0770 /var/lib/scanpro/inbox
 chmod 0770 /var/lib/scanpro/profile-inbox
 chmod 0750 /var/lib/scanpro/jobs
@@ -55,6 +83,13 @@ if ! grep -Fxq "include = /etc/samba/scanpro.conf" /etc/samba/smb.conf; then
 fi
 
 systemctl daemon-reload
+
+echo "ScanPro-Datenbank initialisieren und Schema migrieren..."
+sudo -u scanpro env \
+  HOME=/var/lib/scanpro \
+  SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro/scanpro.db \
+  /opt/scanpro/.venv/bin/python -c 'from scanpro.db import Base, engine, initialize_database; import scanpro.models; from scanpro.migrations import run_schema_migrations; initialize_database(); Base.metadata.create_all(bind=engine); print("Schema-Version:", run_schema_migrations(engine))'
+
 systemctl enable scanpro
 systemctl restart scanpro
 systemctl enable --now scanpro-inbox.service

@@ -80,3 +80,10 @@ class WorkflowUpdate(BaseModel):
 
 class ProfileProcessingUpdate(BaseModel):
     remove_blank_pages: bool = False
+
+
+class ProfileImageProcessingUpdate(BaseModel):
+    auto_rotate: bool = False
+    deskew: bool = False
+    auto_crop: bool = False
+    remove_borders: bool = False

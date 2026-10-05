@@ -96,3 +96,11 @@ class ProfileOcrSettingsUpdate(BaseModel):
 class ProfileNamingSettingsUpdate(BaseModel):
     filename_template: str = "{date}_{profile}_{job}_{document}"
     use_ocr_first_line: bool = False
+
+
+class ProfilePaperlessRulesUpdate(BaseModel):
+    title_template: str = "{filename}"
+    correspondent_map: dict = Field(default_factory=dict)
+    document_type_map: dict = Field(default_factory=dict)
+    tags_map: dict = Field(default_factory=dict)
+    ocr_contains_rules: list[dict] = Field(default_factory=list)

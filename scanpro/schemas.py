@@ -43,6 +43,15 @@ class ScanProfileCreate(BaseModel):
     split_enabled: bool = False
     split_method: str = "none"
 
+class ScanProfileUpdate(BaseModel):
+    name: str | None = None
+    dpi: int | None = None
+    color_mode: str | None = None
+    duplex: bool | None = None
+    ocr_enabled: bool | None = None
+    split_enabled: bool | None = None
+    split_method: str | None = None
+
 class WorkflowCreate(BaseModel):
     name: str
     scanner_id: int | None = None

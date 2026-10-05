@@ -104,3 +104,9 @@ class ProfilePaperlessRulesUpdate(BaseModel):
     document_type_map: dict = Field(default_factory=dict)
     tags_map: dict = Field(default_factory=dict)
     ocr_contains_rules: list[dict] = Field(default_factory=list)
+
+
+class ProfileOutputSettingsUpdate(BaseModel):
+    mode: str = "document"
+    output_format: str = "pdf"
+    jpeg_quality: int = 92

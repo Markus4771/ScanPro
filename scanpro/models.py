@@ -145,3 +145,22 @@ class JobImageProcessing(Base):
     pages_cropped: Mapped[int] = mapped_column(Integer, default=0)
     pages_border_cleaned: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ProfileOcrSettings(Base):
+    __tablename__ = "profile_ocr_settings"
+    __table_args__ = (UniqueConstraint("profile_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
+    language: Mapped[str] = mapped_column(String(80), default="deu")
+
+
+class JobOcrResult(Base):
+    __tablename__ = "job_ocr_results"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scan_job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"))
+    document_id: Mapped[int] = mapped_column(ForeignKey("job_documents.id"))
+    language: Mapped[str] = mapped_column(String(80), default="deu")
+    text: Mapped[str] = mapped_column(Text, default="")
+    characters: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

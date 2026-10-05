@@ -115,6 +115,67 @@
     <div id="profiles" class="muted">Lade Profile…</div>
   </section>
 
+
+  <section class="card" style="margin-top:16px">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin-bottom:0">Scanziele</h2>
+      <button class="secondary" onclick="resetDestinationForm()">Neues Ziel</button>
+    </div>
+
+    <div class="grid" style="margin-top:12px">
+      <label>Name
+        <input id="destinationName" placeholder="z. B. Archiv">
+      </label>
+      <label>Typ
+        <select id="destinationType" onchange="toggleDestinationFields()">
+          <option value="local">Lokaler Ordner</option>
+          <option value="smb">SMB-Freigabe</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="destinationLocalFields">
+      <label>Lokaler Pfad
+        <input id="destinationLocalPath" placeholder="/srv/scans/archiv">
+      </label>
+    </div>
+
+    <div id="destinationSmbFields" style="display:none">
+      <div class="grid">
+        <label>Server / IP
+          <input id="destinationServer" placeholder="192.168.0.10">
+        </label>
+        <label>Freigabe
+          <input id="destinationShare" placeholder="Scans">
+        </label>
+        <label>Unterordner
+          <input id="destinationSubfolder" placeholder="optional">
+        </label>
+        <label>Benutzer
+          <input id="destinationUsername" placeholder="scanpro">
+        </label>
+        <label>Passwort
+          <input id="destinationPassword" type="password" placeholder="Passwort">
+        </label>
+        <label>Domäne
+          <input id="destinationDomain" placeholder="optional">
+        </label>
+      </div>
+    </div>
+
+    <label class="check"><input type="checkbox" id="destinationEnabled" checked> Ziel aktiv</label>
+
+    <div class="actions">
+      <button id="destinationSaveButton" onclick="saveDestination()">Ziel speichern</button>
+      <button class="secondary" onclick="resetDestinationForm()">Abbrechen</button>
+    </div>
+    <input type="hidden" id="destinationId">
+
+    <div class="divider"></div>
+    <div id="destinations" class="muted">Lade Scanziele…</div>
+  </section>
+
+
   <section class="card" style="margin-top:16px">
     <h2>Testscan</h2>
     <div class="grid">
@@ -160,6 +221,7 @@
 </main>
 <script>
 let profilesCache=[];
+let destinationsCache=[];
 
 async function api(url, options={}) {
   const r = await fetch(url, options);
@@ -169,7 +231,7 @@ async function api(url, options={}) {
 }
 async function init(){
   const h=await api('/health'); document.getElementById('version').textContent=h.version;
-  await loadSaved(); await loadProfiles(); await loadJobs();
+  await loadSaved(); await loadProfiles(); await loadDestinations(); await loadJobs();
 }
 async function discover(driver='sane'){
   const box=document.getElementById('discovered'); box.textContent='Suche…';
@@ -337,6 +399,120 @@ function applySelectedProfile(){
 }
 function colorLabel(v){return ({color:'Farbe',grayscale:'Graustufen',blackwhite:'Schwarzweiß'})[v]||v}
 function splitLabel(v){return ({'patch-t':'Patch-T',qr:'QR-Code',barcode:'Barcode','blank-page':'Leerseite',manual:'Manuell',none:'Keine'})[v]||v}
+
+
+function toggleDestinationFields(){
+  const type=document.getElementById('destinationType').value;
+  document.getElementById('destinationLocalFields').style.display=type==='local'?'block':'none';
+  document.getElementById('destinationSmbFields').style.display=type==='smb'?'block':'none';
+}
+function resetDestinationForm(){
+  document.getElementById('destinationId').value='';
+  document.getElementById('destinationName').value='';
+  document.getElementById('destinationType').value='local';
+  document.getElementById('destinationLocalPath').value='';
+  document.getElementById('destinationServer').value='';
+  document.getElementById('destinationShare').value='';
+  document.getElementById('destinationSubfolder').value='';
+  document.getElementById('destinationUsername').value='';
+  document.getElementById('destinationPassword').value='';
+  document.getElementById('destinationDomain').value='';
+  document.getElementById('destinationEnabled').checked=true;
+  document.getElementById('destinationSaveButton').textContent='Ziel speichern';
+  toggleDestinationFields();
+}
+function destinationConfigFromForm(){
+  const type=document.getElementById('destinationType').value;
+  if(type==='local'){
+    return {path:document.getElementById('destinationLocalPath').value.trim()};
+  }
+  return {
+    server:document.getElementById('destinationServer').value.trim(),
+    share:document.getElementById('destinationShare').value.trim(),
+    subfolder:document.getElementById('destinationSubfolder').value.trim(),
+    username:document.getElementById('destinationUsername').value.trim(),
+    password:document.getElementById('destinationPassword').value,
+    domain:document.getElementById('destinationDomain').value.trim()
+  };
+}
+async function saveDestination(){
+  const id=document.getElementById('destinationId').value;
+  const name=document.getElementById('destinationName').value.trim();
+  const type=document.getElementById('destinationType').value;
+  if(!name){alert('Bitte einen Namen für das Scanziel eingeben.');return;}
+  const body={name,type,enabled:document.getElementById('destinationEnabled').checked,config:destinationConfigFromForm()};
+  try{
+    await api(id?'/api/destinations/'+id:'/api/destinations',{
+      method:id?'PATCH':'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    resetDestinationForm();
+    await loadDestinations();
+  }catch(e){alert(e.message)}
+}
+function editDestination(d){
+  document.getElementById('destinationId').value=d.id;
+  document.getElementById('destinationName').value=d.name;
+  document.getElementById('destinationType').value=d.type;
+  document.getElementById('destinationEnabled').checked=d.enabled;
+  const c=d.config||{};
+  document.getElementById('destinationLocalPath').value=c.path||'';
+  document.getElementById('destinationServer').value=c.server||'';
+  document.getElementById('destinationShare').value=c.share||'';
+  document.getElementById('destinationSubfolder').value=c.subfolder||'';
+  document.getElementById('destinationUsername').value=c.username||'';
+  document.getElementById('destinationPassword').value=c.password==='********'?'********':(c.password||'');
+  document.getElementById('destinationDomain').value=c.domain||'';
+  document.getElementById('destinationSaveButton').textContent='Änderungen speichern';
+  toggleDestinationFields();
+}
+async function toggleDestination(d){
+  await api('/api/destinations/'+d.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!d.enabled})});
+  await loadDestinations();
+}
+async function deleteDestination(d){
+  if(!confirm('Scanziel "'+d.name+'" wirklich löschen?'))return;
+  try{
+    await api('/api/destinations/'+d.id,{method:'DELETE'});
+    await loadDestinations();
+  }catch(e){alert(e.message)}
+}
+async function testDestination(d){
+  const box=document.getElementById('destinationTest-'+d.id);
+  box.textContent='Teste…';
+  try{
+    const r=await api('/api/destinations/'+d.id+'/test',{method:'POST'});
+    box.innerHTML='<span class="ok">'+escapeHtml(r.message)+'</span>';
+  }catch(e){
+    box.innerHTML='<span class="err">'+escapeHtml(e.message)+'</span>';
+  }
+}
+async function loadDestinations(){
+  const data=await api('/api/destinations');
+  destinationsCache=data;
+  const box=document.getElementById('destinations');
+  box.innerHTML='';
+  if(!data.length){
+    box.innerHTML='<span class="muted">Noch keine Scanziele angelegt.</span>';
+    return;
+  }
+  for(const d of data){
+    const c=d.config||{};
+    const summary=d.type==='local'?(c.path||'kein Pfad'):('//'+(c.server||'?')+'/'+(c.share||'?')+(c.subfolder?'/'+c.subfolder:''));
+    const el=document.createElement('div'); el.className='item';
+    el.innerHTML='<strong>'+escapeHtml(d.name)+'</strong> '+
+      '<span class="badge '+(d.enabled?'ok':'off')+'">'+(d.enabled?'aktiv':'deaktiviert')+'</span>'+
+      '<div class="muted">'+escapeHtml(d.type.toUpperCase())+' · '+escapeHtml(summary)+'</div>'+
+      '<div id="destinationTest-'+d.id+'" class="muted" style="margin-top:6px"></div>';
+    const actions=document.createElement('div'); actions.className='actions';
+    const test=document.createElement('button'); test.className='secondary'; test.textContent='Verbindung testen'; test.onclick=()=>testDestination(d);
+    const edit=document.createElement('button'); edit.className='secondary'; edit.textContent='Bearbeiten'; edit.onclick=()=>editDestination(d);
+    const toggle=document.createElement('button'); toggle.className='secondary'; toggle.textContent=d.enabled?'Deaktivieren':'Aktivieren'; toggle.onclick=()=>toggleDestination(d);
+    const del=document.createElement('button'); del.className='danger'; del.textContent='Löschen'; del.onclick=()=>deleteDestination(d);
+    actions.append(test,edit,toggle,del); el.appendChild(actions); box.appendChild(el);
+  }
+}
 
 async function testscan(){
   const id=document.getElementById('scanScanner').value;

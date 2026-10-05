@@ -4,111 +4,96 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.8.0-dev**
+Aktueller Stand: **0.8.1-dev**
 
-## Neu in 0.8.0-dev
+## Neu in 0.8.1-dev
 
-VPN-/Remote-Scanner-Unterstützung ist als erste Stufe umgesetzt.
+Remote-Scanner-Härtung ist umgesetzt.
 
-## Scanner-Verbindungseinstellungen
+## Statische Scannerziele
 
 Neue Tabelle:
 
 ```text
-scanner_connection_settings
+scanner_static_targets
 ```
 
 Felder:
 
 - scanner_id
-- location
-- connection_type
-- timeout_seconds
-- retries
+- enabled
+- driver
+- device_name
+- device_id
+- address
 
-## Verbindungstypen
-
-```text
-local
-vpn
-```
-
-## API
+API:
 
 ```text
-GET /api/scanner-connection-settings
-PUT /api/scanners/{scanner_id}/connection-settings
-POST /api/scanners/{scanner_id}/reachability
+GET /api/scanner-static-targets
+PUT /api/scanners/{scanner_id}/static-target
 ```
 
-## Reachability
+## sane-airscan ohne mDNS
 
-ScanPro verwendet keinen ICMP-Ping, sondern TCP-Verbindungsversuche.
-
-Getestete Ports:
+Bei aktiviertem statischem SANE-Ziel setzt ScanPro für den Scanprozess:
 
 ```text
-443
-80
-631
-6566
+SANE_AIRSCAN_DEVICE=escl:<NAME>:<URL>
 ```
 
-Dadurch funktioniert der Test auch in Netzen, in denen ICMP geblockt ist.
-
-## Timeout / Retry
-
-NAPS2-Scans unterstützen jetzt:
-
-- konfigurierbaren Timeout
-- Retry bei Fehler/Timeout
-- kurze Pause zwischen Versuchen
-
-Diese Einstellungen gelten für:
-
-- Testscan
-- Scanner-Workflow
-
-Beispiel VPN-Scanner:
+Wird nur eine IP gespeichert, erzeugt ScanPro:
 
 ```text
-Standort: Außenstelle
-connection_type: vpn
-timeout_seconds: 120
-retries: 2
+http://<IP>/eSCL
 ```
 
-## Webinterface
+Eine vollständige http/https-eSCL-URL kann ebenfalls angegeben werden.
 
-Gespeicherte Scanner zeigen:
+## Fehlerklassifikation
 
+NAPS2-/Scannerfehler werden kategorisiert:
+
+```text
+network
+discovery
+scan
+```
+
+Jobs können entsprechend folgende Stati erhalten:
+
+```text
+network_error
+discovery_error
+scan_error
+```
+
+## Scannerstatus
+
+Die Scannerliste zeigt:
+
+- Online/Offline
+- Netzwerk/Discovery/OK
 - Standort
 - LOCAL/VPN
-- Erreichbarkeitsstatus
+- Reachability-Details
 
-Zusätzlich:
+Statisch konfigurierte, erreichbare Scanner gelten nicht als Discovery-Fehler.
+
+## Standortfilter
+
+Im Webinterface gibt es jetzt:
 
 ```text
-Erreichbarkeit testen
+Standortfilter
 ```
 
-Beim Bearbeiten können Standort, Verbindungstyp, Timeout und Retry-Anzahl gesetzt werden.
-
-## Wichtige technische Grenze
-
-mDNS wird über geroutete VPNs normalerweise nicht übertragen.
-
-Ein erreichbarer Scanner kann daher trotzdem von NAPS2/SANE nicht automatisch gefunden werden.
-
-Für solche Standorte braucht es aktuell entweder:
-
-- statische sane-airscan/eSCL-Konfiguration
-- oder später einen ScanPro Remote Collector
+Damit können Scanner z. B. nach Hauptstandort und Außenstellen gefiltert werden.
 
 ## Schema-Version
 
 ```text
-4
+5
 ```
 
 ## Update
@@ -128,33 +113,25 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.8.0-dev","schema_version":4}
+{"status":"ok","version":"0.8.1-dev","schema_version":5}
 ```
 
 ## Nächster Entwicklungsschritt
 
 Empfohlen:
 
-**0.8.1-dev – Remote-Scanner-Härtung**
+**0.9.0-dev – Secret Store**
 
-- statische eSCL/SANE-Ziele komfortabler verwalten
-- Remote-Scanner ohne mDNS besser erkennen
-- Fehlerzustände getrennt anzeigen: Netzwerk / Discovery / Scan
-- Standortfilter im UI
+- SMB-Passwörter nicht mehr im Klartext
+- Paperless-Tokens nicht mehr im Klartext
+- verschlüsselte lokale Secret-Ablage
+- Maskierung bleibt im Webinterface
 
 Danach:
 
-**0.9.0-dev – Secret Store**
-
-- Paperless-Token
-- SMB-Passwörter
-- verschlüsselte Ablage
-
-Später:
-
 - Remote Collector
 - Paperless Custom Fields
-- automatische Dokumentklassifikation
+- Dokumentklassifikation
 - Cleanup/Retention
 
 ## Einstieg in einem neuen Chat

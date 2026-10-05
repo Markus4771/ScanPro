@@ -93,6 +93,7 @@
 
     <div class="row">
       <label class="check"><input type="checkbox" id="profileOcr"> OCR aktivieren</label>
+      <label class="check"><input type="checkbox" id="profileRemoveBlank"> Leere Seiten aussortieren</label>
       <label class="check"><input type="checkbox" id="profileSplit" onchange="toggleSplitOptions()"> Trennung aktivieren</label>
       <label id="splitMethodWrap" style="min-width:220px;display:none">Trennmethode
         <select id="profileSplitMethod">
@@ -265,6 +266,7 @@
 <script>
 let profilesCache=[];
 let profileSharesCache=[];
+let profileProcessingCache=[];
 let destinationsCache=[];
 let scannersCache=[];
 let workflowsCache=[];
@@ -356,6 +358,7 @@ function resetProfileForm(){
   document.getElementById('profileColor').value='color';
   document.getElementById('profileDuplex').value='false';
   document.getElementById('profileOcr').checked=false;
+  document.getElementById('profileRemoveBlank').checked=false;
   document.getElementById('profileSplit').checked=false;
   document.getElementById('profileSplitMethod').value='patch-t';
   document.getElementById('profileShareEnabled').checked=false;
@@ -392,6 +395,11 @@ async function saveProfile(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({enabled:shareEnabled,share_name:shareEnabled?shareName:null})
     });
+    await api('/api/profiles/'+profileId+'/processing',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({remove_blank_pages:document.getElementById('profileRemoveBlank').checked})
+    });
     resetProfileForm();
     await loadProfiles();
   }catch(e){alert(e.message)}
@@ -406,6 +414,8 @@ function editProfile(p){
   document.getElementById('profileSplit').checked=p.split_enabled;
   document.getElementById('profileSplitMethod').value=p.split_method==='none'?'patch-t':p.split_method;
   const share=profileSharesCache.find(x=>x.profile_id===p.id);
+  const processing=profileProcessingCache.find(x=>x.profile_id===p.id);
+  document.getElementById('profileRemoveBlank').checked=!!(processing&&processing.remove_blank_pages);
   document.getElementById('profileShareEnabled').checked=!!(share&&share.enabled);
   document.getElementById('profileShareName').value=share?share.share_name:p.name;
   document.getElementById('profileSaveButton').textContent='Änderungen speichern';
@@ -421,9 +431,10 @@ async function deleteProfile(p){
   }catch(e){alert(e.message)}
 }
 async function loadProfiles(){
-  const [data,shares]=await Promise.all([api('/api/profiles'),api('/api/profile-shares')]);
+  const [data,shares,processing]=await Promise.all([api('/api/profiles'),api('/api/profile-shares'),api('/api/profile-processing')]);
   profilesCache=data;
   profileSharesCache=shares;
+  profileProcessingCache=processing;
   populateWorkflowSelectors();
   const box=document.getElementById('profiles');
   const sel=document.getElementById('scanProfile');
@@ -438,6 +449,8 @@ async function loadProfiles(){
   for(const p of data){
     const split=p.split_enabled?('Trennung: '+splitLabel(p.split_method)):'Trennung: aus';
     const ocr=p.ocr_enabled?'OCR: an':'OCR: aus';
+    const processing=profileProcessingCache.find(x=>x.profile_id===p.id);
+    const blank=processing&&processing.remove_blank_pages?'Leerseiten: entfernen':'Leerseiten: behalten';
     const share=profileSharesCache.find(x=>x.profile_id===p.id);
     const shareText=share&&share.enabled?('SMB: \\\\SCANPRO\\'+share.share_name):'SMB: aus';
     const el=document.createElement('div'); el.className='item';
@@ -446,7 +459,7 @@ async function loadProfiles(){
       '<div>'+p.dpi+' dpi</div>'+
       '<div>'+escapeHtml(colorLabel(p.color_mode))+'</div>'+
       '<div>'+(p.duplex?'Duplex':'Einseitig')+'</div>'+
-      '<div>'+ocr+'</div>'+
+      '<div>'+ocr+'<div class="muted">'+blank+'</div></div>'+
       '<div>'+escapeHtml(split)+'<div class="muted">'+escapeHtml(shareText)+'</div></div>'+
       '<div class="actions"></div>'+
       '</div>';
@@ -743,6 +756,7 @@ async function loadJobs(){
       '<div><div>'+escapeHtml(filename)+'</div><div class="muted">'+escapeHtml(j.created_at||'')+
       (j.profile_name?' · Profil: '+escapeHtml(j.profile_name):'')+
       (j.source==='profile-smb'?' · SMB-Inbox':'')+
+      (j.blank_pages_removed?' · Leerseiten entfernt: '+j.blank_pages_removed:'')+
       (j.deliveries&&j.deliveries.length?' · Versand: '+j.deliveries.map(d=>d.status).join(', '):'')+'</div>'+
       (j.error?'<div class="err">'+escapeHtml(j.error)+'</div>':'')+'</div>'+
       '<div>'+((j.status==='finished'||j.status==='imported'||j.status==='delivered'||j.status==='delivery_error')?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':'')+'</div>'+

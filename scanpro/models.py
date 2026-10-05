@@ -111,3 +111,13 @@ class JobDocument(Base):
     path: Mapped[str] = mapped_column(Text)
     split_method: Mapped[str] = mapped_column(String(30), default="none")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class JobSeparationMarker(Base):
+    __tablename__ = "job_separation_markers"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scan_job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"))
+    page: Mapped[int] = mapped_column(Integer)
+    marker_type: Mapped[str] = mapped_column(String(40))
+    value: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

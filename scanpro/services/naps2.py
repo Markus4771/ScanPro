@@ -12,11 +12,14 @@ def _run(
     args: list[str],
     timeout_seconds: int = 60,
     retries: int = 0,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["HOME"] = str(NAPS2_WORKDIR)
     env["XDG_CONFIG_HOME"] = str(NAPS2_WORKDIR / ".config")
     env["XDG_CACHE_HOME"] = str(NAPS2_WORKDIR / ".cache")
+    if extra_env:
+        env.update(extra_env)
     NAPS2_WORKDIR.mkdir(parents=True, exist_ok=True)
     (NAPS2_WORKDIR / ".config").mkdir(parents=True, exist_ok=True)
     (NAPS2_WORKDIR / ".cache").mkdir(parents=True, exist_ok=True)
@@ -89,6 +92,7 @@ def scan_to_pdf(
     color_mode: str = "color",
     timeout_seconds: int = 60,
     retries: int = 0,
+    airscan_device: str | None = None,
 ) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
     source = "duplex" if duplex else "feeder"
@@ -103,7 +107,13 @@ def scan_to_pdf(
         "--pagesize", "a4",
         "-v",
     )
-    result = _run(args, timeout_seconds=timeout_seconds, retries=retries)
+    extra_env = {"SANE_AIRSCAN_DEVICE": airscan_device} if airscan_device else None
+    result = _run(
+        args,
+        timeout_seconds=timeout_seconds,
+        retries=retries,
+        extra_env=extra_env,
+    )
     if not output.exists():
         details = "\n".join(x for x in (result.stdout.strip(), result.stderr.strip()) if x)
         if details:

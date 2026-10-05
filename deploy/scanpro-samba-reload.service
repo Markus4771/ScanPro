@@ -1,0 +1,7 @@
+[Unit]
+Description=Reload Samba after ScanPro profile share changes
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/testparm -s
+ExecStart=/bin/systemctl reload smbd

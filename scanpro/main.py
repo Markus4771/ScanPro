@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, DATABASE_URL, engine, get_db, initialize_database
-from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfilePaperlessRules, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileOutputSettings, ProfilePaperlessRules, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -20,6 +20,7 @@ from .schemas import (
     ProfileOcrSettingsUpdate,
     ProfileNamingSettingsUpdate,
     ProfilePaperlessRulesUpdate,
+    ProfileOutputSettingsUpdate,
     ScannerCreate,
     ScannerImport,
     ScannerUpdate,
@@ -36,6 +37,7 @@ from .services.image_processing import ImageProcessingError
 from .services.ocr import OcrError, apply_ocr
 from .services.naming import NamingError, resolve_document_metadata
 from .services.paperless import PaperlessError, fetch_choices, get_task_status, resolve_upload_metadata
+from .services.output_formats import OutputFormatError, convert_documents_to_output_format, get_output_settings
 from .services.separation import SeparationError, validate_split
 from .services.workflows import deliver_job
 from .migrations import CURRENT_SCHEMA_VERSION, get_schema_version, run_schema_migrations
@@ -305,7 +307,7 @@ def get_job_file(job_id: int, db: Session = Depends(get_db)):
     path = Path(job.output_path)
     if not path.exists() or JOBS_DIR not in path.parents:
         raise HTTPException(404, "Scan-Datei wurde nicht gefunden.")
-    return FileResponse(path, media_type="application/pdf", filename=path.name)
+    return FileResponse(path, filename=path.name)
 
 @app.get("/api/job-documents/{document_id}/metadata")
 def get_job_document_metadata(document_id: int, db: Session = Depends(get_db)):
@@ -353,7 +355,7 @@ def get_job_document_file(document_id: int, db: Session = Depends(get_db)):
     path = Path(document.path)
     if not path.exists() or JOBS_DIR not in path.parents:
         raise HTTPException(404, "Dokumentdatei wurde nicht gefunden.")
-    return FileResponse(path, media_type="application/pdf", filename=path.name)
+    return FileResponse(path, filename=path.name)
 
 @app.get("/api/destinations/{destination_id}/paperless/choices")
 def paperless_choices(destination_id: int, db: Session = Depends(get_db)):
@@ -380,6 +382,60 @@ def paperless_task(delivery_id: int, db: Session = Depends(get_db)):
         return get_task_status(destination, task_id)
     except PaperlessError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+@app.get("/api/profile-output-settings")
+def list_profile_output_settings(db: Session = Depends(get_db)):
+    rows = db.query(ProfileOutputSettings).order_by(ProfileOutputSettings.profile_id).all()
+    return [
+        {
+            "id": row.id,
+            "profile_id": row.profile_id,
+            "mode": row.mode,
+            "output_format": row.output_format,
+            "jpeg_quality": row.jpeg_quality,
+        }
+        for row in rows
+    ]
+
+@app.put("/api/profiles/{profile_id}/output-settings")
+def update_profile_output_settings(
+    profile_id: int,
+    payload: ProfileOutputSettingsUpdate,
+    db: Session = Depends(get_db),
+):
+    profile = db.get(ScanProfile, profile_id)
+    if not profile:
+        raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+
+    mode = payload.mode.strip().lower()
+    output_format = payload.output_format.strip().lower()
+    if mode not in {"document", "photo"}:
+        raise HTTPException(400, "Profilmodus muss document oder photo sein.")
+    if output_format not in {"pdf", "jpeg", "png"}:
+        raise HTTPException(400, "Ausgabeformat muss PDF, JPEG oder PNG sein.")
+    if not 1 <= payload.jpeg_quality <= 100:
+        raise HTTPException(400, "JPEG-Qualität muss zwischen 1 und 100 liegen.")
+
+    if output_format in {"jpeg", "png"}:
+        profile.ocr_enabled = False
+        profile.split_enabled = False
+        profile.split_method = "none"
+        profile.color_mode = "color"
+
+    row = db.query(ProfileOutputSettings).filter(ProfileOutputSettings.profile_id == profile_id).first()
+    if not row:
+        row = ProfileOutputSettings(profile_id=profile_id)
+        db.add(row)
+    row.mode = mode
+    row.output_format = output_format
+    row.jpeg_quality = payload.jpeg_quality
+    db.commit(); db.refresh(row)
+    return {
+        "profile_id": profile_id,
+        "mode": row.mode,
+        "output_format": row.output_format,
+        "jpeg_quality": row.jpeg_quality,
+    }
 
 @app.get("/api/profile-paperless-rules")
 def list_profile_paperless_rules(db: Session = Depends(get_db)):
@@ -811,6 +867,12 @@ def delete_profile(profile_id: int, db: Session = Depends(get_db)):
     naming_settings = db.query(ProfileNamingSettings).filter(ProfileNamingSettings.profile_id == profile_id).first()
     if naming_settings:
         db.delete(naming_settings)
+    output_settings = db.query(ProfileOutputSettings).filter(ProfileOutputSettings.profile_id == profile_id).first()
+    if output_settings:
+        db.delete(output_settings)
+    paperless_rules = db.query(ProfilePaperlessRules).filter(ProfilePaperlessRules.profile_id == profile_id).first()
+    if paperless_rules:
+        db.delete(paperless_rules)
     db.delete(profile)
     db.commit()
     sync_profile_shares(db)
@@ -962,12 +1024,22 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
             raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
 
         try:
-            apply_ocr(db, job, profile, documents)
-        except OcrError as exc:
+            documents = convert_documents_to_output_format(db, job, profile, documents)
+        except OutputFormatError as exc:
             job.status = "processing_error"
             job.error = str(exc)
             db.commit()
             raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
+
+        output_settings = get_output_settings(db, profile)
+        if not output_settings or output_settings.output_format == "pdf":
+            try:
+                apply_ocr(db, job, profile, documents)
+            except OcrError as exc:
+                job.status = "processing_error"
+                job.error = str(exc)
+                db.commit()
+                raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
     except Naps2Error as exc:
         job.status = "error"
         job.error = str(exc)

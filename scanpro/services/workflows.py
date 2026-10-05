@@ -1,11 +1,12 @@
 from sqlalchemy.orm import Session
 
-from ..models import Destination, JobDelivery, JobDocument, ScanJob, ScanProfile, Workflow
+from ..models import Destination, JobDelivery, JobDocument, JobDocumentMetadata, ScanJob, ScanProfile, Workflow
 from .destinations import DestinationError, deliver_file
 from .naming import NamingError, resolve_document_metadata
+from .paperless import PaperlessError, resolve_upload_metadata
 
 
-def deliver_job(db: Session, job: ScanJob, workflow: Workflow, destination: Destination, source_path: str | None = None, target_name: str | None = None) -> JobDelivery:
+def deliver_job(db: Session, job: ScanJob, workflow: Workflow, destination: Destination, source_path: str | None = None, target_name: str | None = None, metadata: dict | None = None) -> JobDelivery:
     delivery = JobDelivery(
         scan_job_id=job.id,
         workflow_id=workflow.id,
@@ -22,6 +23,7 @@ def deliver_job(db: Session, job: ScanJob, workflow: Workflow, destination: Dest
             destination.config_json,
             source_path or job.output_path or job.input_path or "",
             target_name=target_name,
+            metadata=metadata,
         )
         delivery.status = "delivered"
         delivery.target_path = target
@@ -63,6 +65,11 @@ def deliver_to_matching_inbox_workflows(db: Session, job: ScanJob, profile_id: i
             for document in documents:
                 try:
                     metadata = resolve_document_metadata(db, job, profile, document)
+                    paperless_metadata = {}
+                    if destination.type == "paperless":
+                        paperless_metadata = resolve_upload_metadata(
+                            db, job, profile, document, metadata
+                        )
                     deliveries.append(
                         deliver_job(
                             db,
@@ -71,9 +78,10 @@ def deliver_to_matching_inbox_workflows(db: Session, job: ScanJob, profile_id: i
                             destination,
                             source_path=document.path,
                             target_name=metadata.final_filename,
+                            metadata=paperless_metadata,
                         )
                     )
-                except NamingError as exc:
+                except (NamingError, PaperlessError) as exc:
                     delivery = JobDelivery(
                         scan_job_id=job.id,
                         workflow_id=workflow.id,

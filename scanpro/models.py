@@ -1,6 +1,6 @@
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
 class Scanner(Base):
@@ -34,6 +34,15 @@ class ScanProfile(Base):
     ocr_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     split_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     split_method: Mapped[str] = mapped_column(String(30), default="none")
+
+class ProfileShare(Base):
+    __tablename__ = "profile_shares"
+    __table_args__ = (UniqueConstraint("profile_id"), UniqueConstraint("share_name"))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    share_name: Mapped[str] = mapped_column(String(80))
+    path: Mapped[str] = mapped_column(String(255))
 
 class Workflow(Base):
     __tablename__ = "workflows"

@@ -14,7 +14,8 @@ ALLOWED_SUFFIXES = {".pdf"}
 Base.metadata.create_all(bind=engine)
 
 from .services.blank_pages import BlankPageError, remove_blank_pages
-from .services.documents import prepare_job_documents
+from .services.documents import apply_image_processing, prepare_job_documents
+from .services.image_processing import ImageProcessingError
 from .services.separation import SeparationError
 from .services.workflows import deliver_to_matching_inbox_workflows
 
@@ -76,12 +77,21 @@ def import_file(profile_id: int, source: Path) -> int:
                 db.commit()
                 return job.id
 
-        if profile and profile.split_enabled:
+        if profile:
             try:
-                prepare_job_documents(db, job, profile)
-                job.status = "separated"
-                db.commit()
+                documents = prepare_job_documents(db, job, profile)
+                if profile.split_enabled:
+                    job.status = "separated"
+                    db.commit()
             except SeparationError as exc:
+                job.status = "processing_error"
+                job.error = str(exc)
+                db.commit()
+                return job.id
+
+            try:
+                apply_image_processing(db, job, profile, documents)
+            except ImageProcessingError as exc:
                 job.status = "processing_error"
                 job.error = str(exc)
                 db.commit()

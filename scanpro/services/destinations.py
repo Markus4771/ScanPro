@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import tempfile
+import mimetypes
 from pathlib import Path
 
 import httpx
@@ -174,7 +175,7 @@ def deliver_file(
                         "document": (
                             target_name or source.name,
                             handle,
-                            "application/pdf",
+                            mimetypes.guess_type(target_name or source.name)[0] or "application/octet-stream",
                         )
                     },
                     timeout=120,

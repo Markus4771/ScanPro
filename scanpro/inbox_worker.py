@@ -21,6 +21,7 @@ from .services.blank_pages import BlankPageError, remove_blank_pages
 from .services.documents import apply_image_processing, prepare_job_documents
 from .services.image_processing import ImageProcessingError
 from .services.ocr import OcrError, apply_ocr
+from .services.output_formats import OutputFormatError, convert_documents_to_output_format, get_output_settings
 from .services.separation import SeparationError
 from .services.workflows import deliver_to_matching_inbox_workflows
 
@@ -103,12 +104,22 @@ def import_file(profile_id: int, source: Path) -> int:
                 return job.id
 
             try:
-                apply_ocr(db, job, profile, documents)
-            except OcrError as exc:
+                documents = convert_documents_to_output_format(db, job, profile, documents)
+            except OutputFormatError as exc:
                 job.status = "processing_error"
                 job.error = str(exc)
                 db.commit()
                 return job.id
+
+            output_settings = get_output_settings(db, profile)
+            if not output_settings or output_settings.output_format == "pdf":
+                try:
+                    apply_ocr(db, job, profile, documents)
+                except OcrError as exc:
+                    job.status = "processing_error"
+                    job.error = str(exc)
+                    db.commit()
+                    return job.id
 
         deliver_to_matching_inbox_workflows(db, job, profile_id)
         return job.id

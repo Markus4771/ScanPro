@@ -76,3 +76,7 @@ class WorkflowUpdate(BaseModel):
     profile_id: int | None = None
     destination_id: int | None = None
     enabled: bool | None = None
+
+
+class ProfileProcessingUpdate(BaseModel):
+    remove_blank_pages: bool = False

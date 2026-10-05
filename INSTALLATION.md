@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.2.5-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.3.0-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.2.5-dev"}
+{"status":"ok","version":"0.3.0-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -537,3 +537,52 @@ Unterstützt werden:
 Die PDF-Verarbeitung verwendet PyMuPDF.
 
 Nach einem verarbeiteten Job zeigt die Jobliste an, wie viele Leerseiten entfernt wurden.
+
+
+## Dokumenttrennung testen
+
+### Leerseite als Trenner
+
+Im Scanprofil einstellen:
+
+```text
+Trennung aktivieren: ja
+Trennmethode: Leerseite
+```
+
+Dann einen Teststapel scannen:
+
+```text
+Dokument 1
+Leerseite
+Dokument 2
+Leerseite
+Dokument 3
+```
+
+In der Jobliste sollten anschließend mehrere Dokumente erscheinen:
+
+```text
+Dok. 1
+Dok. 2
+Dok. 3
+```
+
+### Patch-T
+
+Im Profil:
+
+```text
+Trennung aktivieren: ja
+Trennmethode: Patch-T
+```
+
+Für Patch-T möglichst mit mindestens 300 dpi scannen.
+
+Patch-T wird über NAPS2 `--splitpatcht` verarbeitet und muss unter Linux/SANE praktisch geprüft werden.
+
+Die erzeugten Dokumente liegen unter:
+
+```text
+/var/lib/scanpro/jobs/documents/<JOB-ID>/
+```

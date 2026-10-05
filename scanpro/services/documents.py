@@ -1,7 +1,7 @@
 from pathlib import Path
 from sqlalchemy.orm import Session
 
-from ..models import JobDocument, ScanJob, ScanProfile
+from ..models import JobDocument, JobSeparationMarker, ScanJob, ScanProfile
 from .separation import SeparationError, split_pdf
 
 DOCUMENT_ROOT = Path("/var/lib/scanpro/jobs/documents")
@@ -21,7 +21,10 @@ def prepare_job_documents(db: Session, job: ScanJob, profile: ScanProfile) -> li
     if profile.split_enabled:
         method = profile.split_method
         output_dir = DOCUMENT_ROOT / str(job.id)
-        paths = split_pdf(source, profile.split_method, str(output_dir))
+        result = split_pdf(source, profile.split_method, str(output_dir))
+        paths = result.outputs
+        for marker in result.markers:
+            db.add(JobSeparationMarker(scan_job_id=job.id, page=marker.page, marker_type=marker.type, value=marker.value))
     else:
         paths = [source]
 

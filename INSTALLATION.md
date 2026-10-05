@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.5.1-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.5.2-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.5.1-dev"}
+{"status":"ok","version":"0.5.2-dev","schema_version":1}
 ```
 
 ## Scanner über ScanPro suchen
@@ -219,7 +219,7 @@ journalctl -u scanpro -f
 /var/lib/scanpro/jobs/  erzeugte ScanJobs/PDFs
 ```
 
-Die SQLite-Datenbank liegt im aktuellen Entwicklungsstand weiterhin im ScanPro-Arbeitsverzeichnis. Eine Verlagerung nach `/var/lib/scanpro/` folgt vor dem produktiven Einsatz.
+Die SQLite-Datenbank liegt ab 0.5.2-dev unter `/var/lib/scanpro/scanpro.db`. Vor Updates erstellt das Installationsskript automatisch eine Sicherung unter `/var/lib/scanpro/backups/`.
 
 ## Nächster Entwicklungsschritt
 
@@ -742,3 +742,54 @@ Metadaten eines erzeugten Dokuments:
 ```text
 /api/job-documents/<DOKUMENT-ID>/metadata
 ```
+
+
+## Datenbank nach Update prüfen
+
+Ab 0.5.2-dev:
+
+```bash
+curl http://127.0.0.1:8100/api/system/database
+```
+
+Erwartet ungefähr:
+
+```json
+{
+  "database_url":"sqlite:////var/lib/scanpro/scanpro.db",
+  "path":"/var/lib/scanpro/scanpro.db",
+  "schema_version":1,
+  "target_schema_version":1,
+  "journal_mode":"wal",
+  "foreign_keys":true
+}
+```
+
+Datei prüfen:
+
+```bash
+ls -lh /var/lib/scanpro/scanpro.db
+ls -lh /var/lib/scanpro/backups/
+```
+
+SQLite direkt prüfen:
+
+```bash
+sudo -u scanpro sqlite3 /var/lib/scanpro/scanpro.db 'PRAGMA integrity_check;'
+sudo -u scanpro sqlite3 /var/lib/scanpro/scanpro.db 'PRAGMA journal_mode;'
+```
+
+Erwartet:
+
+```text
+ok
+wal
+```
+
+Beim ersten Update von einer älteren Version wird eine vorhandene Datenbank aus:
+
+```text
+/opt/scanpro/scanpro.db
+```
+
+automatisch übernommen.

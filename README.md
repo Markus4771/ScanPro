@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.7.0-dev**
+Aktuell: **0.8.0-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -784,3 +784,53 @@ Neue Tabelle:
 ```text
 profile_output_settings
 ```
+
+
+## VPN-/Remote-Scanner in 0.8.0-dev
+
+Scanner können jetzt einem Standort und einem Verbindungstyp zugeordnet werden.
+
+Pro Scanner konfigurierbar:
+
+- Standort
+- Verbindungstyp `local` oder `vpn`
+- Scan-Timeout
+- Anzahl Wiederholungen
+
+Neue Tabelle:
+
+```text
+scanner_connection_settings
+```
+
+Neue API:
+
+```text
+GET /api/scanner-connection-settings
+PUT /api/scanners/{scanner_id}/connection-settings
+POST /api/scanners/{scanner_id}/reachability
+```
+
+Der Erreichbarkeitstest verwendet bewusst TCP statt ICMP und prüft typische Scanner-/IPP-/SANE-Ports:
+
+```text
+443
+80
+631
+6566
+```
+
+VPN-Scanner können längere Timeouts und mehrere Wiederholungen erhalten.
+
+Beispiel:
+
+```text
+Standort: Außenstelle Augsburg
+Verbindung: VPN
+Timeout: 120 s
+Retries: 2
+```
+
+Die Werte werden sowohl beim Testscan als auch bei Scanner-Workflows verwendet.
+
+Hinweis: mDNS wird über geroutete VPNs normalerweise nicht automatisch weitergeleitet. Für einen Scanner hinter VPN muss SANE/eSCL daher ggf. mit einer statischen Adresse konfiguriert werden. Ein ScanPro Remote Collector ist als spätere Erweiterung vorgesehen.

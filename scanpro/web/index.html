@@ -7,21 +7,29 @@
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f4f6f8;color:#1f2937}
     header{background:#111827;color:#fff;padding:18px 24px}
-    main{max-width:1100px;margin:24px auto;padding:0 16px}
+    main{max-width:1180px;margin:24px auto;padding:0 16px}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
     .card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
     h1,h2{margin-top:0}
-    button{cursor:pointer;border:0;border-radius:8px;padding:9px 14px;background:#111827;color:#fff}
-    button.secondary{background:#e5e7eb;color:#111827}
+    button,a.btn{cursor:pointer;border:0;border-radius:8px;padding:9px 14px;background:#111827;color:#fff;text-decoration:none;display:inline-block}
+    button.secondary,a.secondary{background:#e5e7eb;color:#111827}
+    button.danger{background:#b91c1c}
     input,select{width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box;margin-top:4px}
     label{display:block;margin:10px 0}
-    .item{padding:10px 0;border-top:1px solid #e5e7eb}
+    .item{padding:12px 0;border-top:1px solid #e5e7eb}
     .item:first-child{border-top:0}
     .muted{color:#6b7280;font-size:.92rem}
     .ok{color:#047857}
     .err{color:#b91c1c}
+    .warn{color:#92400e}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    pre{white-space:pre-wrap;background:#f9fafb;padding:10px;border-radius:8px}
+    .badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:.82rem;background:#e5e7eb}
+    .badge.ok{background:#d1fae5;color:#065f46}
+    .badge.err{background:#fee2e2;color:#991b1b}
+    .badge.off{background:#f3f4f6;color:#6b7280}
+    .jobgrid{display:grid;grid-template-columns:120px 120px 1fr auto;gap:12px;align-items:center}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    @media(max-width:760px){.jobgrid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -40,8 +48,11 @@
     </section>
 
     <section class="card">
-      <h2>Gespeicherte Scanner</h2>
-      <div id="saved" class="muted">Lade…</div>
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin-bottom:0">Gespeicherte Scanner</h2>
+        <button class="secondary" onclick="loadSaved()">Status aktualisieren</button>
+      </div>
+      <div id="saved" class="muted" style="margin-top:12px">Lade…</div>
     </section>
   </div>
 
@@ -75,8 +86,10 @@
   </section>
 
   <section class="card" style="margin-top:16px">
-    <h2>Letzte ScanJobs</h2>
-    <button class="secondary" onclick="loadJobs()">Aktualisieren</button>
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin-bottom:0">Letzte ScanJobs</h2>
+      <button class="secondary" onclick="loadJobs()">Aktualisieren</button>
+    </div>
     <div id="jobs" class="muted" style="margin-top:12px">Lade…</div>
   </section>
 </main>
@@ -84,7 +97,7 @@
 async function api(url, options={}) {
   const r = await fetch(url, options);
   const data = await r.json().catch(()=>({}));
-  if (!r.ok) throw new Error(JSON.stringify(data.detail ?? data));
+  if (!r.ok) throw new Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail ?? data));
   return data;
 }
 async function init(){
@@ -100,8 +113,7 @@ async function discover(driver='sane'){
     for(const d of data.devices){
       const el=document.createElement('div'); el.className='item';
       el.innerHTML='<strong>'+escapeHtml(d.name)+'</strong><div class="muted">'+escapeHtml(d.address||'keine IP')+' · '+escapeHtml(d.driver)+'</div>';
-      const b=document.createElement('button'); b.textContent='Übernehmen';
-      b.onclick=()=>importScanner(d);
+      const b=document.createElement('button'); b.textContent='Übernehmen'; b.onclick=()=>importScanner(d);
       el.appendChild(b); box.appendChild(el);
     }
   }catch(e){box.innerHTML='<span class="err">'+escapeHtml(e.message)+'</span>'}
@@ -111,26 +123,53 @@ async function importScanner(d){
   await loadSaved();
 }
 async function loadSaved(){
-  const data=await api('/api/scanners');
+  const [data,status] = await Promise.all([api('/api/scanners'),api('/api/scanners/status')]);
+  const statusMap=new Map(status.map(x=>[x.id,x]));
   const box=document.getElementById('saved'); const sel=document.getElementById('scanScanner');
   box.innerHTML=''; sel.innerHTML='';
   if(!data.length){box.innerHTML='<span class="muted">Noch kein Scanner gespeichert.</span>'; return;}
   for(const s of data){
+    const st=statusMap.get(s.id)||{};
+    const badge=!s.enabled?'<span class="badge off">deaktiviert</span>':st.online?'<span class="badge ok">online</span>':'<span class="badge err">offline</span>';
     const el=document.createElement('div'); el.className='item';
-    el.innerHTML='<strong>'+escapeHtml(s.name)+'</strong><div class="muted">'+escapeHtml(s.address||'keine IP')+' · '+escapeHtml(s.driver)+' · '+(s.enabled?'aktiv':'deaktiviert')+'</div>';
-    box.appendChild(el);
-    const o=document.createElement('option'); o.value=s.id; o.textContent=s.name; sel.appendChild(o);
+    el.innerHTML='<strong>'+escapeHtml(s.name)+'</strong> '+badge+
+      '<div class="muted">'+escapeHtml(s.address||'keine IP')+' · '+escapeHtml(s.driver)+'</div>';
+    const actions=document.createElement('div'); actions.className='actions';
+    const rename=document.createElement('button'); rename.className='secondary'; rename.textContent='Bearbeiten'; rename.onclick=()=>editScanner(s);
+    const toggle=document.createElement('button'); toggle.className='secondary'; toggle.textContent=s.enabled?'Deaktivieren':'Aktivieren'; toggle.onclick=()=>toggleScanner(s);
+    const del=document.createElement('button'); del.className='danger'; del.textContent='Löschen'; del.onclick=()=>deleteScanner(s);
+    actions.append(rename,toggle,del); el.appendChild(actions); box.appendChild(el);
+    if(s.enabled){
+      const o=document.createElement('option'); o.value=s.id; o.textContent=s.name; sel.appendChild(o);
+    }
   }
+}
+async function editScanner(s){
+  const name=prompt('Scannername',s.name); if(name===null)return;
+  const address=prompt('IP/Adresse',s.address||''); if(address===null)return;
+  await api('/api/scanners/'+s.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,address})});
+  await loadSaved();
+}
+async function toggleScanner(s){
+  await api('/api/scanners/'+s.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!s.enabled})});
+  await loadSaved();
+}
+async function deleteScanner(s){
+  if(!confirm('Scanner "'+s.name+'" wirklich löschen?'))return;
+  try{
+    await api('/api/scanners/'+s.id,{method:'DELETE'});
+    await loadSaved();
+  }catch(e){alert(e.message)}
 }
 async function testscan(){
   const id=document.getElementById('scanScanner').value;
   const out=document.getElementById('scanResult');
-  if(!id){out.innerHTML='<span class="err">Kein Scanner gespeichert.</span>';return;}
-  out.textContent='Scan läuft…';
+  if(!id){out.innerHTML='<span class="err">Kein aktiver Scanner gespeichert.</span>';return;}
+  out.innerHTML='<span class="warn">Scan läuft…</span>';
   try{
     const body={dpi:Number(document.getElementById('dpi').value),duplex:document.getElementById('duplex').value==='true',color_mode:document.getElementById('color').value};
     const r=await api('/api/scanners/'+id+'/testscan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    out.innerHTML='<span class="ok">Scan abgeschlossen.</span><pre>'+escapeHtml(JSON.stringify(r,null,2))+'</pre>';
+    out.innerHTML='<span class="ok">Scan abgeschlossen.</span> <a class="btn secondary" target="_blank" href="'+r.file_url+'">PDF öffnen</a>';
     await loadJobs();
   }catch(e){out.innerHTML='<span class="err">'+escapeHtml(e.message)+'</span>'; await loadJobs();}
 }
@@ -140,7 +179,14 @@ async function loadJobs(){
   if(!data.length){box.innerHTML='<span class="muted">Noch keine ScanJobs.</span>';return;}
   for(const j of data){
     const el=document.createElement('div'); el.className='item';
-    el.innerHTML='<strong>Job '+j.id+'</strong> · '+escapeHtml(j.status)+'<div class="muted">'+escapeHtml(j.output_path||'')+'</div>'+(j.error?'<div class="err">'+escapeHtml(j.error)+'</div>':'');
+    const statusClass=j.status==='finished'?'ok':j.status==='error'?'err':'off';
+    const filename=(j.output_path||'').split('/').pop()||'—';
+    el.innerHTML='<div class="jobgrid">'+
+      '<div><strong>Job '+j.id+'</strong></div>'+
+      '<div><span class="badge '+statusClass+'">'+escapeHtml(j.status)+'</span></div>'+
+      '<div><div>'+escapeHtml(filename)+'</div><div class="muted">'+escapeHtml(j.created_at||'')+'</div>'+(j.error?'<div class="err">'+escapeHtml(j.error)+'</div>':'')+'</div>'+
+      '<div>'+(j.status==='finished'?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':'')+'</div>'+
+      '</div>';
     box.appendChild(el);
   }
 }

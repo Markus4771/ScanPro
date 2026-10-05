@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.5.2-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.6.0-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.5.2-dev","schema_version":1}
+{"status":"ok","version":"0.6.0-dev","schema_version":1}
 ```
 
 ## Scanner über ScanPro suchen
@@ -793,3 +793,47 @@ Beim ersten Update von einer älteren Version wird eine vorhandene Datenbank aus
 ```
 
 automatisch übernommen.
+
+
+## Paperless-ngx als Scanziel
+
+Ab 0.6.0-dev kann Paperless-ngx direkt als Scanziel verwendet werden.
+
+Im Webinterface:
+
+1. **Scanziele**
+2. **Neues Ziel**
+3. Typ **Paperless-ngx**
+4. Paperless-URL eintragen
+5. API-Token eintragen
+6. Ziel speichern
+7. **Verbindung testen**
+
+Beispiel:
+
+```text
+Name: Paperless Archiv
+Typ: Paperless-ngx
+URL: https://paperless.example.local
+API-Token: <TOKEN>
+TLS-Zertifikat prüfen: ja
+```
+
+Optional können Paperless-interne IDs gesetzt werden:
+
+```text
+Korrespondent-ID
+Dokumenttyp-ID
+Speicherpfad-ID
+Tag-IDs
+```
+
+Tag-IDs werden kommasepariert eingegeben:
+
+```text
+2,5,9
+```
+
+Danach kann das Paperless-Ziel wie ein lokales oder SMB-Ziel in einem Workflow ausgewählt werden.
+
+Der Upload wird von Paperless asynchron verarbeitet. Ein erfolgreicher HTTP-Upload bedeutet, dass Paperless die Verarbeitung gestartet hat; die zurückgegebene Task-ID wird von ScanPro gespeichert.

@@ -8,13 +8,96 @@ ScanPro befindet sich noch in Entwicklung. Der aktuelle Stand stellt die Basis f
 
 ## Voraussetzungen
 
+Vor der Installation sollte das System folgende Voraussetzungen erfüllen:
+
 - Debian 13
 - Root- oder sudo-Zugriff
 - Netzwerkzugriff auf die Scanner
+- Internetzugang für Paketinstallation
 - Python 3.11 oder neuer
 - Git
 - Nginx
+- SANE-Werkzeuge
 - NAPS2 für Linux
+
+## System vorbereiten
+
+Zuerst Paketlisten aktualisieren:
+
+```bash
+sudo apt update
+```
+
+Empfohlene Grundpakete installieren:
+
+```bash
+sudo apt install -y \
+  git \
+  curl \
+  wget \
+  ca-certificates \
+  python3 \
+  python3-venv \
+  python3-pip \
+  nginx \
+  samba \
+  sane-utils
+```
+
+Hinweise:
+
+- `git` wird zum Klonen und Aktualisieren des Repositories benötigt.
+- `curl` und `wget` werden für Tests und Downloads verwendet.
+- `python3`, `python3-venv` und `python3-pip` werden für ScanPro benötigt.
+- `nginx` stellt ScanPro später über Port 80 bereit.
+- `sane-utils` wird zur Scanner-Erkennung und Diagnose verwendet.
+- `samba` wird für spätere SMB-Scan-Eingänge und Netzwerkfreigaben benötigt.
+
+Für den ersten Start von ScanPro ist Samba noch nicht zwingend erforderlich, wird für den geplanten Funktionsumfang aber empfohlen.
+
+## NAPS2 vor ScanPro installieren
+
+NAPS2 wird als Scan-Engine verwendet und muss aktuell noch separat installiert werden.
+
+Nach der Installation prüfen:
+
+```bash
+naps2.console --version
+```
+
+Scanner über eSCL suchen:
+
+```bash
+naps2.console --listdevices --driver escl
+```
+
+Scanner über SANE suchen:
+
+```bash
+naps2.console --listdevices --driver sane
+```
+
+Der genaue Installationsweg von NAPS2 soll später in das ScanPro-Installationsskript integriert werden.
+
+## Scanner-Verbindung vorab prüfen
+
+Der Scanner sollte vom ScanPro-Server aus erreichbar sein.
+
+Beispiel:
+
+```bash
+ping IP-DES-SCANNERS
+```
+
+SANE-Geräte prüfen:
+
+```bash
+scanimage -L
+```
+
+Wenn der Scanner über eSCL oder SANE erkannt wird, ist die Grundlage für die spätere ScanPro-Anbindung vorhanden.
+
+Für den Brother ADS-2600We ist vorgesehen, zunächst eSCL und SANE zu testen.
 
 ## Repository klonen
 
@@ -41,6 +124,10 @@ Das Skript:
 - installiert den systemd-Dienst
 - richtet Nginx als Reverse Proxy auf Port 80 ein
 - startet ScanPro
+
+Wichtig:
+
+**NAPS2 wird aktuell noch nicht durch `install-dev.sh` installiert.**
 
 Danach sollte ScanPro erreichbar sein unter:
 
@@ -95,8 +182,6 @@ Für die Entwicklung ist vorgesehen, Scanner über folgende Wege anzusprechen:
 - SANE
 - später USB/SANE und weitere Backends
 
-Nach Installation von NAPS2 werden erkannte Geräte später über ScanPro abgefragt.
-
 Direkter Test auf der Shell:
 
 ```bash
@@ -108,8 +193,6 @@ alternativ:
 ```bash
 naps2.console --listdevices --driver sane
 ```
-
-Der genaue Installationsweg von NAPS2 wird im nächsten Entwicklungsstand ergänzt und automatisiert.
 
 ## Verzeichnisstruktur
 

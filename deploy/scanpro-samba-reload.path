@@ -1,0 +1,9 @@
+[Unit]
+Description=Watch ScanPro profile SMB share configuration
+
+[Path]
+PathChanged=/var/lib/scanpro/samba-profile-shares.conf
+PathModified=/var/lib/scanpro/samba-profile-shares.conf
+
+[Install]
+WantedBy=multi-user.target

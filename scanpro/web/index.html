@@ -71,9 +71,25 @@
       <label>Name
         <input id="profileName" placeholder="z. B. Rechnung">
       </label>
+      <label>Profilmodus
+        <select id="profileMode" onchange="toggleProfileMode()">
+          <option value="document" selected>Dokument</option>
+          <option value="photo">Foto / Bild</option>
+        </select>
+      </label>
+      <label>Ausgabeformat
+        <select id="profileOutputFormat" onchange="toggleProfileMode()">
+          <option value="pdf" selected>PDF</option>
+          <option value="jpeg">JPEG</option>
+          <option value="png">PNG</option>
+        </select>
+      </label>
+      <label id="profileJpegQualityWrap" style="display:none">JPEG-Qualität
+        <input id="profileJpegQuality" type="number" min="1" max="100" value="92">
+      </label>
       <label>Auflösung
         <select id="profileDpi">
-          <option>150</option><option>200</option><option selected>300</option><option>600</option>
+          <option>150</option><option>200</option><option selected>300</option><option>600</option><option>1200</option>
         </select>
       </label>
       <label>Farbmodus
@@ -345,6 +361,7 @@ let profileImageProcessingCache=[];
 let profileOcrSettingsCache=[];
 let profileNamingSettingsCache=[];
 let profilePaperlessRulesCache=[];
+let profileOutputSettingsCache=[];
 let destinationsCache=[];
 let scannersCache=[];
 let workflowsCache=[];
@@ -419,6 +436,22 @@ async function deleteScanner(s){
   }catch(e){alert(e.message)}
 }
 
+function toggleProfileMode(){
+  const mode=document.getElementById('profileMode').value;
+  const format=document.getElementById('profileOutputFormat').value;
+  document.getElementById('profileJpegQualityWrap').style.display=format==='jpeg'?'block':'none';
+  const imageMode=mode==='photo'||format==='jpeg'||format==='png';
+  if(imageMode){
+    document.getElementById('profileColor').value='color';
+    document.getElementById('profileOcr').checked=false;
+    document.getElementById('profileSplit').checked=false;
+  }
+  document.getElementById('profileOcr').disabled=imageMode;
+  document.getElementById('profileSplit').disabled=imageMode;
+  toggleProfileMode();
+  toggleOcrOptions();
+  toggleSplitOptions();
+}
 function toggleOcrOptions(){
   document.getElementById('profileOcrLanguageWrap').style.display=document.getElementById('profileOcr').checked?'block':'none';
 }
@@ -435,6 +468,9 @@ function toggleProfileShareOptions(){
 function resetProfileForm(){
   document.getElementById('profileId').value='';
   document.getElementById('profileName').value='';
+  document.getElementById('profileMode').value='document';
+  document.getElementById('profileOutputFormat').value='pdf';
+  document.getElementById('profileJpegQuality').value='92';
   document.getElementById('profileDpi').value='300';
   document.getElementById('profileColor').value='color';
   document.getElementById('profileDuplex').value='false';
@@ -457,6 +493,7 @@ function resetProfileForm(){
   document.getElementById('profileShareEnabled').checked=false;
   document.getElementById('profileShareName').value='';
   document.getElementById('profileSaveButton').textContent='Profil speichern';
+  toggleProfileMode();
   toggleOcrOptions();
   toggleSplitOptions();
   toggleProfileShareOptions();
@@ -482,6 +519,15 @@ async function saveProfile(){
       body:JSON.stringify(body)
     });
     const profileId=Number(id||saved.id);
+    await api('/api/profiles/'+profileId+'/output-settings',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        mode:document.getElementById('profileMode').value,
+        output_format:document.getElementById('profileOutputFormat').value,
+        jpeg_quality:Number(document.getElementById('profileJpegQuality').value||92)
+      })
+    });
     const shareEnabled=document.getElementById('profileShareEnabled').checked;
     const shareName=document.getElementById('profileShareName').value.trim()||name;
     await api('/api/profiles/'+profileId+'/share',{
@@ -549,6 +595,10 @@ function editProfile(p){
   const ocrSettings=profileOcrSettingsCache.find(x=>x.profile_id===p.id);
   const namingSettings=profileNamingSettingsCache.find(x=>x.profile_id===p.id);
   const paperlessRules=profilePaperlessRulesCache.find(x=>x.profile_id===p.id);
+  const outputSettings=profileOutputSettingsCache.find(x=>x.profile_id===p.id);
+  document.getElementById('profileMode').value=outputSettings?outputSettings.mode:'document';
+  document.getElementById('profileOutputFormat').value=outputSettings?outputSettings.output_format:'pdf';
+  document.getElementById('profileJpegQuality').value=String(outputSettings?outputSettings.jpeg_quality:92);
   document.getElementById('profileOcrLanguage').value=ocrSettings?ocrSettings.language:'deu';
   document.getElementById('profileFilenameTemplate').value=namingSettings?namingSettings.filename_template:'{date}_{profile}_{job}_{document}';
   document.getElementById('profileUseOcrFirstLine').checked=!!(namingSettings&&namingSettings.use_ocr_first_line);
@@ -583,14 +633,15 @@ async function deleteProfile(p){
   }catch(e){alert(e.message)}
 }
 async function loadProfiles(){
-  const [data,shares,processing,imageProcessing,ocrSettings,namingSettings,paperlessRules]=await Promise.all([
+  const [data,shares,processing,imageProcessing,ocrSettings,namingSettings,paperlessRules,outputSettings]=await Promise.all([
     api('/api/profiles'),
     api('/api/profile-shares'),
     api('/api/profile-processing'),
     api('/api/profile-image-processing'),
     api('/api/profile-ocr-settings'),
     api('/api/profile-naming-settings'),
-    api('/api/profile-paperless-rules')
+    api('/api/profile-paperless-rules'),
+    api('/api/profile-output-settings')
   ]);
   profilesCache=data;
   profileSharesCache=shares;
@@ -599,6 +650,7 @@ async function loadProfiles(){
   profileOcrSettingsCache=ocrSettings;
   profileNamingSettingsCache=namingSettings;
   profilePaperlessRulesCache=paperlessRules;
+  profileOutputSettingsCache=outputSettings;
   populateWorkflowSelectors();
   const box=document.getElementById('profiles');
   const sel=document.getElementById('scanProfile');
@@ -611,6 +663,8 @@ async function loadProfiles(){
     return;
   }
   for(const p of data){
+    const outputSettings=profileOutputSettingsCache.find(x=>x.profile_id===p.id);
+    const outputText=outputSettings?((outputSettings.mode==='photo'?'Foto':'Dokument')+' / '+outputSettings.output_format.toUpperCase()):'Dokument / PDF';
     const split=p.split_enabled?('Trennung: '+splitLabel(p.split_method)):'Trennung: aus';
     const ocrSettings=profileOcrSettingsCache.find(x=>x.profile_id===p.id);
     const ocr=p.ocr_enabled?('OCR: '+(ocrSettings?ocrSettings.language:'deu')):'OCR: aus';
@@ -630,7 +684,7 @@ async function loadProfiles(){
     const el=document.createElement('div'); el.className='item';
     el.innerHTML='<div class="profilegrid">'+
       '<div><strong>'+escapeHtml(p.name)+'</strong></div>'+
-      '<div>'+p.dpi+' dpi</div>'+
+      '<div>'+p.dpi+' dpi<div class="muted">'+escapeHtml(outputText)+'</div></div>'+
       '<div>'+escapeHtml(colorLabel(p.color_mode))+'</div>'+
       '<div>'+(p.duplex?'Duplex':'Einseitig')+'</div>'+
       '<div>'+ocr+'<div class="muted">'+blank+'</div><div class="muted">'+escapeHtml(imageText)+'</div></div>'+
@@ -656,7 +710,9 @@ function applySelectedProfile(){
   document.getElementById('dpi').value=String(p.dpi);
   document.getElementById('color').value=p.color_mode;
   document.getElementById('duplex').value=String(p.duplex);
-  info.textContent=(p.ocr_enabled?'OCR aktiviert · ':'OCR aus · ')+(p.split_enabled?'Trennung: '+splitLabel(p.split_method):'Trennung aus');
+  const outputSettings=profileOutputSettingsCache.find(x=>x.profile_id===p.id);
+  const outputText=outputSettings?outputSettings.output_format.toUpperCase():'PDF';
+  info.textContent='Ausgabe: '+outputText+' · '+(p.ocr_enabled?'OCR aktiviert · ':'OCR aus · ')+(p.split_enabled?'Trennung: '+splitLabel(p.split_method):'Trennung aus');
 }
 function colorLabel(v){return ({color:'Farbe',grayscale:'Graustufen',blackwhite:'Schwarzweiß'})[v]||v}
 function splitLabel(v){return ({'patch-t':'Patch-T',qr:'QR-Code',barcode:'Barcode','blank-page':'Leerseite',manual:'Manuell',none:'Keine'})[v]||v}
@@ -1004,10 +1060,10 @@ async function loadJobs(){
       (j.separation_markers&&j.separation_markers.length?
         '<div class="muted">Erkannte Trenner: '+j.separation_markers.map(m=>'S.'+m.page+' '+escapeHtml(m.type)+': '+escapeHtml(m.value)).join(' | ')+'</div>':'')+
       (j.error?'<div class="err"><strong>Fehler:</strong> '+escapeHtml(j.error)+'</div>':'')+'</div>'+
-      '<div>'+((j.documents&&j.documents.length>1)
+      '<div>'+((j.documents&&j.documents.length)
         ? j.documents.map(d=>
             '<div style="margin-bottom:6px">'+
-            '<a class="btn secondary" target="_blank" href="'+d.file_url+'">Dok. '+d.sequence+'</a> '+
+            '<a class="btn secondary" target="_blank" href="'+d.file_url+'">'+((d.path||'').match(/\.(jpg|jpeg|png)$/i)?'Bild ':'Dok. ')+d.sequence+'</a> '+
             (j.ocr&&j.ocr.documents?'<a class="btn secondary" target="_blank" href="/api/job-documents/'+d.id+'/ocr">OCR '+d.sequence+'</a> ':'')+
             (d.final_filename?'<span class="muted">'+escapeHtml(d.final_filename)+'</span>':'')+
             '</div>'

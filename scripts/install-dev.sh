@@ -85,7 +85,7 @@ fi
 systemctl daemon-reload
 
 echo "ScanPro-Datenbank initialisieren und Schema migrieren..."
-sudo -u scanpro env \
+runuser -u scanpro -- env \
   HOME=/var/lib/scanpro \
   SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro/scanpro.db \
   /opt/scanpro/.venv/bin/python -c 'from scanpro.db import Base, engine, initialize_database; import scanpro.models; from scanpro.migrations import run_schema_migrations; initialize_database(); Base.metadata.create_all(bind=engine); print("Schema-Version:", run_schema_migrations(engine))'

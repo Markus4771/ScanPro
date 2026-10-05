@@ -5,10 +5,21 @@ class ScannerCreate(BaseModel):
     manufacturer: str | None = None
     model: str | None = None
     backend: str = "naps2"
-    driver: str = "escl"
+    driver: str = "sane"
     address: str | None = None
     device_id: str | None = None
     enabled: bool = True
+
+class ScannerImport(BaseModel):
+    name: str
+    driver: str = "sane"
+    address: str | None = None
+    device_id: str | None = None
+
+class TestScanRequest(BaseModel):
+    dpi: int = 300
+    duplex: bool = False
+    color_mode: str = "color"
 
 class DestinationCreate(BaseModel):
     name: str

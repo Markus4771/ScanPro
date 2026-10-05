@@ -107,6 +107,13 @@
     </div>
 
     <div class="row">
+      <label class="check"><input type="checkbox" id="profileAutoRotate"> Automatische Rotation</label>
+      <label class="check"><input type="checkbox" id="profileDeskew"> Schiefe Seiten begradigen</label>
+      <label class="check"><input type="checkbox" id="profileAutoCrop"> Automatisch zuschneiden</label>
+      <label class="check"><input type="checkbox" id="profileRemoveBorders"> Scanner-Ränder entfernen</label>
+    </div>
+
+    <div class="row">
       <label class="check"><input type="checkbox" id="profileShareEnabled" onchange="toggleProfileShareOptions()"> Eigene SMB-Freigabe auf ScanPro</label>
       <label id="profileShareNameWrap" style="min-width:260px;display:none">Freigabename
         <input id="profileShareName" placeholder="z. B. Rechnungen">
@@ -267,6 +274,7 @@
 let profilesCache=[];
 let profileSharesCache=[];
 let profileProcessingCache=[];
+let profileImageProcessingCache=[];
 let destinationsCache=[];
 let scannersCache=[];
 let workflowsCache=[];
@@ -359,6 +367,10 @@ function resetProfileForm(){
   document.getElementById('profileDuplex').value='false';
   document.getElementById('profileOcr').checked=false;
   document.getElementById('profileRemoveBlank').checked=false;
+  document.getElementById('profileAutoRotate').checked=false;
+  document.getElementById('profileDeskew').checked=false;
+  document.getElementById('profileAutoCrop').checked=false;
+  document.getElementById('profileRemoveBorders').checked=false;
   document.getElementById('profileSplit').checked=false;
   document.getElementById('profileSplitMethod').value='patch-t';
   document.getElementById('profileShareEnabled').checked=false;
@@ -400,6 +412,16 @@ async function saveProfile(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({remove_blank_pages:document.getElementById('profileRemoveBlank').checked})
     });
+    await api('/api/profiles/'+profileId+'/image-processing',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        auto_rotate:document.getElementById('profileAutoRotate').checked,
+        deskew:document.getElementById('profileDeskew').checked,
+        auto_crop:document.getElementById('profileAutoCrop').checked,
+        remove_borders:document.getElementById('profileRemoveBorders').checked
+      })
+    });
     resetProfileForm();
     await loadProfiles();
   }catch(e){alert(e.message)}
@@ -415,7 +437,12 @@ function editProfile(p){
   document.getElementById('profileSplitMethod').value=p.split_method==='none'?'patch-t':p.split_method;
   const share=profileSharesCache.find(x=>x.profile_id===p.id);
   const processing=profileProcessingCache.find(x=>x.profile_id===p.id);
+  const imageProcessing=profileImageProcessingCache.find(x=>x.profile_id===p.id);
   document.getElementById('profileRemoveBlank').checked=!!(processing&&processing.remove_blank_pages);
+  document.getElementById('profileAutoRotate').checked=!!(imageProcessing&&imageProcessing.auto_rotate);
+  document.getElementById('profileDeskew').checked=!!(imageProcessing&&imageProcessing.deskew);
+  document.getElementById('profileAutoCrop').checked=!!(imageProcessing&&imageProcessing.auto_crop);
+  document.getElementById('profileRemoveBorders').checked=!!(imageProcessing&&imageProcessing.remove_borders);
   document.getElementById('profileShareEnabled').checked=!!(share&&share.enabled);
   document.getElementById('profileShareName').value=share?share.share_name:p.name;
   document.getElementById('profileSaveButton').textContent='Änderungen speichern';
@@ -431,10 +458,16 @@ async function deleteProfile(p){
   }catch(e){alert(e.message)}
 }
 async function loadProfiles(){
-  const [data,shares,processing]=await Promise.all([api('/api/profiles'),api('/api/profile-shares'),api('/api/profile-processing')]);
+  const [data,shares,processing,imageProcessing]=await Promise.all([
+    api('/api/profiles'),
+    api('/api/profile-shares'),
+    api('/api/profile-processing'),
+    api('/api/profile-image-processing')
+  ]);
   profilesCache=data;
   profileSharesCache=shares;
   profileProcessingCache=processing;
+  profileImageProcessingCache=imageProcessing;
   populateWorkflowSelectors();
   const box=document.getElementById('profiles');
   const sel=document.getElementById('scanProfile');
@@ -450,7 +483,14 @@ async function loadProfiles(){
     const split=p.split_enabled?('Trennung: '+splitLabel(p.split_method)):'Trennung: aus';
     const ocr=p.ocr_enabled?'OCR: an':'OCR: aus';
     const processing=profileProcessingCache.find(x=>x.profile_id===p.id);
+    const imageProcessing=profileImageProcessingCache.find(x=>x.profile_id===p.id);
     const blank=processing&&processing.remove_blank_pages?'Leerseiten: entfernen':'Leerseiten: behalten';
+    const imageFlags=[];
+    if(imageProcessing&&imageProcessing.auto_rotate)imageFlags.push('Rotation');
+    if(imageProcessing&&imageProcessing.deskew)imageFlags.push('Deskew');
+    if(imageProcessing&&imageProcessing.auto_crop)imageFlags.push('Auto-Crop');
+    if(imageProcessing&&imageProcessing.remove_borders)imageFlags.push('Ränder');
+    const imageText=imageFlags.length?'Bild: '+imageFlags.join(', '):'Bildoptimierung: aus';
     const share=profileSharesCache.find(x=>x.profile_id===p.id);
     const shareText=share&&share.enabled?('SMB: \\\\SCANPRO\\'+share.share_name):'SMB: aus';
     const el=document.createElement('div'); el.className='item';
@@ -459,7 +499,7 @@ async function loadProfiles(){
       '<div>'+p.dpi+' dpi</div>'+
       '<div>'+escapeHtml(colorLabel(p.color_mode))+'</div>'+
       '<div>'+(p.duplex?'Duplex':'Einseitig')+'</div>'+
-      '<div>'+ocr+'<div class="muted">'+blank+'</div></div>'+
+      '<div>'+ocr+'<div class="muted">'+blank+'</div><div class="muted">'+escapeHtml(imageText)+'</div></div>'+
       '<div>'+escapeHtml(split)+'<div class="muted">'+escapeHtml(shareText)+'</div></div>'+
       '<div class="actions"></div>'+
       '</div>';
@@ -759,6 +799,9 @@ async function loadJobs(){
       (j.blank_pages_removed?' · Leerseiten entfernt: '+j.blank_pages_removed:'')+
       (j.documents&&j.documents.length>1?' · Dokumente: '+j.documents.length:'')+
       (j.separation_markers&&j.separation_markers.length?' · Trenner: '+j.separation_markers.length:'')+
+      (j.image_processing&&j.image_processing.pages_deskewed?' · begradigt: '+j.image_processing.pages_deskewed:'')+
+      (j.image_processing&&j.image_processing.pages_rotated?' · gedreht: '+j.image_processing.pages_rotated:'')+
+      (j.image_processing&&j.image_processing.pages_cropped?' · zugeschnitten: '+j.image_processing.pages_cropped:'')+
       (j.deliveries&&j.deliveries.length?' · Versand: '+j.deliveries.map(d=>d.status).join(', '):'')+'</div>'+
       (j.separation_markers&&j.separation_markers.length?
         '<div class="muted">Erkannte Trenner: '+j.separation_markers.map(m=>'S.'+m.page+' '+escapeHtml(m.type)+': '+escapeHtml(m.value)).join(' | ')+'</div>':'')+

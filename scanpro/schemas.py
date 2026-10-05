@@ -16,6 +16,13 @@ class ScannerImport(BaseModel):
     address: str | None = None
     device_id: str | None = None
 
+class ScannerUpdate(BaseModel):
+    name: str | None = None
+    driver: str | None = None
+    address: str | None = None
+    device_id: str | None = None
+    enabled: bool | None = None
+
 class TestScanRequest(BaseModel):
     dpi: int = 300
     duplex: bool = False

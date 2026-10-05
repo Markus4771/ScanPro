@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from .db import Base, SessionLocal, engine
-from .models import InboxImport, JobProcessing, ProfileProcessing, ProfileShare, ScanJob
+from .models import InboxImport, JobProcessing, ProfileProcessing, ProfileShare, ScanJob, ScanProfile
 
 JOBS_ROOT = Path("/var/lib/scanpro/jobs/inbox")
 POLL_SECONDS = 2
@@ -14,6 +14,8 @@ ALLOWED_SUFFIXES = {".pdf"}
 Base.metadata.create_all(bind=engine)
 
 from .services.blank_pages import BlankPageError, remove_blank_pages
+from .services.documents import prepare_job_documents
+from .services.separation import SeparationError
 from .services.workflows import deliver_to_matching_inbox_workflows
 
 
@@ -66,6 +68,18 @@ def import_file(profile_id: int, source: Path) -> int:
                 ))
                 db.commit()
             except BlankPageError as exc:
+                job.status = "processing_error"
+                job.error = str(exc)
+                db.commit()
+                return job.id
+
+        profile = db.get(ScanProfile, profile_id)
+        if profile and profile.split_enabled:
+            try:
+                prepare_job_documents(db, job, profile)
+                job.status = "separated"
+                db.commit()
+            except SeparationError as exc:
                 job.status = "processing_error"
                 job.error = str(exc)
                 db.commit()

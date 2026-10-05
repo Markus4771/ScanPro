@@ -4,116 +4,103 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.5.1-dev**
+Aktueller Stand: **0.5.2-dev**
 
-## Neu in 0.5.1-dev
+## Neu in 0.5.2-dev
 
-Dateinamenregeln und Dokumentmetadaten sind umgesetzt.
+Datenbank und SQLite-Betrieb wurden gehärtet.
 
-## Dateinamensvorlage pro Profil
-
-Standard:
+## Persistenter Datenbankpfad
 
 ```text
-{date}_{profile}_{job}_{document}
+/var/lib/scanpro/scanpro.db
 ```
 
-Unterstützte Variablen:
+Systemd setzt:
 
 ```text
-{date}
-{time}
-{datetime}
-{profile}
-{job}
-{document}
-{code}
-{code_type}
-{ocr_first_line}
+SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro/scanpro.db
 ```
 
-## Beispiele
+## Automatische Übernahme alter Daten
 
-Normale Ablage:
+Der Installer stoppt zuerst Webdienst und Inbox-Worker.
+
+Wenn noch keine persistente DB existiert und folgende alte DB vorhanden ist:
 
 ```text
-{date}_{profile}_{job}_{document}
+/opt/scanpro/scanpro.db
 ```
 
-QR-/Barcode-basiert:
+wird sie per SQLite Backup API übernommen.
+
+Vorhandene persistente Datenbanken werden vor jedem Entwicklungsupdate ebenfalls gesichert.
+
+Backups:
 
 ```text
-{date}_{profile}_{code}_{document}
+/var/lib/scanpro/backups/
 ```
 
-OCR-basiert:
+## SQLite-Härtung
 
-```text
-{date}_{ocr_first_line}_{document}
-```
+Aktiv:
 
-## Technische Umsetzung
+- WAL
+- foreign_keys=ON
+- busy_timeout=30000
+- synchronous=NORMAL
+- SQLAlchemy timeout=30 Sekunden
+- pool_pre_ping
 
-Neue Tabellen:
-
-```text
-profile_naming_settings
-job_document_metadata
-```
-
-### profile_naming_settings
-
-- profile_id
-- filename_template
-- use_ocr_first_line
-
-### job_document_metadata
-
-- scan_job_id
-- document_id
-- final_filename
-- metadata_json
-- created_at
+## Schema-Migrationen
 
 Neue Datei:
 
 ```text
-scanpro/services/naming.py
+scanpro/migrations.py
 ```
 
-## Verhalten
-
-Die internen Arbeits-PDFs werden nicht umbenannt.
-
-Der finale Dateiname wird unmittelbar vor der Weiterleitung erzeugt und an:
-
-- lokale Ziele
-- SMB-Ziele
-
-übergeben.
-
-Damit bleiben OCR, Trennung und interne Jobpfade stabil.
-
-## Metadaten
-
-Pro Dokument speichert ScanPro:
-
-- Profil
-- Job-ID
-- Dokumentnummer
-- Codeinhalt
-- Codetyp
-- OCR-Erstzeile
-- Quelldateiname
-- finaler Dateiname
-
-## API
+Aktuelle Schema-Version:
 
 ```text
-GET /api/profile-naming-settings
-PUT /api/profiles/{profile_id}/naming-settings
-GET /api/job-documents/{document_id}/metadata
+1
 ```
+
+Neue Tabelle:
+
+```text
+schema_version
+```
+
+Zukünftige Änderungen an bestehenden Tabellen können über die interne Migrations-Registry versionsabhängig ausgeführt werden.
+
+## Datenbankstatus API
+
+```text
+GET /api/system/database
+```
+
+Beispiel:
+
+```json
+{
+  "database_url":"sqlite:////var/lib/scanpro/scanpro.db",
+  "path":"/var/lib/scanpro/scanpro.db",
+  "schema_version":1,
+  "target_schema_version":1,
+  "journal_mode":"wal",
+  "foreign_keys":true
+}
+```
+
+## Health
+
+```text
+GET /health
+```
+
+liefert jetzt zusätzlich die Schema-Version.
 
 ## Update
 
@@ -123,45 +110,38 @@ git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Prüfen:
+Danach:
 
 ```bash
 curl http://127.0.0.1:8100/health
-```
-
-Erwartet:
-
-```json
-{"status":"ok","version":"0.5.1-dev"}
+curl http://127.0.0.1:8100/api/system/database
 ```
 
 ## Nächster Entwicklungsschritt
 
-Vor dem weiteren Funktionsausbau empfohlen:
+Empfohlen:
 
-**0.5.2-dev – Datenbank und Produktionshärtung**
+**0.6.0-dev – Paperless-ngx Integration**
 
-- SQLite nach `/var/lib/scanpro/scanpro.db`
-- bestehende Daten automatisch migrieren
-- SQLite WAL
-- Foreign Keys aktivieren
-- Schema-Migrationen einführen
-- robustere Transaktionen
+Geplant:
+
+- Paperless-ngx als eigener Zieltyp
+- API-Verbindungstest
+- Dokumentupload
+- OCR-/QR-/Barcode-Metadaten weitergeben
+- Korrespondent/Dokumenttyp/Tags später regelbasiert setzen
 
 Danach:
 
-- Paperless-ngx
 - Foto-/Bildscan JPEG/PNG
-- VPN-/Remote-Scanner
+- Scanner über VPN / entfernte Standorte
 
-## Backlog
+## Weiterer Backlog
 
-- Paperless-ngx
-- Bilder/Fotos scannen
-- Scanner über VPN
 - Patch-T Praxistest
-- weitere Dateinamen-/Metadatenregeln
 - Dokumentklassifikation aus OCR
+- zusätzliche Dateinamensregeln
+- Aufbewahrungs-/Cleanup-Regeln für alte Jobdateien
 
 ## Einstieg in einem neuen Chat
 

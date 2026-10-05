@@ -171,7 +171,7 @@ class ProfileNamingSettings(Base):
     __table_args__ = (UniqueConstraint("profile_id"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
-    filename_template: Mapped[str] = mapped_column(String(255), default="{date}_{profile}_{document}")
+    filename_template: Mapped[str] = mapped_column(String(255), default="{date}_{profile}_{job}_{document}")
     use_ocr_first_line: Mapped[bool] = mapped_column(Boolean, default=False)
 
 

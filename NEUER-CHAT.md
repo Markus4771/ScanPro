@@ -4,103 +4,110 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.5.2-dev**
+Aktueller Stand: **0.6.0-dev**
 
-## Neu in 0.5.2-dev
+## Neu in 0.6.0-dev
 
-Datenbank und SQLite-Betrieb wurden gehärtet.
+Paperless-ngx ist als eigener Scanziel-Typ integriert.
 
-## Persistenter Datenbankpfad
-
-```text
-/var/lib/scanpro/scanpro.db
-```
-
-Systemd setzt:
+## Zieltyp
 
 ```text
-SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro/scanpro.db
+paperless
 ```
 
-## Automatische Übernahme alter Daten
+## Konfiguration
 
-Der Installer stoppt zuerst Webdienst und Inbox-Worker.
+- `base_url`
+- `token`
+- `title`
+- `correspondent`
+- `document_type`
+- `storage_path`
+- `tags`
+- `verify_ssl`
 
-Wenn noch keine persistente DB existiert und folgende alte DB vorhanden ist:
+## Authentifizierung
+
+ScanPro verwendet:
 
 ```text
-/opt/scanpro/scanpro.db
+Authorization: Token <TOKEN>
+Accept: application/json; version=10
 ```
 
-wird sie per SQLite Backup API übernommen.
+## Verbindungstest
 
-Vorhandene persistente Datenbanken werden vor jedem Entwicklungsupdate ebenfalls gesichert.
-
-Backups:
+Der Zieltest führt einen authentifizierten Request auf:
 
 ```text
-/var/lib/scanpro/backups/
+GET /api/documents/?page_size=1
 ```
 
-## SQLite-Härtung
+aus.
 
-Aktiv:
+## Upload
 
-- WAL
-- foreign_keys=ON
-- busy_timeout=30000
-- synchronous=NORMAL
-- SQLAlchemy timeout=30 Sekunden
-- pool_pre_ping
-
-## Schema-Migrationen
-
-Neue Datei:
+PDFs werden hochgeladen über:
 
 ```text
-scanpro/migrations.py
+POST /api/documents/post_document/
 ```
 
-Aktuelle Schema-Version:
+als Multipart-Feld:
 
 ```text
-1
+document
 ```
 
-Neue Tabelle:
+Optional werden übergeben:
+
+- title
+- correspondent
+- document_type
+- storage_path
+- tags
+
+Wenn kein fester Titel konfiguriert ist, wird der von ScanPro erzeugte Dateiname ohne PDF-Endung verwendet.
+
+## Async-Verarbeitung
+
+Paperless gibt beim Upload eine Consumption-Task-ID zurück.
+
+ScanPro speichert:
 
 ```text
-schema_version
+paperless-task:<UUID>
 ```
 
-Zukünftige Änderungen an bestehenden Tabellen können über die interne Migrations-Registry versionsabhängig ausgeführt werden.
+in `job_deliveries.target_path`.
 
-## Datenbankstatus API
+## Webinterface
+
+Unter **Scanziele** steht nun zur Auswahl:
 
 ```text
-GET /api/system/database
+Lokaler Ordner
+SMB-Freigabe
+Paperless-ngx
 ```
 
-Beispiel:
+Paperless-Felder:
 
-```json
-{
-  "database_url":"sqlite:////var/lib/scanpro/scanpro.db",
-  "path":"/var/lib/scanpro/scanpro.db",
-  "schema_version":1,
-  "target_schema_version":1,
-  "journal_mode":"wal",
-  "foreign_keys":true
-}
-```
+- URL
+- API-Token
+- Titel
+- Korrespondent-ID
+- Dokumenttyp-ID
+- Speicherpfad-ID
+- Tag-IDs
+- TLS-Prüfung
 
-## Health
+## Sicherheit
 
-```text
-GET /health
-```
+Der API-Token wird im Web/API maskiert.
 
-liefert jetzt zusätzlich die Schema-Version.
+Im aktuellen Entwicklungsstand liegt er noch im SQLite-Konfigurationsfeld. Später sollte ein Secret Store eingeführt werden.
 
 ## Update
 
@@ -110,38 +117,40 @@ git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Danach:
+Prüfen:
 
 ```bash
 curl http://127.0.0.1:8100/health
-curl http://127.0.0.1:8100/api/system/database
+```
+
+Erwartet:
+
+```json
+{"status":"ok","version":"0.6.0-dev","schema_version":1}
 ```
 
 ## Nächster Entwicklungsschritt
 
 Empfohlen:
 
-**0.6.0-dev – Paperless-ngx Integration**
+**0.6.1-dev – Paperless-Metadatenregeln**
 
-Geplant:
-
-- Paperless-ngx als eigener Zieltyp
-- API-Verbindungstest
-- Dokumentupload
-- OCR-/QR-/Barcode-Metadaten weitergeben
-- Korrespondent/Dokumenttyp/Tags später regelbasiert setzen
+- QR-/Barcode-Werte auf Paperless-Felder abbilden
+- OCR-Ergebnisse auf Titel/Korrespondent/Dokumenttyp/Tags abbilden
+- Consumption-Task-Status nachverfolgen
+- Paperless-IDs komfortabel aus der API laden statt manuell einzutragen
 
 Danach:
 
 - Foto-/Bildscan JPEG/PNG
-- Scanner über VPN / entfernte Standorte
+- VPN-/Remote-Scanner
 
 ## Weiterer Backlog
 
+- Secret Store für Tokens und Passwörter
 - Patch-T Praxistest
-- Dokumentklassifikation aus OCR
-- zusätzliche Dateinamensregeln
-- Aufbewahrungs-/Cleanup-Regeln für alte Jobdateien
+- Dokumentklassifikation
+- Cleanup-Regeln für Jobdateien
 
 ## Einstieg in einem neuen Chat
 

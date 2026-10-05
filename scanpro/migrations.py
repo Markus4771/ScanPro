@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import Engine, text
 
 
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -28,6 +28,11 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(
         version=3,
         description="Photo profile output settings",
+        statements=(),
+    ),
+    Migration(
+        version=4,
+        description="VPN and remote scanner connection settings",
         statements=(),
     ),
 )

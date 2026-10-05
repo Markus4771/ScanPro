@@ -105,6 +105,13 @@
       </label>
     </div>
 
+    <div class="row">
+      <label class="check"><input type="checkbox" id="profileShareEnabled" onchange="toggleProfileShareOptions()"> Eigene SMB-Freigabe auf ScanPro</label>
+      <label id="profileShareNameWrap" style="min-width:260px;display:none">Freigabename
+        <input id="profileShareName" placeholder="z. B. Rechnungen">
+      </label>
+    </div>
+
     <div class="actions">
       <button id="profileSaveButton" onclick="saveProfile()">Profil speichern</button>
       <button class="secondary" onclick="resetProfileForm()">Abbrechen</button>
@@ -221,6 +228,7 @@
 </main>
 <script>
 let profilesCache=[];
+let profileSharesCache=[];
 let destinationsCache=[];
 
 async function api(url, options={}) {
@@ -294,6 +302,13 @@ async function deleteScanner(s){
 function toggleSplitOptions(){
   document.getElementById('splitMethodWrap').style.display=document.getElementById('profileSplit').checked?'block':'none';
 }
+function toggleProfileShareOptions(){
+  const enabled=document.getElementById('profileShareEnabled').checked;
+  document.getElementById('profileShareNameWrap').style.display=enabled?'block':'none';
+  if(enabled && !document.getElementById('profileShareName').value.trim()){
+    document.getElementById('profileShareName').value=document.getElementById('profileName').value.trim();
+  }
+}
 function resetProfileForm(){
   document.getElementById('profileId').value='';
   document.getElementById('profileName').value='';
@@ -303,8 +318,11 @@ function resetProfileForm(){
   document.getElementById('profileOcr').checked=false;
   document.getElementById('profileSplit').checked=false;
   document.getElementById('profileSplitMethod').value='patch-t';
+  document.getElementById('profileShareEnabled').checked=false;
+  document.getElementById('profileShareName').value='';
   document.getElementById('profileSaveButton').textContent='Profil speichern';
   toggleSplitOptions();
+  toggleProfileShareOptions();
 }
 async function saveProfile(){
   const id=document.getElementById('profileId').value;
@@ -321,10 +339,18 @@ async function saveProfile(){
     split_method:split?document.getElementById('profileSplitMethod').value:'none'
   };
   try{
-    await api(id?'/api/profiles/'+id:'/api/profiles',{
+    const saved=await api(id?'/api/profiles/'+id:'/api/profiles',{
       method:id?'PATCH':'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)
+    });
+    const profileId=Number(id||saved.id);
+    const shareEnabled=document.getElementById('profileShareEnabled').checked;
+    const shareName=document.getElementById('profileShareName').value.trim()||name;
+    await api('/api/profiles/'+profileId+'/share',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({enabled:shareEnabled,share_name:shareEnabled?shareName:null})
     });
     resetProfileForm();
     await loadProfiles();
@@ -339,8 +365,12 @@ function editProfile(p){
   document.getElementById('profileOcr').checked=p.ocr_enabled;
   document.getElementById('profileSplit').checked=p.split_enabled;
   document.getElementById('profileSplitMethod').value=p.split_method==='none'?'patch-t':p.split_method;
+  const share=profileSharesCache.find(x=>x.profile_id===p.id);
+  document.getElementById('profileShareEnabled').checked=!!(share&&share.enabled);
+  document.getElementById('profileShareName').value=share?share.share_name:p.name;
   document.getElementById('profileSaveButton').textContent='Änderungen speichern';
   toggleSplitOptions();
+  toggleProfileShareOptions();
   window.scrollTo({top:document.getElementById('profileName').getBoundingClientRect().top+window.scrollY-120,behavior:'smooth'});
 }
 async function deleteProfile(p){
@@ -351,8 +381,9 @@ async function deleteProfile(p){
   }catch(e){alert(e.message)}
 }
 async function loadProfiles(){
-  const data=await api('/api/profiles');
+  const [data,shares]=await Promise.all([api('/api/profiles'),api('/api/profile-shares')]);
   profilesCache=data;
+  profileSharesCache=shares;
   const box=document.getElementById('profiles');
   const sel=document.getElementById('scanProfile');
   const current=sel.value;
@@ -366,6 +397,8 @@ async function loadProfiles(){
   for(const p of data){
     const split=p.split_enabled?('Trennung: '+splitLabel(p.split_method)):'Trennung: aus';
     const ocr=p.ocr_enabled?'OCR: an':'OCR: aus';
+    const share=profileSharesCache.find(x=>x.profile_id===p.id);
+    const shareText=share&&share.enabled?('SMB: \\\\SCANPRO\\'+share.share_name):'SMB: aus';
     const el=document.createElement('div'); el.className='item';
     el.innerHTML='<div class="profilegrid">'+
       '<div><strong>'+escapeHtml(p.name)+'</strong></div>'+
@@ -373,7 +406,7 @@ async function loadProfiles(){
       '<div>'+escapeHtml(colorLabel(p.color_mode))+'</div>'+
       '<div>'+(p.duplex?'Duplex':'Einseitig')+'</div>'+
       '<div>'+ocr+'</div>'+
-      '<div>'+escapeHtml(split)+'</div>'+
+      '<div>'+escapeHtml(split)+'<div class="muted">'+escapeHtml(shareText)+'</div></div>'+
       '<div class="actions"></div>'+
       '</div>';
     const actions=el.querySelector('.actions');

@@ -8,13 +8,14 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, engine, get_db
-from .models import Destination, InboxImport, JobDelivery, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobProcessing, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
     ScanProfileCreate,
     ScanProfileUpdate,
     ProfileShareUpdate,
+    ProfileProcessingUpdate,
     ScannerCreate,
     ScannerImport,
     ScannerUpdate,
@@ -22,6 +23,7 @@ from .schemas import (
     WorkflowCreate,
     WorkflowUpdate,
 )
+from .services.blank_pages import BlankPageError, remove_blank_pages
 from .services.destinations import DestinationError, public_config, test_destination
 from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
 from .services.profile_shares import ProfileShareError, normalize_share_name, profile_path, write_profile_samba_config
@@ -168,6 +170,7 @@ def list_jobs(db: Session = Depends(get_db)):
         inbox = db.query(InboxImport).filter(InboxImport.scan_job_id == job.id).first()
         profile = db.get(ScanProfile, inbox.profile_id) if inbox else None
         deliveries = db.query(JobDelivery).filter(JobDelivery.scan_job_id == job.id).order_by(JobDelivery.id).all()
+        processing = db.query(JobProcessing).filter(JobProcessing.scan_job_id == job.id).first()
         result.append({
             "id": job.id,
             "workflow_id": job.workflow_id,
@@ -179,6 +182,8 @@ def list_jobs(db: Session = Depends(get_db)):
             "profile_id": inbox.profile_id if inbox else None,
             "profile_name": profile.name if profile else None,
             "source": "profile-smb" if inbox else "scanner",
+            "blank_pages_removed": processing.blank_pages_removed if processing else 0,
+            "blank_pages": json.loads(processing.blank_pages_json) if processing else [],
             "deliveries": [
                 {
                     "id": item.id,
@@ -313,6 +318,36 @@ def test_destination_endpoint(destination_id: int, db: Session = Depends(get_db)
 def list_profiles(db: Session = Depends(get_db)):
     return db.query(ScanProfile).order_by(ScanProfile.name).all()
 
+@app.get("/api/profile-processing")
+def list_profile_processing(db: Session = Depends(get_db)):
+    rows = db.query(ProfileProcessing).order_by(ProfileProcessing.profile_id).all()
+    return [
+        {
+            "id": row.id,
+            "profile_id": row.profile_id,
+            "remove_blank_pages": row.remove_blank_pages,
+        }
+        for row in rows
+    ]
+
+@app.put("/api/profiles/{profile_id}/processing")
+def update_profile_processing(profile_id: int, payload: ProfileProcessingUpdate, db: Session = Depends(get_db)):
+    profile = db.get(ScanProfile, profile_id)
+    if not profile:
+        raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+    row = db.query(ProfileProcessing).filter(ProfileProcessing.profile_id == profile_id).first()
+    if row:
+        row.remove_blank_pages = payload.remove_blank_pages
+    else:
+        row = ProfileProcessing(profile_id=profile_id, remove_blank_pages=payload.remove_blank_pages)
+        db.add(row)
+    db.commit(); db.refresh(row)
+    return {
+        "id": row.id,
+        "profile_id": row.profile_id,
+        "remove_blank_pages": row.remove_blank_pages,
+    }
+
 @app.get("/api/profile-shares")
 def list_profile_shares(db: Session = Depends(get_db)):
     rows = db.query(ProfileShare).order_by(ProfileShare.profile_id).all()
@@ -417,6 +452,9 @@ def delete_profile(profile_id: int, db: Session = Depends(get_db)):
     share = db.query(ProfileShare).filter(ProfileShare.profile_id == profile_id).first()
     if share:
         db.delete(share)
+    processing = db.query(ProfileProcessing).filter(ProfileProcessing.profile_id == profile_id).first()
+    if processing:
+        db.delete(processing)
     db.delete(profile)
     db.commit()
     sync_profile_shares(db)
@@ -529,6 +567,22 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
         job.status = "finished"
         job.error = None
         db.commit()
+
+        processing = db.query(ProfileProcessing).filter(ProfileProcessing.profile_id == profile.id).first()
+        if processing and processing.remove_blank_pages:
+            try:
+                result = remove_blank_pages(str(output))
+                db.add(JobProcessing(
+                    scan_job_id=job.id,
+                    blank_pages_removed=result["removed"],
+                    blank_pages_json=json.dumps(result["pages"]),
+                ))
+                db.commit()
+            except BlankPageError as exc:
+                job.status = "processing_error"
+                job.error = str(exc)
+                db.commit()
+                raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
     except Naps2Error as exc:
         job.status = "error"
         job.error = str(exc)

@@ -8,7 +8,11 @@ class Naps2Error(RuntimeError):
 
 NAPS2_WORKDIR = Path("/var/lib/scanpro")
 
-def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
+def _run(
+    args: list[str],
+    timeout_seconds: int = 60,
+    retries: int = 0,
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["HOME"] = str(NAPS2_WORKDIR)
     env["XDG_CONFIG_HOME"] = str(NAPS2_WORKDIR / ".config")
@@ -17,20 +21,31 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
     (NAPS2_WORKDIR / ".config").mkdir(parents=True, exist_ok=True)
     (NAPS2_WORKDIR / ".cache").mkdir(parents=True, exist_ok=True)
 
-    try:
-        return subprocess.run(
-            args,
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=NAPS2_WORKDIR,
-            env=env,
-        )
-    except FileNotFoundError as exc:
-        raise Naps2Error("NAPS2 wurde nicht gefunden.") from exc
-    except subprocess.CalledProcessError as exc:
-        message = exc.stderr.strip() or exc.stdout.strip() or "NAPS2-Aufruf fehlgeschlagen."
-        raise Naps2Error(message) from exc
+    attempts = max(1, retries + 1)
+    last_error = "NAPS2-Aufruf fehlgeschlagen."
+    for attempt in range(1, attempts + 1):
+        try:
+            return subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=NAPS2_WORKDIR,
+                env=env,
+                timeout=max(5, timeout_seconds),
+            )
+        except FileNotFoundError as exc:
+            raise Naps2Error("NAPS2 wurde nicht gefunden.") from exc
+        except subprocess.TimeoutExpired:
+            last_error = f"NAPS2-Zeitlimit nach {timeout_seconds} Sekunden überschritten."
+        except subprocess.CalledProcessError as exc:
+            last_error = exc.stderr.strip() or exc.stdout.strip() or "NAPS2-Aufruf fehlgeschlagen."
+
+        if attempt < attempts:
+            import time
+            time.sleep(min(5, attempt * 2))
+
+    raise Naps2Error(last_error)
 
 def _console_args(*args: str) -> list[str]:
     return ["naps2", "console", *args]
@@ -72,6 +87,8 @@ def scan_to_pdf(
     dpi: int = 300,
     duplex: bool = False,
     color_mode: str = "color",
+    timeout_seconds: int = 60,
+    retries: int = 0,
 ) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
     source = "duplex" if duplex else "feeder"
@@ -86,7 +103,7 @@ def scan_to_pdf(
         "--pagesize", "a4",
         "-v",
     )
-    result = _run(args)
+    result = _run(args, timeout_seconds=timeout_seconds, retries=retries)
     if not output.exists():
         details = "\n".join(x for x in (result.stdout.strip(), result.stderr.strip()) if x)
         if details:

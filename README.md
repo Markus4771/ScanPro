@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.6.1-dev**
+Aktuell: **0.7.0-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -729,4 +729,58 @@ Paperless-Auswahllisten:
 
 ```text
 GET /api/destinations/{destination_id}/paperless/choices
+```
+
+
+## Foto- und Bildscan in 0.7.0-dev
+
+Scanprofile können jetzt als **Foto-/Bildprofil** betrieben werden.
+
+Ausgabeformate:
+
+- PDF
+- JPEG
+- PNG
+
+Für JPEG kann die Qualität pro Profil eingestellt werden.
+
+Foto-/Bildprofile unterstützen höhere Auflösungen bis 1200 dpi, sofern der Scanner dies anbietet.
+
+Bei JPEG/PNG gilt automatisch:
+
+- Farbmodus Farbe
+- OCR aus
+- Dokumenttrennung aus
+
+Die Scanpipeline bleibt scannerkompatibel:
+
+```text
+NAPS2 → PDF-Zwischenformat
+→ Bildoptimierung
+→ JPEG/PNG-Konvertierung
+→ Dateinamensregeln
+→ lokales / SMB / optional Paperless-Ziel
+```
+
+Mehrseitige ADF-Scans werden für JPEG/PNG in einzelne Bilddateien zerlegt.
+
+Die Dateinamenslogik übernimmt automatisch die richtige Endung:
+
+```text
+.jpg
+.png
+.pdf
+```
+
+Neue Profil-API:
+
+```text
+GET /api/profile-output-settings
+PUT /api/profiles/{profile_id}/output-settings
+```
+
+Neue Tabelle:
+
+```text
+profile_output_settings
 ```

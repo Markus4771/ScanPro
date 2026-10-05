@@ -183,6 +183,42 @@
   </section>
 
 
+
+  <section class="card" style="margin-top:16px">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin-bottom:0">Workflows</h2>
+      <button class="secondary" onclick="resetWorkflowForm()">Neuer Workflow</button>
+    </div>
+
+    <div class="grid" style="margin-top:12px">
+      <label>Name
+        <input id="workflowName" placeholder="z. B. Rechnungen zum NAS">
+      </label>
+      <label>Quelle
+        <select id="workflowScanner">
+          <option value="">Profil-SMB-Inbox</option>
+        </select>
+      </label>
+      <label>Scanprofil
+        <select id="workflowProfile"></select>
+      </label>
+      <label>Scanziel
+        <select id="workflowDestination"></select>
+      </label>
+    </div>
+
+    <label class="check"><input type="checkbox" id="workflowEnabled" checked> Workflow aktiv</label>
+
+    <div class="actions">
+      <button id="workflowSaveButton" onclick="saveWorkflow()">Workflow speichern</button>
+      <button class="secondary" onclick="resetWorkflowForm()">Abbrechen</button>
+    </div>
+    <input type="hidden" id="workflowId">
+
+    <div class="divider"></div>
+    <div id="workflows" class="muted">Lade Workflows…</div>
+  </section>
+
   <section class="card" style="margin-top:16px">
     <h2>Testscan</h2>
     <div class="grid">
@@ -230,6 +266,8 @@
 let profilesCache=[];
 let profileSharesCache=[];
 let destinationsCache=[];
+let scannersCache=[];
+let workflowsCache=[];
 
 async function api(url, options={}) {
   const r = await fetch(url, options);
@@ -239,7 +277,7 @@ async function api(url, options={}) {
 }
 async function init(){
   const h=await api('/health'); document.getElementById('version').textContent=h.version;
-  await loadSaved(); await loadProfiles(); await loadDestinations(); await loadJobs();
+  await loadSaved(); await loadProfiles(); await loadDestinations(); await loadWorkflows(); await loadJobs();
 }
 async function discover(driver='sane'){
   const box=document.getElementById('discovered'); box.textContent='Suche…';
@@ -261,6 +299,8 @@ async function importScanner(d){
 }
 async function loadSaved(){
   const [data,status] = await Promise.all([api('/api/scanners'),api('/api/scanners/status')]);
+  scannersCache=data;
+  populateWorkflowSelectors();
   const statusMap=new Map(status.map(x=>[x.id,x]));
   const box=document.getElementById('saved'); const sel=document.getElementById('scanScanner');
   box.innerHTML=''; sel.innerHTML='';
@@ -384,6 +424,7 @@ async function loadProfiles(){
   const [data,shares]=await Promise.all([api('/api/profiles'),api('/api/profile-shares')]);
   profilesCache=data;
   profileSharesCache=shares;
+  populateWorkflowSelectors();
   const box=document.getElementById('profiles');
   const sel=document.getElementById('scanProfile');
   const current=sel.value;
@@ -524,6 +565,7 @@ async function testDestination(d){
 async function loadDestinations(){
   const data=await api('/api/destinations');
   destinationsCache=data;
+  populateWorkflowSelectors();
   const box=document.getElementById('destinations');
   box.innerHTML='';
   if(!data.length){
@@ -547,6 +589,134 @@ async function loadDestinations(){
   }
 }
 
+
+function populateWorkflowSelectors(){
+  const scannerSel=document.getElementById('workflowScanner');
+  const profileSel=document.getElementById('workflowProfile');
+  const destinationSel=document.getElementById('workflowDestination');
+  if(!scannerSel||!profileSel||!destinationSel)return;
+
+  const scannerCurrent=scannerSel.value;
+  scannerSel.innerHTML='<option value="">Profil-SMB-Inbox</option>';
+  for(const s of scannersCache.filter(x=>x.enabled)){
+    const o=document.createElement('option'); o.value=s.id; o.textContent=s.name; scannerSel.appendChild(o);
+  }
+  if([...scannerSel.options].some(o=>o.value===scannerCurrent))scannerSel.value=scannerCurrent;
+
+  const profileCurrent=profileSel.value;
+  profileSel.innerHTML='';
+  for(const p of profilesCache){
+    const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; profileSel.appendChild(o);
+  }
+  if([...profileSel.options].some(o=>o.value===profileCurrent))profileSel.value=profileCurrent;
+
+  const destinationCurrent=destinationSel.value;
+  destinationSel.innerHTML='';
+  for(const d of destinationsCache.filter(x=>x.enabled)){
+    const o=document.createElement('option'); o.value=d.id; o.textContent=d.name; destinationSel.appendChild(o);
+  }
+  if([...destinationSel.options].some(o=>o.value===destinationCurrent))destinationSel.value=destinationCurrent;
+}
+function resetWorkflowForm(){
+  document.getElementById('workflowId').value='';
+  document.getElementById('workflowName').value='';
+  document.getElementById('workflowScanner').value='';
+  document.getElementById('workflowEnabled').checked=true;
+  document.getElementById('workflowSaveButton').textContent='Workflow speichern';
+  populateWorkflowSelectors();
+}
+async function saveWorkflow(){
+  const id=document.getElementById('workflowId').value;
+  const name=document.getElementById('workflowName').value.trim();
+  const profileId=Number(document.getElementById('workflowProfile').value);
+  const destinationId=Number(document.getElementById('workflowDestination').value);
+  const scannerValue=document.getElementById('workflowScanner').value;
+  if(!name){alert('Bitte einen Workflownamen eingeben.');return;}
+  if(!profileId){alert('Bitte ein Scanprofil auswählen.');return;}
+  if(!destinationId){alert('Bitte ein Scanziel auswählen.');return;}
+  const body={
+    name,
+    scanner_id:scannerValue?Number(scannerValue):null,
+    profile_id:profileId,
+    destination_id:destinationId,
+    enabled:document.getElementById('workflowEnabled').checked
+  };
+  try{
+    await api(id?'/api/workflows/'+id:'/api/workflows',{
+      method:id?'PATCH':'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    resetWorkflowForm();
+    await loadWorkflows();
+  }catch(e){alert(e.message)}
+}
+function editWorkflow(w){
+  document.getElementById('workflowId').value=w.id;
+  document.getElementById('workflowName').value=w.name;
+  populateWorkflowSelectors();
+  document.getElementById('workflowScanner').value=w.scanner_id?String(w.scanner_id):'';
+  document.getElementById('workflowProfile').value=String(w.profile_id);
+  document.getElementById('workflowDestination').value=String(w.destination_id);
+  document.getElementById('workflowEnabled').checked=w.enabled;
+  document.getElementById('workflowSaveButton').textContent='Änderungen speichern';
+}
+async function toggleWorkflow(w){
+  await api('/api/workflows/'+w.id,{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({enabled:!w.enabled})
+  });
+  await loadWorkflows();
+}
+async function deleteWorkflow(w){
+  if(!confirm('Workflow "'+w.name+'" wirklich löschen?'))return;
+  try{
+    await api('/api/workflows/'+w.id,{method:'DELETE'});
+    await loadWorkflows();
+  }catch(e){alert(e.message)}
+}
+async function runWorkflow(w){
+  const out=document.getElementById('workflowRun-'+w.id);
+  out.innerHTML='<span class="warn">Workflow läuft…</span>';
+  try{
+    const r=await api('/api/workflows/'+w.id+'/run',{method:'POST'});
+    out.innerHTML='<span class="'+(r.status==='delivered'?'ok':'err')+'">'+escapeHtml(r.status)+'</span>'+
+      (r.file_url?' <a class="btn secondary" target="_blank" href="'+r.file_url+'">PDF öffnen</a>':'');
+    await loadJobs();
+  }catch(e){
+    out.innerHTML='<span class="err">'+escapeHtml(e.message)+'</span>';
+    await loadJobs();
+  }
+}
+async function loadWorkflows(){
+  populateWorkflowSelectors();
+  const data=await api('/api/workflows');
+  workflowsCache=data;
+  const box=document.getElementById('workflows');
+  box.innerHTML='';
+  if(!data.length){
+    box.innerHTML='<span class="muted">Noch keine Workflows angelegt.</span>';
+    return;
+  }
+  for(const w of data){
+    const source=w.source_type==='scanner'?(w.scanner_name||'Scanner'):'Profil-SMB-Inbox';
+    const el=document.createElement('div'); el.className='item';
+    el.innerHTML='<strong>'+escapeHtml(w.name)+'</strong> '+
+      '<span class="badge '+(w.enabled?'ok':'off')+'">'+(w.enabled?'aktiv':'deaktiviert')+'</span>'+
+      '<div class="muted">'+escapeHtml(source)+' → '+escapeHtml(w.profile_name||'?')+' → '+escapeHtml(w.destination_name||'?')+'</div>'+
+      '<div id="workflowRun-'+w.id+'" class="muted" style="margin-top:6px"></div>';
+    const actions=document.createElement('div'); actions.className='actions';
+    if(w.source_type==='scanner'){
+      const run=document.createElement('button'); run.textContent='Workflow starten'; run.onclick=()=>runWorkflow(w); actions.appendChild(run);
+    }
+    const edit=document.createElement('button'); edit.className='secondary'; edit.textContent='Bearbeiten'; edit.onclick=()=>editWorkflow(w);
+    const toggle=document.createElement('button'); toggle.className='secondary'; toggle.textContent=w.enabled?'Deaktivieren':'Aktivieren'; toggle.onclick=()=>toggleWorkflow(w);
+    const del=document.createElement('button'); del.className='danger'; del.textContent='Löschen'; del.onclick=()=>deleteWorkflow(w);
+    actions.append(edit,toggle,del); el.appendChild(actions); box.appendChild(el);
+  }
+}
+
 async function testscan(){
   const id=document.getElementById('scanScanner').value;
   const out=document.getElementById('scanResult');
@@ -565,16 +735,17 @@ async function loadJobs(){
   if(!data.length){box.innerHTML='<span class="muted">Noch keine ScanJobs.</span>';return;}
   for(const j of data){
     const el=document.createElement('div'); el.className='item';
-    const statusClass=(j.status==='finished'||j.status==='imported')?'ok':j.status==='error'?'err':'off';
+    const statusClass=(j.status==='finished'||j.status==='imported'||j.status==='delivered')?'ok':(j.status==='error'||j.status==='delivery_error')?'err':'off';
     const filename=(j.output_path||'').split('/').pop()||'—';
     el.innerHTML='<div class="jobgrid">'+
       '<div><strong>Job '+j.id+'</strong></div>'+
       '<div><span class="badge '+statusClass+'">'+escapeHtml(j.status)+'</span></div>'+
       '<div><div>'+escapeHtml(filename)+'</div><div class="muted">'+escapeHtml(j.created_at||'')+
       (j.profile_name?' · Profil: '+escapeHtml(j.profile_name):'')+
-      (j.source==='profile-smb'?' · SMB-Inbox':'')+'</div>'+
+      (j.source==='profile-smb'?' · SMB-Inbox':'')+
+      (j.deliveries&&j.deliveries.length?' · Versand: '+j.deliveries.map(d=>d.status).join(', '):'')+'</div>'+
       (j.error?'<div class="err">'+escapeHtml(j.error)+'</div>':'')+'</div>'+
-      '<div>'+((j.status==='finished'||j.status==='imported')?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':'')+'</div>'+
+      '<div>'+((j.status==='finished'||j.status==='imported'||j.status==='delivered'||j.status==='delivery_error')?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':'')+'</div>'+
       '</div>';
     box.appendChild(el);
   }

@@ -117,3 +117,11 @@ class ScannerConnectionSettingsUpdate(BaseModel):
     connection_type: str = "local"
     timeout_seconds: int = 60
     retries: int = 1
+
+
+class ScannerStaticTargetUpdate(BaseModel):
+    enabled: bool = False
+    driver: str = "sane"
+    device_name: str = ""
+    device_id: str = ""
+    address: str = ""

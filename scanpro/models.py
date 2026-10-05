@@ -71,3 +71,15 @@ class ScanJob(Base):
     output_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class JobDelivery(Base):
+    __tablename__ = "job_deliveries"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scan_job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"))
+    workflow_id: Mapped[int | None] = mapped_column(ForeignKey("workflows.id"), nullable=True)
+    destination_id: Mapped[int] = mapped_column(ForeignKey("destinations.id"))
+    status: Mapped[str] = mapped_column(String(30), default="queued")
+    target_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -71,7 +71,7 @@ def _deskew(image: np.ndarray) -> tuple[np.ndarray, bool]:
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     inverted = cv2.bitwise_not(gray)
     _, threshold = cv2.threshold(inverted, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    coords = np.column_stack(np.where(threshold > 0))
+    coords = np.column_stack(np.where(threshold > 0))[:, ::-1]
     if coords.shape[0] < 100:
         return image, False
 
@@ -129,6 +129,10 @@ def _auto_crop(image: np.ndarray) -> tuple[np.ndarray, bool]:
     y1 = min(height - 1, int(y1) + margin_y)
 
     cropped = image[y0:y1 + 1, x0:x1 + 1]
+    # Do not crop down to a text block. Auto-Crop only acts when the
+    # detected document/content still covers most of the scanned page.
+    if cropped.shape[0] < height * 0.65 or cropped.shape[1] < width * 0.65:
+        return image, False
     if cropped.shape[0] >= height * 0.98 and cropped.shape[1] >= width * 0.98:
         return image, False
     return cropped, True
@@ -148,7 +152,7 @@ def process_pdf(pdf_path: str, options: ImageProcessingOptions) -> ImageProcessi
 
     try:
         for page in doc:
-            pix = page.get_pixmap(dpi=200, colorspace=fitz.csRGB, alpha=False)
+            pix = page.get_pixmap(dpi=300, colorspace=fitz.csRGB, alpha=False)
             image = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             result.pages_processed += 1

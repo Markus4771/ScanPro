@@ -4,104 +4,111 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.7.0-dev**
+Aktueller Stand: **0.8.0-dev**
 
-## Neu in 0.7.0-dev
+## Neu in 0.8.0-dev
 
-Foto-/Bildscan ist umgesetzt.
+VPN-/Remote-Scanner-Unterstützung ist als erste Stufe umgesetzt.
 
-## Profilmodus
-
-Neue Profil-Ausgabeeinstellungen:
-
-```text
-mode: document | photo
-output_format: pdf | jpeg | png
-jpeg_quality: 1..100
-```
+## Scanner-Verbindungseinstellungen
 
 Neue Tabelle:
 
 ```text
-profile_output_settings
+scanner_connection_settings
+```
+
+Felder:
+
+- scanner_id
+- location
+- connection_type
+- timeout_seconds
+- retries
+
+## Verbindungstypen
+
+```text
+local
+vpn
 ```
 
 ## API
 
 ```text
-GET /api/profile-output-settings
-PUT /api/profiles/{profile_id}/output-settings
+GET /api/scanner-connection-settings
+PUT /api/scanners/{scanner_id}/connection-settings
+POST /api/scanners/{scanner_id}/reachability
 ```
 
-## Foto-Modus
+## Reachability
 
-Im Webinterface:
+ScanPro verwendet keinen ICMP-Ping, sondern TCP-Verbindungsversuche.
+
+Getestete Ports:
 
 ```text
-Profilmodus: Foto / Bild
-Ausgabeformat: JPEG oder PNG
-JPEG-Qualität
-Auflösung bis 1200 dpi
+443
+80
+631
+6566
 ```
 
-Für JPEG/PNG setzt ScanPro automatisch:
+Dadurch funktioniert der Test auch in Netzen, in denen ICMP geblockt ist.
 
-- OCR aus
-- Trennung aus
-- Farbe
+## Timeout / Retry
 
-## Verarbeitung
+NAPS2-Scans unterstützen jetzt:
 
-ScanPro verwendet weiterhin NAPS2 mit PDF als robustem Zwischenformat:
+- konfigurierbaren Timeout
+- Retry bei Fehler/Timeout
+- kurze Pause zwischen Versuchen
+
+Diese Einstellungen gelten für:
+
+- Testscan
+- Scanner-Workflow
+
+Beispiel VPN-Scanner:
 
 ```text
-Scanner
-→ NAPS2 PDF
-→ Bildoptimierung
-→ JPEG/PNG
-→ Dateinamensregeln
-→ Ziel
+Standort: Außenstelle
+connection_type: vpn
+timeout_seconds: 120
+retries: 2
 ```
 
-Mehrseitige PDFs werden in einzelne Bilddateien zerlegt.
+## Webinterface
 
-Bilddateien liegen intern unter:
+Gespeicherte Scanner zeigen:
+
+- Standort
+- LOCAL/VPN
+- Erreichbarkeitsstatus
+
+Zusätzlich:
 
 ```text
-/var/lib/scanpro/jobs/images/<JOB-ID>/
+Erreichbarkeit testen
 ```
 
-## Bildoptimierung
+Beim Bearbeiten können Standort, Verbindungstyp, Timeout und Retry-Anzahl gesetzt werden.
 
-Rotation, Deskew, Auto-Crop und Randentfernung können auch für Foto-Profile genutzt werden.
+## Wichtige technische Grenze
 
-Die Verarbeitung rendert jetzt mit der DPI des Profils statt fest mit 300 dpi.
+mDNS wird über geroutete VPNs normalerweise nicht übertragen.
 
-## Dateinamen
+Ein erreichbarer Scanner kann daher trotzdem von NAPS2/SANE nicht automatisch gefunden werden.
 
-Die Namensengine übernimmt automatisch die Dateiendung des erzeugten Formats.
+Für solche Standorte braucht es aktuell entweder:
 
-Beispiele:
-
-```text
-2026-10-05_Fotos_120_001.jpg
-2026-10-05_Fotos_120_002.jpg
-```
-
-## Ziele
-
-Unterstützt:
-
-- lokaler Ordner
-- SMB
-- Paperless technisch weiterhin möglich
-
-Für Foto-/Bildprofile sind lokale und SMB-Ziele der primäre Anwendungsfall.
+- statische sane-airscan/eSCL-Konfiguration
+- oder später einen ScanPro Remote Collector
 
 ## Schema-Version
 
 ```text
-3
+4
 ```
 
 ## Update
@@ -121,26 +128,31 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.7.0-dev","schema_version":3}
+{"status":"ok","version":"0.8.0-dev","schema_version":4}
 ```
 
 ## Nächster Entwicklungsschritt
 
 Empfohlen:
 
-**0.8.0-dev – VPN-/Remote-Scanner**
+**0.8.1-dev – Remote-Scanner-Härtung**
 
-- Standort pro Scanner
-- lokal/VPN
-- Reachability-Test
-- längere Timeouts
-- Retry bei temporären VPN-Problemen
-- Gruppierung nach Standort
-- Vorbereitung für Remote Collector
+- statische eSCL/SANE-Ziele komfortabler verwalten
+- Remote-Scanner ohne mDNS besser erkennen
+- Fehlerzustände getrennt anzeigen: Netzwerk / Discovery / Scan
+- Standortfilter im UI
 
 Danach:
 
-- Secret Store
+**0.9.0-dev – Secret Store**
+
+- Paperless-Token
+- SMB-Passwörter
+- verschlüsselte Ablage
+
+Später:
+
+- Remote Collector
 - Paperless Custom Fields
 - automatische Dokumentklassifikation
 - Cleanup/Retention

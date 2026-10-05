@@ -1,3 +1,4 @@
+import re
 import subprocess
 from pathlib import Path
 
@@ -10,32 +11,64 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
     except FileNotFoundError as exc:
         raise Naps2Error("NAPS2 wurde nicht gefunden.") from exc
     except subprocess.CalledProcessError as exc:
-        raise Naps2Error(exc.stderr.strip() or exc.stdout.strip() or "NAPS2-Aufruf fehlgeschlagen.") from exc
+        message = exc.stderr.strip() or exc.stdout.strip() or "NAPS2-Aufruf fehlgeschlagen."
+        raise Naps2Error(message) from exc
 
 def _console_args(*args: str) -> list[str]:
     return ["naps2", "console", *args]
 
-def list_devices(driver: str = "escl") -> str:
+def list_devices(driver: str = "sane") -> str:
     result = _run(_console_args("--listdevices", "--driver", driver))
     return result.stdout
+
+def discover_devices(driver: str = "sane") -> list[dict[str, str | None]]:
+    raw = list_devices(driver)
+    devices: list[dict[str, str | None]] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        name = line
+        device_id = None
+        address = None
+        match = re.match(r"^(.*) \(([^()]*)\)$", line)
+        if match:
+            name = match.group(1).strip()
+            device_id = match.group(2).strip()
+            ip_match = re.search(r"ip=([0-9a-fA-F:.]+)", device_id)
+            if ip_match:
+                address = ip_match.group(1)
+        devices.append({
+            "name": name,
+            "driver": driver,
+            "device_id": device_id,
+            "address": address,
+            "raw": line,
+        })
+    return devices
 
 def scan_to_pdf(
     output: Path,
     device: str,
-    driver: str = "escl",
+    driver: str = "sane",
     dpi: int = 300,
-    duplex: bool = True,
+    duplex: bool = False,
     color_mode: str = "color",
 ) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
     source = "duplex" if duplex else "feeder"
     args = _console_args(
         "-o", str(output),
+        "--noprofile",
         "--driver", driver,
         "--device", device,
         "--source", source,
         "--dpi", str(dpi),
+        "--bitdepth", color_mode,
         "--pagesize", "a4",
+        "-v",
     )
     _run(args)
+    if not output.exists():
+        raise Naps2Error("NAPS2 meldete keinen Fehler, aber es wurde keine PDF-Datei erzeugt.")
     return output

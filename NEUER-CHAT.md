@@ -4,30 +4,44 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.1.2-dev**
+Aktueller Stand: **0.1.3-dev**
 
 ## Erfolgreich getestet
 
 - Brother ADS-2600We über NAPS2/SANE
-- Scanner-Erkennung
-- Scanner-Import
-- Testscan über ScanPro-API
-- PDF-Ausgabe unter `/var/lib/scanpro/jobs/`
-- Dienstbenutzer `scanpro` mit Home `/var/lib/scanpro`
+- Scanner-Erkennung und Import
+- Scan über Weboberfläche
+- PDF-Erzeugung unter `/var/lib/scanpro/jobs/`
+- ScanPro als systemd-Dienst
+- Weboberfläche über Nginx/Port 80
 
-## In 0.1.2-dev umgesetzt
+## In 0.1.3-dev umgesetzt
 
-- erste Weboberfläche unter `/`
-- Scanner erkennen über SANE/eSCL
-- Scanner per Klick übernehmen
-- gespeicherte Scanner anzeigen
-- Testscan im Browser
-- Auswahl 150/200/300/600 dpi
-- Farbe, Graustufen, Schwarzweiß
-- Einseitig oder Duplex
-- letzte ScanJobs anzeigen
-- PDF-Datei eines Jobs über `/api/jobs/{job_id}/file`
-- Version auf 0.1.2-dev angehoben
+- Scannerstatus online/offline
+- Scanner bearbeiten
+- Scanner aktivieren/deaktivieren
+- Scanner löschen
+- Schutz vor Löschen eines Scanners, der noch in einem Workflow verwendet wird
+- kompakte Testscan-Ergebnisanzeige
+- PDF direkt nach erfolgreichem Scan öffnen
+- PDF-Link in der Jobliste
+- verbesserte Jobdarstellung
+- Version auf 0.1.3-dev angehoben
+
+## Relevante API-Endpunkte
+
+```text
+GET    /api/scanners/discover?driver=sane
+GET    /api/scanners
+GET    /api/scanners/status
+POST   /api/scanners/import
+PATCH  /api/scanners/{scanner_id}
+DELETE /api/scanners/{scanner_id}
+POST   /api/scanners/{scanner_id}/testscan
+GET    /api/jobs
+GET    /api/jobs/{job_id}
+GET    /api/jobs/{job_id}/file
+```
 
 ## Update auf dem Testsystem
 
@@ -37,44 +51,28 @@ git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Danach:
-
-```bash
-curl http://127.0.0.1:8100/health
-```
-
-und im Browser:
-
-```text
-http://IP-DES-SCANPRO-SERVERS/
-```
+Danach Browser neu laden.
 
 ## Nächster Entwicklungsschritt
 
-Als nächstes:
+**0.1.4-dev – Scanprofile im Webinterface**
 
-1. Weboberfläche weiter ausbauen
-2. Scanner Online/Offline-Status
-3. PDF-Link/Vorschau direkt in der Jobliste
-4. Scanprofile im Webinterface
-5. danach SMB-Inbox und konfigurierbare Scanziele
-6. anschließend optionale Dokumenttrennung
+Geplant:
 
-## Weiterhin geplant
+1. Scanprofile anzeigen
+2. Profile anlegen
+3. DPI/Farbe/Duplex speichern
+4. OCR an/aus
+5. Trennung an/aus
+6. Trennmethode wählen
+7. Profil im Scanbereich auswählen
 
-- mehrere Scanner
-- Scanprofile
-- Scanziele
-- Workflows
-- SMB-Eingang
-- Patch-T
-- QR-Code
-- Barcode
-- Leerseite
-- manuelle Trennung
-- OCR
-- Seitenbearbeitung
-- Paperless-ngx
+Danach:
+
+- konfigurierbare Scanziele
+- SMB-Ziele
+- SMB-Inbox
+- automatische Weiterleitung
 
 ## Einstieg in einem neuen Chat
 

@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.6.0-dev**
+Aktuell: **0.6.1-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -667,3 +667,66 @@ paperless-task:<UUID>
 ```
 
 Der API-Token wird in API-Antworten maskiert. Im aktuellen Entwicklungsstand liegt er wie SMB-Zugangsdaten noch verschlüsselt-unabhängig im SQLite-Konfigurationsfeld und sollte später in einen Secret Store ausgelagert werden.
+
+
+## Paperless-Metadatenregeln in 0.6.1-dev
+
+Paperless-Ziele können jetzt enger mit Scanprofilen verbunden werden.
+
+Neu:
+
+- Paperless-Auswahllisten aus der API laden
+- Korrespondenten direkt anzeigen
+- Dokumenttypen direkt anzeigen
+- Speicherpfade direkt anzeigen
+- Upload-Taskstatus prüfen
+- profilbezogene Paperless-Regeln
+- QR-/Barcode-Inhalt auf Paperless-Felder abbilden
+- OCR-Inhalt auf Paperless-Felder abbilden
+- dynamische Paperless-Titel
+
+Titelvariablen:
+
+```text
+{filename}
+{profile}
+{job}
+{document}
+{code}
+{ocr_first_line}
+```
+
+QR-/Barcode-Regeln werden als JSON-Mapping gespeichert.
+
+Beispiel:
+
+```json
+{"RECHNUNG":3}
+```
+
+für Dokumenttyp-ID 3.
+
+OCR-Regeln können auf enthaltenen Text reagieren:
+
+```json
+[
+  {
+    "contains":"Telekom",
+    "correspondent":4,
+    "document_type":3,
+    "tags":[2]
+  }
+]
+```
+
+Taskstatus:
+
+```text
+GET /api/deliveries/{delivery_id}/paperless-task
+```
+
+Paperless-Auswahllisten:
+
+```text
+GET /api/destinations/{destination_id}/paperless/choices
+```

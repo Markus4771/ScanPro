@@ -184,3 +184,15 @@ class JobDocumentMetadata(Base):
     final_filename: Mapped[str] = mapped_column(String(255))
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ProfilePaperlessRules(Base):
+    __tablename__ = "profile_paperless_rules"
+    __table_args__ = (UniqueConstraint("profile_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
+    title_template: Mapped[str] = mapped_column(String(255), default="{filename}")
+    correspondent_map_json: Mapped[str] = mapped_column(Text, default="{}")
+    document_type_map_json: Mapped[str] = mapped_column(Text, default="{}")
+    tags_map_json: Mapped[str] = mapped_column(Text, default="{}")
+    ocr_contains_rules_json: Mapped[str] = mapped_column(Text, default="[]")

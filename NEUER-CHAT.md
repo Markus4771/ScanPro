@@ -4,87 +4,79 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.2.4-dev**
+Aktueller Stand: **0.2.5-dev**
 
-## Neu in 0.2.4-dev
+## Neu in 0.2.5-dev
 
-Workflows und automatische Weiterleitung sind umgesetzt.
+Scanprofile können optional leere Seiten automatisch entfernen.
 
-## Workflow-Modell
-
-```text
-Quelle → Scanprofil → Scanziel
-```
-
-Quellen:
-
-- Scanner
-- Profil-SMB-Inbox
-
-Ziele:
-
-- lokaler Ordner
-- SMB-Freigabe
-
-## Scanner-Workflow
-
-Ein Workflow mit `scanner_id` kann im Webinterface über **Workflow starten** ausgeführt werden.
-
-Ablauf:
-
-1. Scanner starten
-2. Profilwerte verwenden
-3. PDF erzeugen
-4. PDF an Ziel weiterleiten
-5. Delivery speichern
-6. Jobstatus setzen
-
-## SMB-Inbox-Workflow
-
-Ein Workflow ohne `scanner_id` gilt als Profil-SMB-Inbox-Workflow.
-
-Ablauf:
-
-1. PDF kommt in Profilfreigabe an
-2. Inbox-Worker importiert PDF
-3. passende aktive Workflows für das Profil werden gesucht
-4. PDF wird automatisch an die konfigurierten Ziele weitergeleitet
-5. jeder Versand wird protokolliert
-
-## Neue Delivery-Tabelle
+Webinterface:
 
 ```text
-job_deliveries
+Leere Seiten aussortieren
 ```
 
-Felder:
+Die Option gilt für:
+
+- Scanner-Workflows
+- Profil-SMB-Inbox-Workflows
+
+## Technische Umsetzung
+
+Neue Tabelle:
+
+```text
+profile_processing
+```
+
+Aktuell enthalten:
+
+- profile_id
+- remove_blank_pages
+
+Neue Tabelle:
+
+```text
+job_processing
+```
+
+Sie protokolliert:
 
 - scan_job_id
-- workflow_id
-- destination_id
-- status
-- target_path
-- error
-- created_at
+- blank_pages_removed
+- blank_pages_json
 
-## Workflow-API
+Neue API:
 
 ```text
-GET    /api/workflows
-POST   /api/workflows
-PATCH  /api/workflows/{workflow_id}
-DELETE /api/workflows/{workflow_id}
-POST   /api/workflows/{workflow_id}/run
+GET /api/profile-processing
+PUT /api/profiles/{profile_id}/processing
 ```
 
-## Status
+## Leerseitenerkennung
 
-Weiterleitungsstatus:
+Datei:
 
 ```text
-delivered
-delivery_error
+scanpro/services/blank_pages.py
 ```
+
+Verwendet:
+
+```text
+PyMuPDF
+```
+
+Ablauf:
+
+1. PDF-Seite verkleinert in Graustufen rendern
+2. Weißanteil bestimmen
+3. nahezu vollständig weiße Seiten markieren
+4. PDF ohne diese Seiten neu schreiben
+5. entfernte Seitennummern protokollieren
+6. anschließend Workflow-Ziel beliefern
+
+Wenn alle Seiten als leer erkannt werden, bleibt die Originaldatei erhalten und der Job erhält `processing_error`.
 
 ## Update
 
@@ -94,40 +86,31 @@ git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Prüfen:
+Danach:
 
 ```bash
 curl http://127.0.0.1:8100/health
-systemctl status scanpro --no-pager
-systemctl status scanpro-inbox --no-pager
 ```
 
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.2.4-dev"}
+{"status":"ok","version":"0.2.5-dev"}
 ```
-
-## Noch nicht umgesetzt
-
-- OCR-Ausführung
-- Dokumenttrennung
-- QR-/Barcode-Erkennung
-- Dateinamenregeln und Metadaten
-- Paperless-ngx
 
 ## Nächster Entwicklungsschritt
 
-**0.3.0-dev – Dokumenttrennung**
+**0.3.0-dev – echte Dokumenttrennung**
 
 Geplant:
 
-1. Leerseiten-Trennung
-2. Patch-T-Erkennung
-3. mehrere Dokumente aus einem ScanJob
-4. Trennung abhängig vom Scanprofil
-5. danach QR-/Barcode-Trennung
-6. anschließend OCR
+1. Leerseite als Trennblatt
+2. Patch-T
+3. mehrere PDFs aus einem ScanJob
+4. QR-/Barcode-Trennung
+5. OCR
+
+Wichtig: **Leere Seiten entfernen** und **Leerseite als Dokumenttrenner** bleiben zwei getrennte Profilfunktionen.
 
 ## Einstieg in einem neuen Chat
 

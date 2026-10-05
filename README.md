@@ -125,7 +125,7 @@ Geplante Methoden:
 - **0.2.x** Weboberfläche und SMB-Eingänge
 - **0.3.x** Patch-T und manuelle Dokumenttrennung
 - **0.4.x** QR-/Barcode-Trennung
-- **0.5.x** OCR und Seitenbearbeitung
+- **0.5.x** Bildoptimierung (Deskew/Begradigen), OCR und Seitenbearbeitung
 - **0.6.x** Paperless-ngx und weitere Scanziele
 
 
@@ -335,3 +335,18 @@ Da NAPS2 Patch-Code-Unterstützung offiziell besonders für WIA/TWAIN dokumentie
 `Leere Seiten aussortieren` und `Leerseite als Trenner` sind getrennte Funktionen.
 
 Wenn Leerseite als Trenner aktiv ist, entfernt ScanPro die Leerseiten nicht vor der Trennung.
+
+
+## Backlog: automatische Begradigung schiefer Scans
+
+Geplant ist eine optionale **Deskew-Funktion** pro Scanprofil.
+
+Ziel:
+
+- schief eingezogene Seiten automatisch erkennen
+- Seiten vor OCR automatisch begradigen
+- optional aktivierbar pro Scanprofil
+- sowohl für direkte Scanner-Workflows als auch SMB-Inbox-PDFs
+- Verarbeitung nach Dokumenttrennung und vor OCR
+
+Die Funktion soll später zusätzlich mit Seitenrotation und weiterer Bildoptimierung kombinierbar sein.

@@ -1,5 +1,11 @@
 # ScanPro
 
+## Dokumentation
+
+- [Benutzerhandbuch](BENUTZERHANDBUCH.md)
+- [Installationsanleitung](INSTALLATION.md)
+- [Entwicklungsübergabe](NEUER-CHAT.md)
+
 ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand

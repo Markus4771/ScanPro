@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.1.2-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.1.3-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.1.2-dev"}
+{"status":"ok","version":"0.1.3-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -250,7 +250,7 @@ Die Weboberfläche bietet aktuell:
 - Einseitig/Duplex wählen
 - letzte ScanJobs anzeigen
 
-## Update auf 0.1.2-dev
+## Update auf 0.1.3-dev
 
 ```bash
 cd ~/ScanPro
@@ -259,3 +259,14 @@ sudo bash scripts/install-dev.sh
 ```
 
 Danach Browser neu laden.
+
+
+## Neue Funktionen in 0.1.3-dev
+
+- Online-/Offline-Status gespeicherter Scanner
+- Scanner bearbeiten
+- Scanner aktivieren/deaktivieren
+- Scanner löschen
+- kompakte Scan-Ergebnisanzeige
+- PDF direkt aus der Jobliste öffnen
+- verbesserte ScanJob-Liste

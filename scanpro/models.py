@@ -91,3 +91,12 @@ class ProfileProcessing(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
     remove_blank_pages: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class JobProcessing(Base):
+    __tablename__ = "job_processing"
+    __table_args__ = (UniqueConstraint("scan_job_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scan_job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"))
+    blank_pages_removed: Mapped[int] = mapped_column(Integer, default=0)
+    blank_pages_json: Mapped[str] = mapped_column(Text, default="[]")

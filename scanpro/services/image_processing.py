@@ -138,7 +138,7 @@ def _auto_crop(image: np.ndarray) -> tuple[np.ndarray, bool]:
     return cropped, True
 
 
-def process_pdf(pdf_path: str, options: ImageProcessingOptions) -> ImageProcessingResult:
+def process_pdf(pdf_path: str, options: ImageProcessingOptions, render_dpi: int = 300) -> ImageProcessingResult:
     source = Path(pdf_path)
     if not source.exists():
         raise ImageProcessingError(f"PDF wurde nicht gefunden: {source}")
@@ -152,7 +152,7 @@ def process_pdf(pdf_path: str, options: ImageProcessingOptions) -> ImageProcessi
 
     try:
         for page in doc:
-            pix = page.get_pixmap(dpi=300, colorspace=fitz.csRGB, alpha=False)
+            pix = page.get_pixmap(dpi=render_dpi, colorspace=fitz.csRGB, alpha=False)
             image = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             result.pages_processed += 1

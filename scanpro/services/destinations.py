@@ -65,7 +65,7 @@ def test_destination(destination_type: str, config_json: str) -> dict:
     raise DestinationError(f"Zieltyp wird noch nicht unterstützt: {destination_type}")
 
 
-def deliver_file(destination_type: str, config_json: str, source_path: str) -> str:
+def deliver_file(destination_type: str, config_json: str, source_path: str, target_name: str | None = None) -> str:
     cfg = _load_config(config_json)
     source = Path(source_path)
     if not source.exists():
@@ -76,7 +76,7 @@ def deliver_file(destination_type: str, config_json: str, source_path: str) -> s
         if not str(path):
             raise DestinationError("Lokaler Zielpfad fehlt.")
         path.mkdir(parents=True, exist_ok=True)
-        target = path / source.name
+        target = path / (target_name or source.name)
         import shutil
         try:
             shutil.copy2(source, target)
@@ -97,7 +97,7 @@ def deliver_file(destination_type: str, config_json: str, source_path: str) -> s
         target = f"//{server}/{share}"
         auth_user = f"{domain}\\{username}" if domain and username else username
         auth = f"{auth_user}%{password}" if username else "%"
-        remote_name = source.name.replace('"', "_")
+        remote_name = (target_name or source.name).replace('"', "_")
         command_text = f'put "{source}" "{remote_name}"'
         if subfolder:
             command_text = f'cd "{subfolder}"; {command_text}'

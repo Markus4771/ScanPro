@@ -99,7 +99,7 @@ def discover_scanners(driver: str = Query("sane", pattern="^(sane|escl)$")):
     try:
         return {"driver": driver, "devices": discover_devices(driver)}
     except Naps2Error as exc:
-        raise HTTPException(500, str(exc)) from exc
+        raise HTTPException(500, {"type": exc.category, "message": str(exc)}) from exc
 
 @app.get("/api/scanners")
 def list_scanners(db: Session = Depends(get_db)):
@@ -373,8 +373,13 @@ def test_scan(scanner_id: int, payload: TestScanRequest, db: Session = Depends(g
             "file_url": f"/api/jobs/{job.id}/file",
         }
     except Naps2Error as exc:
-        job.status = "error"; job.error = str(exc); db.commit()
-        raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
+        job.status = f"{exc.category}_error"
+        job.error = str(exc)
+        db.commit()
+        raise HTTPException(
+            500,
+            {"job_id": job.id, "type": exc.category, "error": str(exc)},
+        ) from exc
 
 @app.get("/api/jobs")
 def list_jobs(db: Session = Depends(get_db)):
@@ -400,6 +405,11 @@ def list_jobs(db: Session = Depends(get_db)):
             "input_path": job.input_path,
             "output_path": job.output_path,
             "error": job.error,
+            "error_type": (
+                job.status.removesuffix("_error")
+                if job.status in {"network_error", "discovery_error", "scan_error"}
+                else None
+            ),
             "created_at": job.created_at,
             "profile_id": profile_id,
             "profile_name": profile.name if profile else None,
@@ -1224,10 +1234,13 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
                 db.commit()
                 raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
     except Naps2Error as exc:
-        job.status = "error"
+        job.status = f"{exc.category}_error"
         job.error = str(exc)
         db.commit()
-        raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
+        raise HTTPException(
+            500,
+            {"job_id": job.id, "type": exc.category, "error": str(exc)},
+        ) from exc
 
     documents = db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).order_by(JobDocument.sequence).all()
     deliveries = []

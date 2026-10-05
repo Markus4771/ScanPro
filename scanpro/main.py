@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, DATABASE_URL, engine, get_db, initialize_database
-from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileOutputSettings, ProfilePaperlessRules, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileOutputSettings, ProfilePaperlessRules, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, ScannerConnectionSettings, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -24,6 +24,7 @@ from .schemas import (
     ScannerCreate,
     ScannerImport,
     ScannerUpdate,
+    ScannerConnectionSettingsUpdate,
     TestScanRequest,
     WorkflowCreate,
     WorkflowUpdate,
@@ -32,6 +33,7 @@ from .services.blank_pages import BlankPageError, remove_blank_pages
 from .services.documents import apply_image_processing, prepare_job_documents
 from .services.destinations import DestinationError, public_config, test_destination
 from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
+from .services.scanner_connection import check_reachability, get_connection_settings
 from .services.profile_shares import ProfileShareError, normalize_share_name, profile_path, write_profile_samba_config
 from .services.image_processing import ImageProcessingError
 from .services.ocr import OcrError, apply_ocr
@@ -102,6 +104,71 @@ def discover_scanners(driver: str = Query("sane", pattern="^(sane|escl)$")):
 def list_scanners(db: Session = Depends(get_db)):
     return db.query(Scanner).order_by(Scanner.name).all()
 
+@app.get("/api/scanner-connection-settings")
+def list_scanner_connection_settings(db: Session = Depends(get_db)):
+    scanners = db.query(Scanner).order_by(Scanner.name).all()
+    return [
+        {
+            "scanner_id": scanner.id,
+            "location": get_connection_settings(db, scanner).location,
+            "connection_type": get_connection_settings(db, scanner).connection_type,
+            "timeout_seconds": get_connection_settings(db, scanner).timeout_seconds,
+            "retries": get_connection_settings(db, scanner).retries,
+        }
+        for scanner in scanners
+    ]
+
+@app.put("/api/scanners/{scanner_id}/connection-settings")
+def update_scanner_connection_settings(
+    scanner_id: int,
+    payload: ScannerConnectionSettingsUpdate,
+    db: Session = Depends(get_db),
+):
+    scanner = db.get(Scanner, scanner_id)
+    if not scanner:
+        raise HTTPException(404, "Scanner wurde nicht gefunden.")
+
+    connection_type = payload.connection_type.strip().lower()
+    if connection_type not in {"local", "vpn"}:
+        raise HTTPException(400, "connection_type muss local oder vpn sein.")
+    if not 5 <= payload.timeout_seconds <= 600:
+        raise HTTPException(400, "Timeout muss zwischen 5 und 600 Sekunden liegen.")
+    if not 0 <= payload.retries <= 5:
+        raise HTTPException(400, "Retries müssen zwischen 0 und 5 liegen.")
+
+    row = get_connection_settings(db, scanner)
+    row.location = payload.location.strip() or "Lokal"
+    row.connection_type = connection_type
+    row.timeout_seconds = payload.timeout_seconds
+    row.retries = payload.retries
+    db.commit(); db.refresh(row)
+    return {
+        "scanner_id": scanner_id,
+        "location": row.location,
+        "connection_type": row.connection_type,
+        "timeout_seconds": row.timeout_seconds,
+        "retries": row.retries,
+    }
+
+@app.post("/api/scanners/{scanner_id}/reachability")
+def scanner_reachability(scanner_id: int, db: Session = Depends(get_db)):
+    scanner = db.get(Scanner, scanner_id)
+    if not scanner:
+        raise HTTPException(404, "Scanner wurde nicht gefunden.")
+    settings = get_connection_settings(db, scanner)
+    result = check_reachability(
+        scanner,
+        timeout_seconds=4.0 if settings.connection_type == "vpn" else 2.0,
+    )
+    return {
+        "scanner_id": scanner.id,
+        "reachable": result.reachable,
+        "method": result.method,
+        "detail": result.detail,
+        "location": settings.location,
+        "connection_type": settings.connection_type,
+    }
+
 @app.get("/api/scanners/status")
 def scanner_status(db: Session = Depends(get_db)):
     scanners = db.query(Scanner).order_by(Scanner.name).all()
@@ -114,14 +181,28 @@ def scanner_status(db: Session = Depends(get_db)):
                 by_driver[scanner.driver] = {d["name"] for d in devices}
             except Naps2Error:
                 by_driver[scanner.driver] = set()
-        online = scanner.name in by_driver[scanner.driver]
+        settings = get_connection_settings(db, scanner)
+        discovered = scanner.name in by_driver[scanner.driver]
+        reachability = check_reachability(
+            scanner,
+            timeout_seconds=4.0 if settings.connection_type == "vpn" else 2.0,
+        )
+        online = discovered or reachability.reachable
         result.append({
             "id": scanner.id,
             "name": scanner.name,
             "enabled": scanner.enabled,
             "online": online,
+            "discovered": discovered,
+            "reachable": reachability.reachable,
+            "reachability_method": reachability.method,
+            "reachability_detail": reachability.detail,
             "driver": scanner.driver,
             "address": scanner.address,
+            "location": settings.location,
+            "connection_type": settings.connection_type,
+            "timeout_seconds": settings.timeout_seconds,
+            "retries": settings.retries,
         })
     return result
 
@@ -169,6 +250,13 @@ def delete_scanner(scanner_id: int, db: Session = Depends(get_db)):
     linked = db.query(Workflow).filter(Workflow.scanner_id == scanner_id).first()
     if linked:
         raise HTTPException(409, "Scanner wird noch von einem Workflow verwendet.")
+    connection_settings = (
+        db.query(ScannerConnectionSettings)
+        .filter(ScannerConnectionSettings.scanner_id == scanner_id)
+        .first()
+    )
+    if connection_settings:
+        db.delete(connection_settings)
     db.delete(scanner); db.commit()
     return {"deleted": True, "id": scanner_id}
 
@@ -184,8 +272,18 @@ def test_scan(scanner_id: int, payload: TestScanRequest, db: Session = Depends(g
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     output = JOBS_DIR / f"testscan-{job.id}-{timestamp}.pdf"
     job.output_path = str(output); job.status = "scanning"; db.commit()
+    settings = get_connection_settings(db, scanner)
     try:
-        scan_to_pdf(output=output, device=scanner.name, driver=scanner.driver, dpi=payload.dpi, duplex=payload.duplex, color_mode=payload.color_mode)
+        scan_to_pdf(
+            output=output,
+            device=scanner.name,
+            driver=scanner.driver,
+            dpi=payload.dpi,
+            duplex=payload.duplex,
+            color_mode=payload.color_mode,
+            timeout_seconds=settings.timeout_seconds,
+            retries=settings.retries,
+        )
         job.status = "finished"; job.error = None; db.commit(); db.refresh(job)
         return {
             "job_id": job.id,
@@ -973,6 +1071,7 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
     job.output_path = str(output)
     db.commit()
 
+    connection_settings = get_connection_settings(db, scanner)
     try:
         scan_to_pdf(
             output=output,
@@ -981,6 +1080,8 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
             dpi=profile.dpi,
             duplex=profile.duplex,
             color_mode=profile.color_mode,
+            timeout_seconds=connection_settings.timeout_seconds,
+            retries=connection_settings.retries,
         )
         job.status = "finished"
         job.error = None

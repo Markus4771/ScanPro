@@ -139,3 +139,35 @@ Scan / SMB-Eingang
 ```
 
 Die Funktion soll sowohl für Scanner-Workflows als auch für Profil-SMB-Inboxen gelten.
+
+
+## Backlog: Bilder/Fotos scannen
+
+ScanPro soll zusätzlich zu Dokumenten einen eigenen Bild-/Foto-Scanmodus erhalten.
+
+Geplant:
+
+- JPEG- und PNG-Ausgabe
+- optional PDF
+- hohe DPI-Werte
+- Farbe als Standard
+- Dokumenttrennung standardmäßig aus
+- OCR standardmäßig aus
+- automatische Rotation
+- Deskew
+- Auto-Crop / Zuschneiden
+- Randentfernung
+- Bildoptimierung
+- Ausgabe an lokale und SMB-Ziele
+
+Vorgesehener Ablauf:
+
+```text
+Scanner
+→ Bildprofil
+→ Rotation / Deskew / Auto-Crop
+→ JPEG / PNG
+→ lokales oder SMB-Ziel
+```
+
+Das soll als eigene Profilart umgesetzt werden, damit Dokumentprofile und Bildprofile klar getrennt bleiben.

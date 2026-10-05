@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.1.3-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.1.4-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.1.3-dev"}
+{"status":"ok","version":"0.1.4-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -250,7 +250,7 @@ Die Weboberfläche bietet aktuell:
 - Einseitig/Duplex wählen
 - letzte ScanJobs anzeigen
 
-## Update auf 0.1.3-dev
+## Update auf 0.1.4-dev
 
 ```bash
 cd ~/ScanPro
@@ -270,3 +270,21 @@ Danach Browser neu laden.
 - kompakte Scan-Ergebnisanzeige
 - PDF direkt aus der Jobliste öffnen
 - verbesserte ScanJob-Liste
+
+
+## Scanprofile in 0.1.4-dev
+
+Im Webinterface können jetzt Scanprofile angelegt und verwaltet werden.
+
+Ein Profil speichert:
+
+- DPI
+- Farbmodus
+- Einseitig/Duplex
+- OCR an/aus
+- Trennung an/aus
+- Trennmethode
+
+Das Profil kann anschließend im Bereich **Testscan** ausgewählt werden. DPI, Farbmodus und Einzug werden automatisch übernommen.
+
+OCR und Dokumenttrennung sind in 0.1.4-dev zunächst Konfigurationswerte. Die eigentliche Verarbeitung folgt in späteren Entwicklungsstufen.

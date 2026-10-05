@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import Engine, text
 
 
-CURRENT_SCHEMA_VERSION = 2
+CURRENT_SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -23,6 +23,11 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(
         version=2,
         description="Paperless profile metadata rules",
+        statements=(),
+    ),
+    Migration(
+        version=3,
+        description="Photo profile output settings",
         statements=(),
     ),
 )

@@ -253,7 +253,8 @@ def scanner_status(db: Session = Depends(get_db)):
             timeout_seconds=4.0 if settings.connection_type == "vpn" else 2.0,
         )
         online = discovered or reachability.reachable
-        state = classify_scanner_state(discovered, reachability.reachable)
+        discovery_ok = discovered or target["source"] == "static"
+        state = classify_scanner_state(discovery_ok, reachability.reachable)
         result.append({
             "id": scanner.id,
             "name": scanner.name,
@@ -361,6 +362,7 @@ def test_scan(scanner_id: int, payload: TestScanRequest, db: Session = Depends(g
             color_mode=payload.color_mode,
             timeout_seconds=settings.timeout_seconds,
             retries=settings.retries,
+            airscan_device=target.get("airscan_device"),
         )
         job.status = "finished"; job.error = None; db.commit(); db.refresh(job)
         return {
@@ -1161,6 +1163,7 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
             color_mode=profile.color_mode,
             timeout_seconds=connection_settings.timeout_seconds,
             retries=connection_settings.retries,
+            airscan_device=target.get("airscan_device"),
         )
         job.status = "finished"
         job.error = None

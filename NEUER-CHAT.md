@@ -4,79 +4,81 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.2.5-dev**
+Aktueller Stand: **0.3.0-dev**
 
-## Neu in 0.2.5-dev
+## Neu in 0.3.0-dev
 
-Scanprofile können optional leere Seiten automatisch entfernen.
+Echte Dokumenttrennung ist umgesetzt.
 
-Webinterface:
+## Unterstützte Methoden
 
-```text
-Leere Seiten aussortieren
-```
+### Leerseite als Trenner
 
-Die Option gilt für:
-
-- Scanner-Workflows
-- Profil-SMB-Inbox-Workflows
-
-## Technische Umsetzung
-
-Neue Tabelle:
-
-```text
-profile_processing
-```
-
-Aktuell enthalten:
-
-- profile_id
-- remove_blank_pages
-
-Neue Tabelle:
-
-```text
-job_processing
-```
-
-Sie protokolliert:
-
-- scan_job_id
-- blank_pages_removed
-- blank_pages_json
-
-Neue API:
-
-```text
-GET /api/profile-processing
-PUT /api/profiles/{profile_id}/processing
-```
-
-## Leerseitenerkennung
-
-Datei:
-
-```text
-scanpro/services/blank_pages.py
-```
-
-Verwendet:
-
-```text
-PyMuPDF
-```
+Produktiv implementiert in ScanPro.
 
 Ablauf:
 
-1. PDF-Seite verkleinert in Graustufen rendern
-2. Weißanteil bestimmen
-3. nahezu vollständig weiße Seiten markieren
-4. PDF ohne diese Seiten neu schreiben
-5. entfernte Seitennummern protokollieren
-6. anschließend Workflow-Ziel beliefern
+1. PDF-Seiten analysieren
+2. Leerseite erkennen
+3. Dokument an dieser Stelle beenden
+4. Trennseite verwerfen
+5. nächstes Dokument beginnen
+6. mehrere PDFs erzeugen
 
-Wenn alle Seiten als leer erkannt werden, bleibt die Originaldatei erhalten und der Job erhält `processing_error`.
+### Patch-T
+
+Über NAPS2 CLI:
+
+```text
+--splitpatcht
+```
+
+Die Ausgabedateien werden nummeriert erzeugt.
+
+Patch-T ist technisch integriert, unter Linux/SANE aber noch praktisch mit dem Brother ADS-2600We zu testen.
+
+## Neue Tabelle
+
+```text
+job_documents
+```
+
+Felder:
+
+- scan_job_id
+- sequence
+- path
+- split_method
+- created_at
+
+## Verarbeitung
+
+Die erzeugten Teildokumente werden:
+
+1. im Job gespeichert
+2. in der Weboberfläche einzeln angezeigt
+3. einzeln an das Workflow-Ziel übertragen
+
+## Weboberfläche
+
+In der Jobliste erscheinen bei getrennten Jobs Buttons wie:
+
+```text
+Dok. 1
+Dok. 2
+Dok. 3
+```
+
+## Zusammenspiel mit Leerseiten-Entfernung
+
+Diese zwei Funktionen bleiben getrennt:
+
+```text
+Leere Seiten aussortieren
+Leerseite als Dokumenttrenner
+```
+
+Bei aktiver Leerseiten-Trennung werden die Trennseiten nicht vorher entfernt.
 
 ## Update
 
@@ -86,7 +88,7 @@ git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Danach:
+Prüfen:
 
 ```bash
 curl http://127.0.0.1:8100/health
@@ -95,22 +97,20 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.2.5-dev"}
+{"status":"ok","version":"0.3.0-dev"}
 ```
 
 ## Nächster Entwicklungsschritt
 
-**0.3.0-dev – echte Dokumenttrennung**
+**0.3.1-dev**
 
 Geplant:
 
-1. Leerseite als Trennblatt
-2. Patch-T
-3. mehrere PDFs aus einem ScanJob
-4. QR-/Barcode-Trennung
-5. OCR
-
-Wichtig: **Leere Seiten entfernen** und **Leerseite als Dokumenttrenner** bleiben zwei getrennte Profilfunktionen.
+- Patch-T Praxistest und Feinabstimmung
+- QR-Code-Trennung
+- Barcode-Trennung
+- Trennfehler besser im Webinterface anzeigen
+- danach OCR
 
 ## Einstieg in einem neuen Chat
 

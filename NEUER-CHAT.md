@@ -110,6 +110,7 @@ Geplant:
 - QR-Code-Trennung
 - Barcode-Trennung
 - Trennfehler besser im Webinterface anzeigen
+- automatische Begradigung schiefer Scans (Deskew)
 - danach OCR
 
 ## Einstieg in einem neuen Chat
@@ -117,3 +118,24 @@ Geplant:
 ```text
 Lies bitte die Datei NEUER-CHAT.md aus meinem GitHub-Projekt Markus4771/ScanPro und führe die Entwicklung ab dem dort dokumentierten Stand weiter.
 ```
+
+
+## Backlog: Deskew / automatische Begradigung
+
+Geplant als optionale Profilfunktion:
+
+```text
+Schiefe Seiten automatisch begradigen
+```
+
+Vorgesehene Position in der Verarbeitung:
+
+```text
+Scan / SMB-Eingang
+→ Leerseiten / Dokumenttrennung
+→ Deskew / Begradigen
+→ OCR
+→ Weiterleitung
+```
+
+Die Funktion soll sowohl für Scanner-Workflows als auch für Profil-SMB-Inboxen gelten.

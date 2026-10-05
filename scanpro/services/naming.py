@@ -115,7 +115,7 @@ def resolve_document_metadata(
         raise NamingError(f"Unbekannte Variable im Dateinamen: {exc.args[0]}") from exc
 
     stem = _sanitize(stem, 180)
-    final_filename = f"{stem}.pdf"
+    suffix = Path(document.path).suffix.lower() or ".pdf"\n    if suffix == ".jpeg":\n        suffix = ".jpg"\n    final_filename = f"{stem}{suffix}"
     duplicate = (
         db.query(JobDocumentMetadata)
         .filter(
@@ -125,7 +125,7 @@ def resolve_document_metadata(
         .first()
     )
     if duplicate:
-        final_filename = f"{stem}-{document.sequence:03d}.pdf"
+        final_filename = f"{stem}-{document.sequence:03d}{suffix}"
 
     metadata = {
         "profile": profile.name,

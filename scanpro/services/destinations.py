@@ -78,7 +78,10 @@ def deliver_file(destination_type: str, config_json: str, source_path: str) -> s
         path.mkdir(parents=True, exist_ok=True)
         target = path / source.name
         import shutil
-        shutil.copy2(source, target)
+        try:
+            shutil.copy2(source, target)
+        except OSError as exc:
+            raise DestinationError(f"Datei konnte nicht nach {target} kopiert werden: {exc}") from exc
         return str(target)
 
     if destination_type == "smb":

@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.1.1-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.1.2-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.1.1-dev"}
+{"status":"ok","version":"0.1.2-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -229,3 +229,33 @@ Nach erfolgreichem API-Testscan:
 2. Testscan-Button im Webinterface
 3. SMB-Inbox
 4. Patch-T-Trennung
+
+
+## Weboberfläche
+
+Nach dem Update ist ScanPro direkt im Browser erreichbar:
+
+```text
+http://<IP-DES-SCANPRO-SERVERS>/
+```
+
+Die Weboberfläche bietet aktuell:
+
+- Scanner über SANE oder eSCL suchen
+- erkannte Scanner übernehmen
+- gespeicherte Scanner anzeigen
+- Testscan starten
+- DPI wählen
+- Farbe/Graustufen/Schwarzweiß wählen
+- Einseitig/Duplex wählen
+- letzte ScanJobs anzeigen
+
+## Update auf 0.1.2-dev
+
+```bash
+cd ~/ScanPro
+git pull
+sudo bash scripts/install-dev.sh
+```
+
+Danach Browser neu laden.

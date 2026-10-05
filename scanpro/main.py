@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
 from . import __version__
-from .db import Base, engine, get_db
+from .db import Base, DATABASE_URL, engine, get_db, initialize_database
 from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
@@ -36,8 +36,11 @@ from .services.ocr import OcrError, apply_ocr
 from .services.naming import NamingError, resolve_document_metadata
 from .services.separation import SeparationError, validate_split
 from .services.workflows import deliver_job
+from .migrations import CURRENT_SCHEMA_VERSION, get_schema_version, run_schema_migrations
 
+initialize_database()
 Base.metadata.create_all(bind=engine)
+run_schema_migrations(engine)
 
 
 def sync_profile_shares(db: Session) -> None:
@@ -60,7 +63,33 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": __version__}
+    return {
+        "status": "ok",
+        "version": __version__,
+        "schema_version": get_schema_version(engine),
+    }
+
+@app.get("/api/system/database")
+def database_status():
+    import sqlite3
+    db_path = DATABASE_URL.removeprefix("sqlite:///") if DATABASE_URL.startswith("sqlite:///") else DATABASE_URL
+    journal_mode = None
+    foreign_keys = None
+    if DATABASE_URL.startswith("sqlite:///"):
+        connection = sqlite3.connect(db_path, timeout=5)
+        try:
+            journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
+            foreign_keys = connection.execute("PRAGMA foreign_keys").fetchone()[0]
+        finally:
+            connection.close()
+    return {
+        "database_url": DATABASE_URL,
+        "path": db_path,
+        "schema_version": get_schema_version(engine),
+        "target_schema_version": CURRENT_SCHEMA_VERSION,
+        "journal_mode": journal_mode,
+        "foreign_keys": bool(foreign_keys) if foreign_keys is not None else None,
+    }
 
 @app.get("/api/scanners/discover")
 def discover_scanners(driver: str = Query("sane", pattern="^(sane|escl)$")):

@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.5.0-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.5.1-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.5.0-dev"}
+{"status":"ok","version":"0.5.1-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -695,3 +695,50 @@ OCR-Text kann zusätzlich über:
 ```
 
 abgerufen werden.
+
+
+## Dateinamensregeln testen
+
+Ab 0.5.1-dev kann jedes Scanprofil eine Dateinamensvorlage verwenden.
+
+Standard:
+
+```text
+{date}_{profile}_{job}_{document}
+```
+
+Weitere Variablen:
+
+```text
+{time}
+{datetime}
+{code}
+{code_type}
+{ocr_first_line}
+```
+
+Beispiel für QR-Trennung:
+
+```text
+{date}_{profile}_{code}_{document}
+```
+
+Beispiel mit OCR:
+
+```text
+{date}_{ocr_first_line}_{document}
+```
+
+Dafür im Profil zusätzlich aktivieren:
+
+```text
+OCR-Erstzeile für {ocr_first_line} verwenden
+```
+
+Die finalen Dateinamen werden beim Versand an lokale oder SMB-Ziele angewendet.
+
+Metadaten eines erzeugten Dokuments:
+
+```text
+/api/job-documents/<DOKUMENT-ID>/metadata
+```

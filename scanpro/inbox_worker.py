@@ -57,8 +57,11 @@ def import_file(profile_id: int, source: Path) -> int:
         )
         db.commit()
 
+        profile = db.get(ScanProfile, profile_id)
         processing = db.query(ProfileProcessing).filter(ProfileProcessing.profile_id == profile_id).first()
-        if processing and processing.remove_blank_pages:
+        if processing and processing.remove_blank_pages and not (
+            profile and profile.split_enabled and profile.split_method == "blank-page"
+        ):
             try:
                 result = remove_blank_pages(str(target))
                 db.add(JobProcessing(
@@ -73,7 +76,6 @@ def import_file(profile_id: int, source: Path) -> int:
                 db.commit()
                 return job.id
 
-        profile = db.get(ScanProfile, profile_id)
         if profile and profile.split_enabled:
             try:
                 prepare_job_documents(db, job, profile)

@@ -3,7 +3,7 @@ import shutil
 import time
 from pathlib import Path
 
-from .db import Base, SessionLocal, engine
+from .db import Base, SessionLocal, engine, initialize_database
 from .models import InboxImport, JobProcessing, ProfileProcessing, ProfileShare, ScanJob, ScanProfile
 
 JOBS_ROOT = Path("/var/lib/scanpro/jobs/inbox")
@@ -11,7 +11,11 @@ POLL_SECONDS = 2
 STABLE_ROUNDS = 2
 ALLOWED_SUFFIXES = {".pdf"}
 
+from .migrations import run_schema_migrations
+
+initialize_database()
 Base.metadata.create_all(bind=engine)
+run_schema_migrations(engine)
 
 from .services.blank_pages import BlankPageError, remove_blank_pages
 from .services.documents import apply_image_processing, prepare_job_documents

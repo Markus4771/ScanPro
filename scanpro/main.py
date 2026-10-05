@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, engine, get_db
-from .models import Destination, InboxImport, JobDelivery, JobDocument, JobImageProcessing, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobDocument, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileOcrSettings, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -17,6 +17,7 @@ from .schemas import (
     ProfileShareUpdate,
     ProfileProcessingUpdate,
     ProfileImageProcessingUpdate,
+    ProfileOcrSettingsUpdate,
     ScannerCreate,
     ScannerImport,
     ScannerUpdate,
@@ -30,6 +31,7 @@ from .services.destinations import DestinationError, public_config, test_destina
 from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
 from .services.profile_shares import ProfileShareError, normalize_share_name, profile_path, write_profile_samba_config
 from .services.image_processing import ImageProcessingError
+from .services.ocr import OcrError, apply_ocr
 from .services.separation import SeparationError, validate_split
 from .services.workflows import deliver_job
 
@@ -177,6 +179,7 @@ def list_jobs(db: Session = Depends(get_db)):
         documents = db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).order_by(JobDocument.sequence).all()
         markers = db.query(JobSeparationMarker).filter(JobSeparationMarker.scan_job_id == job.id).order_by(JobSeparationMarker.page).all()
         image_rows = db.query(JobImageProcessing).filter(JobImageProcessing.scan_job_id == job.id).all()
+        ocr_rows = db.query(JobOcrResult).filter(JobOcrResult.scan_job_id == job.id).all()
         result.append({
             "id": job.id,
             "workflow_id": job.workflow_id,
@@ -190,6 +193,11 @@ def list_jobs(db: Session = Depends(get_db)):
             "source": "profile-smb" if inbox else "scanner",
             "blank_pages_removed": processing.blank_pages_removed if processing else 0,
             "blank_pages": json.loads(processing.blank_pages_json) if processing else [],
+            "ocr": {
+                "documents": len(ocr_rows),
+                "characters": sum(row.characters for row in ocr_rows),
+                "languages": sorted({row.language for row in ocr_rows}),
+            },
             "image_processing": {
                 "pages_processed": sum(row.pages_processed for row in image_rows),
                 "pages_rotated": sum(row.pages_rotated for row in image_rows),
@@ -359,6 +367,50 @@ def test_destination_endpoint(destination_id: int, db: Session = Depends(get_db)
 @app.get("/api/profiles")
 def list_profiles(db: Session = Depends(get_db)):
     return db.query(ScanProfile).order_by(ScanProfile.name).all()
+
+@app.get("/api/profile-ocr-settings")
+def list_profile_ocr_settings(db: Session = Depends(get_db)):
+    rows = db.query(ProfileOcrSettings).order_by(ProfileOcrSettings.profile_id).all()
+    return [
+        {
+            "id": row.id,
+            "profile_id": row.profile_id,
+            "language": row.language,
+        }
+        for row in rows
+    ]
+
+@app.put("/api/profiles/{profile_id}/ocr-settings")
+def update_profile_ocr_settings(
+    profile_id: int,
+    payload: ProfileOcrSettingsUpdate,
+    db: Session = Depends(get_db),
+):
+    profile = db.get(ScanProfile, profile_id)
+    if not profile:
+        raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+
+    language = payload.language.strip()
+    if not language:
+        raise HTTPException(400, "OCR-Sprache darf nicht leer sein.")
+
+    row = (
+        db.query(ProfileOcrSettings)
+        .filter(ProfileOcrSettings.profile_id == profile_id)
+        .first()
+    )
+    if row:
+        row.language = language
+    else:
+        row = ProfileOcrSettings(profile_id=profile_id, language=language)
+        db.add(row)
+
+    db.commit(); db.refresh(row)
+    return {
+        "id": row.id,
+        "profile_id": row.profile_id,
+        "language": row.language,
+    }
 
 @app.get("/api/profile-image-processing")
 def list_profile_image_processing(db: Session = Depends(get_db)):
@@ -555,6 +607,9 @@ def delete_profile(profile_id: int, db: Session = Depends(get_db)):
     image_processing = db.query(ProfileImageProcessing).filter(ProfileImageProcessing.profile_id == profile_id).first()
     if image_processing:
         db.delete(image_processing)
+    ocr_settings = db.query(ProfileOcrSettings).filter(ProfileOcrSettings.profile_id == profile_id).first()
+    if ocr_settings:
+        db.delete(ocr_settings)
     db.delete(profile)
     db.commit()
     sync_profile_shares(db)
@@ -700,6 +755,14 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
         try:
             apply_image_processing(db, job, profile, documents)
         except ImageProcessingError as exc:
+            job.status = "processing_error"
+            job.error = str(exc)
+            db.commit()
+            raise HTTPException(500, {"job_id": job.id, "error": str(exc)}) from exc
+
+        try:
+            apply_ocr(db, job, profile, documents)
+        except OcrError as exc:
             job.status = "processing_error"
             job.error = str(exc)
             db.commit()

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, DATABASE_URL, engine, get_db, initialize_database
-from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfilePaperlessRules, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -19,6 +19,7 @@ from .schemas import (
     ProfileImageProcessingUpdate,
     ProfileOcrSettingsUpdate,
     ProfileNamingSettingsUpdate,
+    ProfilePaperlessRulesUpdate,
     ScannerCreate,
     ScannerImport,
     ScannerUpdate,
@@ -34,6 +35,7 @@ from .services.profile_shares import ProfileShareError, normalize_share_name, pr
 from .services.image_processing import ImageProcessingError
 from .services.ocr import OcrError, apply_ocr
 from .services.naming import NamingError, resolve_document_metadata
+from .services.paperless import PaperlessError, fetch_choices, get_task_status, resolve_upload_metadata
 from .services.separation import SeparationError, validate_split
 from .services.workflows import deliver_job
 from .migrations import CURRENT_SCHEMA_VERSION, get_schema_version, run_schema_migrations
@@ -352,6 +354,68 @@ def get_job_document_file(document_id: int, db: Session = Depends(get_db)):
     if not path.exists() or JOBS_DIR not in path.parents:
         raise HTTPException(404, "Dokumentdatei wurde nicht gefunden.")
     return FileResponse(path, media_type="application/pdf", filename=path.name)
+
+@app.get("/api/destinations/{destination_id}/paperless/choices")
+def paperless_choices(destination_id: int, db: Session = Depends(get_db)):
+    destination = db.get(Destination, destination_id)
+    if not destination or destination.type != "paperless":
+        raise HTTPException(404, "Paperless-Ziel wurde nicht gefunden.")
+    try:
+        return fetch_choices(destination)
+    except PaperlessError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.get("/api/deliveries/{delivery_id}/paperless-task")
+def paperless_task(delivery_id: int, db: Session = Depends(get_db)):
+    delivery = db.get(JobDelivery, delivery_id)
+    if not delivery:
+        raise HTTPException(404, "Delivery wurde nicht gefunden.")
+    destination = db.get(Destination, delivery.destination_id)
+    if not destination or destination.type != "paperless":
+        raise HTTPException(400, "Delivery gehört nicht zu einem Paperless-Ziel.")
+    if not delivery.target_path or not delivery.target_path.startswith("paperless-task:"):
+        raise HTTPException(404, "Keine Paperless-Task-ID vorhanden.")
+    task_id = delivery.target_path.split(":", 1)[1]
+    try:
+        return get_task_status(destination, task_id)
+    except PaperlessError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+@app.get("/api/profile-paperless-rules")
+def list_profile_paperless_rules(db: Session = Depends(get_db)):
+    rows = db.query(ProfilePaperlessRules).order_by(ProfilePaperlessRules.profile_id).all()
+    return [
+        {
+            "id": row.id,
+            "profile_id": row.profile_id,
+            "title_template": row.title_template,
+            "correspondent_map": json.loads(row.correspondent_map_json or "{}"),
+            "document_type_map": json.loads(row.document_type_map_json or "{}"),
+            "tags_map": json.loads(row.tags_map_json or "{}"),
+            "ocr_contains_rules": json.loads(row.ocr_contains_rules_json or "[]"),
+        }
+        for row in rows
+    ]
+
+@app.put("/api/profiles/{profile_id}/paperless-rules")
+def update_profile_paperless_rules(
+    profile_id: int,
+    payload: ProfilePaperlessRulesUpdate,
+    db: Session = Depends(get_db),
+):
+    if not db.get(ScanProfile, profile_id):
+        raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+    row = db.query(ProfilePaperlessRules).filter(ProfilePaperlessRules.profile_id == profile_id).first()
+    if not row:
+        row = ProfilePaperlessRules(profile_id=profile_id)
+        db.add(row)
+    row.title_template = payload.title_template.strip() or "{filename}"
+    row.correspondent_map_json = json.dumps(payload.correspondent_map, ensure_ascii=False)
+    row.document_type_map_json = json.dumps(payload.document_type_map, ensure_ascii=False)
+    row.tags_map_json = json.dumps(payload.tags_map, ensure_ascii=False)
+    row.ocr_contains_rules_json = json.dumps(payload.ocr_contains_rules, ensure_ascii=False)
+    db.commit(); db.refresh(row)
+    return {"profile_id": profile_id, "saved": True}
 
 @app.get("/api/destinations")
 def list_destinations(db: Session = Depends(get_db)):
@@ -916,6 +980,11 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
         for document in documents:
             try:
                 metadata = resolve_document_metadata(db, job, profile, document)
+                paperless_metadata = {}
+                if destination.type == "paperless":
+                    paperless_metadata = resolve_upload_metadata(
+                        db, job, profile, document, metadata
+                    )
                 deliveries.append(
                     deliver_job(
                         db,
@@ -924,9 +993,10 @@ def run_workflow(workflow_id: int, db: Session = Depends(get_db)):
                         destination,
                         source_path=document.path,
                         target_name=metadata.final_filename,
+                        metadata=paperless_metadata,
                     )
                 )
-            except NamingError as exc:
+            except (NamingError, PaperlessError) as exc:
                 delivery = JobDelivery(
                     scan_job_id=job.id,
                     workflow_id=workflow.id,

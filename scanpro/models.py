@@ -196,3 +196,13 @@ class ProfilePaperlessRules(Base):
     document_type_map_json: Mapped[str] = mapped_column(Text, default="{}")
     tags_map_json: Mapped[str] = mapped_column(Text, default="{}")
     ocr_contains_rules_json: Mapped[str] = mapped_column(Text, default="[]")
+
+
+class ProfileOutputSettings(Base):
+    __tablename__ = "profile_output_settings"
+    __table_args__ = (UniqueConstraint("profile_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
+    mode: Mapped[str] = mapped_column(String(30), default="document")
+    output_format: Mapped[str] = mapped_column(String(20), default="pdf")
+    jpeg_quality: Mapped[int] = mapped_column(Integer, default=92)

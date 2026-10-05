@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.5.1-dev**
+Aktuell: **0.5.2-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -582,3 +582,52 @@ GET /api/job-documents/{document_id}/metadata
 ```
 
 Die Jobliste zeigt den erzeugten Dateinamen an.
+
+
+## Datenbank-Härtung in 0.5.2-dev
+
+Die ScanPro-Datenbank liegt jetzt dauerhaft unter:
+
+```text
+/var/lib/scanpro/scanpro.db
+```
+
+Statt im Anwendungsverzeichnis `/opt/scanpro`.
+
+Aktiviert sind:
+
+- SQLite WAL-Modus
+- Foreign Keys
+- 30 Sekunden Busy Timeout
+- `synchronous=NORMAL`
+- persistenter Datenbankpfad per `SCANPRO_DATABASE_URL`
+- Schema-Versionierung
+- interne Migrations-Registry
+- automatische Datenbanksicherung beim Update
+- SQLite-Integritätsprüfung vor dem Start
+
+Bestehende Installationen werden automatisch von:
+
+```text
+/opt/scanpro/scanpro.db
+```
+
+nach:
+
+```text
+/var/lib/scanpro/scanpro.db
+```
+
+übernommen.
+
+Backups landen unter:
+
+```text
+/var/lib/scanpro/backups/
+```
+
+Datenbankstatus:
+
+```text
+GET /api/system/database
+```

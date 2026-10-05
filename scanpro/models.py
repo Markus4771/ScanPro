@@ -164,3 +164,23 @@ class JobOcrResult(Base):
     text: Mapped[str] = mapped_column(Text, default="")
     characters: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ProfileNamingSettings(Base):
+    __tablename__ = "profile_naming_settings"
+    __table_args__ = (UniqueConstraint("profile_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
+    filename_template: Mapped[str] = mapped_column(String(255), default="{date}_{profile}_{document}")
+    use_ocr_first_line: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class JobDocumentMetadata(Base):
+    __tablename__ = "job_document_metadata"
+    __table_args__ = (UniqueConstraint("document_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scan_job_id: Mapped[int] = mapped_column(ForeignKey("scan_jobs.id"))
+    document_id: Mapped[int] = mapped_column(ForeignKey("job_documents.id"))
+    final_filename: Mapped[str] = mapped_column(String(255))
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

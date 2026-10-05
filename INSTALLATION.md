@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.2.4-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.2.5-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.2.4-dev"}
+{"status":"ok","version":"0.2.5-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -517,3 +517,23 @@ delivery_error
 ```
 
 Bei lokalen Zielen wird die PDF kopiert. Bei SMB-Zielen erfolgt die Übertragung mit `smbclient put`.
+
+
+## Leere Seiten automatisch entfernen
+
+Ab 0.2.5-dev gibt es im Scanprofil die Option:
+
+```text
+Leere Seiten aussortieren
+```
+
+Ist sie aktiviert, verarbeitet ScanPro die PDF vor der Weiterleitung.
+
+Unterstützt werden:
+
+- Scans aus Scanner-Workflows
+- PDFs aus Profil-SMB-Inboxen
+
+Die PDF-Verarbeitung verwendet PyMuPDF.
+
+Nach einem verarbeiteten Job zeigt die Jobliste an, wie viele Leerseiten entfernt wurden.

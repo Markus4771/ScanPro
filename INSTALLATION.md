@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.4.0-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.5.0-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.4.0-dev"}
+{"status":"ok","version":"0.5.0-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -659,3 +659,39 @@ Empfohlener Test:
 5. Dort sollte bei erkannter Korrektur z. B. `begradigt: 1` erscheinen.
 
 Für die automatische Rotation sollte eine Seite testweise um 90° verdreht eingelegt werden.
+
+
+## OCR testen
+
+Ab 0.5.0-dev kann OCR direkt im Scanprofil aktiviert werden.
+
+```text
+OCR aktivieren: ja
+OCR-Sprache: Deutsch
+```
+
+Installierte Komponenten:
+
+```text
+ocrmypdf
+tesseract-ocr
+tesseract-ocr-deu
+tesseract-ocr-eng
+```
+
+Empfohlener Test:
+
+1. Profil mit OCR aktivieren.
+2. Sprache `Deutsch` wählen.
+3. Textdokument scannen.
+4. PDF öffnen.
+5. Text im PDF markieren oder suchen.
+6. Jobliste prüfen.
+
+OCR-Text kann zusätzlich über:
+
+```text
+/api/job-documents/<DOKUMENT-ID>/ocr
+```
+
+abgerufen werden.

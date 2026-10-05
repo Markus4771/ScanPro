@@ -4,115 +4,98 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.2.0-dev**
+Aktueller Stand: **0.2.1-dev**
 
-## Erfolgreich vorhanden
+## Neu in 0.2.1-dev
 
-- Brother ADS-2600We über NAPS2/SANE
-- Scanner-Erkennung und Scannerverwaltung
-- Scan über Weboberfläche
-- ScanJobs mit PDF-Ausgabe
-- Scanprofile
-- OCR-/Trennoptionen im Profil konfigurierbar
-- Scanziele im Webinterface
+ScanPro stellt nun selbst SMB-Freigaben bereit.
 
-## Neu in 0.2.0-dev
-
-### Scanziele
-
-Unterstützte Typen:
-
-- `local`
-- `smb`
-
-Funktionen:
-
-- Scanziel anlegen
-- bearbeiten
-- aktivieren/deaktivieren
-- löschen
-- Verbindung testen
-- doppelte Namen verhindern
-- Schutz vor Löschen, wenn ein Workflow das Ziel verwendet
-
-### Lokale Ziele
-
-Konfiguration:
-
-- Pfad
-
-Verbindungstest:
-
-- Ordner wird bei Bedarf angelegt
-- temporäre Datei wird geschrieben und wieder gelöscht
-
-### SMB-Ziele
-
-Konfiguration:
-
-- Server/IP
-- Freigabe
-- Unterordner optional
-- Benutzer
-- Passwort
-- Domäne optional
-
-Verbindungstest:
-
-- über `smbclient`
-- Passwort wird in API-Ausgaben maskiert
-
-## Installation
-
-`scripts/install-dev.sh` installiert jetzt zusätzlich:
+### Freigaben
 
 ```text
-smbclient
+ScanPro-Inbox
+ScanPro-Jobs
 ```
 
-Update:
+Pfade:
+
+```text
+/var/lib/scanpro/inbox
+/var/lib/scanpro/jobs
+```
+
+Netzwerkzugriff:
+
+```text
+\\SCANPRO-SERVER\ScanPro-Inbox
+\\SCANPRO-SERVER\ScanPro-Jobs
+```
+
+### Rechte
+
+- `ScanPro-Inbox`: schreibbar
+- `ScanPro-Jobs`: nur lesbar
+- gültiger Samba-Benutzer: `scanpro`
+
+Einmalig:
+
+```bash
+sudo smbpasswd -a scanpro
+```
+
+Das Installationsskript:
+
+- installiert Samba und smbclient
+- legt Inbox und Jobs an
+- setzt Rechte
+- installiert `/etc/samba/scanpro.conf`
+- bindet die Datei in `/etc/samba/smb.conf` ein
+- prüft Samba mit `testparm`
+- aktiviert `smbd`
+
+## Externe SMB-Ziele
+
+Weiterhin vorhanden:
+
+- lokale Scanziele
+- externe SMB-Scanziele
+- Verbindungstest über smbclient
+
+## Noch nicht umgesetzt
+
+- automatische Verarbeitung von Dateien aus ScanPro-Inbox
+- Workflow-Ausführung
+- automatische Weiterleitung
+- echte OCR
+- echte Dokumenttrennung
+
+## Nächster Entwicklungsschritt
+
+**0.2.2-dev – SMB-Inbox-Verarbeitung und Workflows**
+
+Geplant:
+
+1. ScanPro-Inbox überwachen
+2. neue PDFs automatisch als ScanJob übernehmen
+3. Eingangsprofil zuordnen
+4. Scanner-/Profil-/Ziel-Workflow im Webinterface
+5. lokale und SMB-Weiterleitung
+6. danach Dokumenttrennung
+
+## Update
 
 ```bash
 cd ~/ScanPro
 git pull
 sudo bash scripts/install-dev.sh
+sudo smbpasswd -a scanpro
 ```
 
-Danach:
+Danach prüfen:
 
 ```bash
-curl http://127.0.0.1:8100/health
+smbclient -L localhost -U scanpro
 ```
-
-Erwartet:
-
-```json
-{"status":"ok","version":"0.2.0-dev"}
-```
-
-## Wichtig
-
-Noch nicht umgesetzt:
-
-- automatische Weiterleitung eines ScanJobs an ein Ziel
-- SMB-Inbox für Scan-to-Network
-- Workflow-Ausführung
-- tatsächliche OCR
-- tatsächliche Dokumenttrennung
-
-## Nächster Entwicklungsschritt
-
-**0.2.1-dev – Workflows und Weiterleitung**
-
-Geplant:
-
-1. Scanner + Scanprofil + Scanziel im Webinterface zu Workflow verbinden
-2. Workflow aktivieren/deaktivieren
-3. Scan direkt über Workflow starten
-4. lokale Ziele automatisch beschicken
-5. SMB-Ziele automatisch beschicken
-6. Jobstatus um Weiterleitungsstatus erweitern
-7. danach SMB-Inbox
 
 ## Einstieg in einem neuen Chat
 

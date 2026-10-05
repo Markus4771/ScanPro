@@ -206,3 +206,14 @@ class ProfileOutputSettings(Base):
     mode: Mapped[str] = mapped_column(String(30), default="document")
     output_format: Mapped[str] = mapped_column(String(20), default="pdf")
     jpeg_quality: Mapped[int] = mapped_column(Integer, default=92)
+
+
+class ScannerConnectionSettings(Base):
+    __tablename__ = "scanner_connection_settings"
+    __table_args__ = (UniqueConstraint("scanner_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scanner_id: Mapped[int] = mapped_column(ForeignKey("scanners.id", ondelete="CASCADE"))
+    location: Mapped[str] = mapped_column(String(120), default="Lokal")
+    connection_type: Mapped[str] = mapped_column(String(30), default="local")
+    timeout_seconds: Mapped[int] = mapped_column(Integer, default=60)
+    retries: Mapped[int] = mapped_column(Integer, default=1)

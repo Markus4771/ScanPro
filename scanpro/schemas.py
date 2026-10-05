@@ -91,3 +91,8 @@ class ProfileImageProcessingUpdate(BaseModel):
 
 class ProfileOcrSettingsUpdate(BaseModel):
     language: str = "deu"
+
+
+class ProfileNamingSettingsUpdate(BaseModel):
+    filename_template: str = "{date}_{profile}_{document}"
+    use_ocr_first_line: bool = False

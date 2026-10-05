@@ -128,6 +128,25 @@
       <label class="check" style="align-self:end"><input type="checkbox" id="profileUseOcrFirstLine"> OCR-Erstzeile für {ocr_first_line} verwenden</label>
     </div>
 
+    <div class="grid" style="margin-top:8px">
+      <label>Paperless-Titelvorlage
+        <input id="profilePaperlessTitleTemplate" value="{filename}" placeholder="{filename}">
+        <span class="muted">Variablen: {filename}, {profile}, {job}, {document}, {code}, {ocr_first_line}</span>
+      </label>
+      <label>QR-/Barcode → Korrespondent (JSON)
+        <input id="profilePaperlessCorrespondentMap" value="{}" placeholder='{"KUNDE4711":12}'>
+      </label>
+      <label>QR-/Barcode → Dokumenttyp (JSON)
+        <input id="profilePaperlessDocumentTypeMap" value="{}" placeholder='{"RECHNUNG":3}'>
+      </label>
+      <label>QR-/Barcode → Tags (JSON)
+        <input id="profilePaperlessTagsMap" value="{}" placeholder='{"RECHNUNG":[2,5]}'>
+      </label>
+      <label style="grid-column:1/-1">OCR-Enthält-Regeln (JSON)
+        <input id="profilePaperlessOcrRules" value="[]" placeholder='[{"contains":"Telekom","correspondent":4,"document_type":3,"tags":[2]}]'>
+      </label>
+    </div>
+
     <div class="row">
       <label class="check"><input type="checkbox" id="profileShareEnabled" onchange="toggleProfileShareOptions()"> Eigene SMB-Freigabe auf ScanPro</label>
       <label id="profileShareNameWrap" style="min-width:260px;display:none">Freigabename
@@ -206,20 +225,24 @@
           <input id="destinationPaperlessTitle" placeholder="leer = generierter ScanPro-Dateiname">
         </label>
         <label>Korrespondent-ID
-          <input id="destinationPaperlessCorrespondent" placeholder="optional">
+          <input id="destinationPaperlessCorrespondent" list="paperlessCorrespondents" placeholder="optional">
         </label>
         <label>Dokumenttyp-ID
-          <input id="destinationPaperlessDocumentType" placeholder="optional">
+          <input id="destinationPaperlessDocumentType" list="paperlessDocumentTypes" placeholder="optional">
         </label>
         <label>Speicherpfad-ID
-          <input id="destinationPaperlessStoragePath" placeholder="optional">
+          <input id="destinationPaperlessStoragePath" list="paperlessStoragePaths" placeholder="optional">
         </label>
         <label>Tag-IDs
           <input id="destinationPaperlessTags" placeholder="z. B. 2,5,9">
         </label>
+        <datalist id="paperlessCorrespondents"></datalist>
+        <datalist id="paperlessDocumentTypes"></datalist>
+        <datalist id="paperlessStoragePaths"></datalist>
         <label class="check"><input type="checkbox" id="destinationPaperlessVerifySsl" checked> TLS-Zertifikat prüfen</label>
       </div>
-      <div class="muted">Korrespondent, Dokumenttyp, Speicherpfad und Tags sind Paperless-interne IDs.</div>
+      <div class="actions"><button type="button" class="secondary" onclick="loadPaperlessChoicesForCurrent()">Paperless-Werte laden</button></div>
+      <div class="muted">Ziel zuerst speichern; danach können Korrespondenten, Dokumenttypen und Speicherpfade aus Paperless geladen werden.</div>
     </div>
 
     <label class="check"><input type="checkbox" id="destinationEnabled" checked> Ziel aktiv</label>
@@ -321,6 +344,7 @@ let profileProcessingCache=[];
 let profileImageProcessingCache=[];
 let profileOcrSettingsCache=[];
 let profileNamingSettingsCache=[];
+let profilePaperlessRulesCache=[];
 let destinationsCache=[];
 let scannersCache=[];
 let workflowsCache=[];
@@ -418,6 +442,11 @@ function resetProfileForm(){
   document.getElementById('profileOcrLanguage').value='deu';
   document.getElementById('profileFilenameTemplate').value='{date}_{profile}_{job}_{document}';
   document.getElementById('profileUseOcrFirstLine').checked=false;
+  document.getElementById('profilePaperlessTitleTemplate').value='{filename}';
+  document.getElementById('profilePaperlessCorrespondentMap').value='{}';
+  document.getElementById('profilePaperlessDocumentTypeMap').value='{}';
+  document.getElementById('profilePaperlessTagsMap').value='{}';
+  document.getElementById('profilePaperlessOcrRules').value='[]';
   document.getElementById('profileRemoveBlank').checked=false;
   document.getElementById('profileAutoRotate').checked=false;
   document.getElementById('profileDeskew').checked=false;
@@ -488,6 +517,24 @@ async function saveProfile(){
         use_ocr_first_line:document.getElementById('profileUseOcrFirstLine').checked
       })
     });
+    let correspondentMap={}, documentTypeMap={}, tagsMap={}, ocrRules=[];
+    try{
+      correspondentMap=JSON.parse(document.getElementById('profilePaperlessCorrespondentMap').value||'{}');
+      documentTypeMap=JSON.parse(document.getElementById('profilePaperlessDocumentTypeMap').value||'{}');
+      tagsMap=JSON.parse(document.getElementById('profilePaperlessTagsMap').value||'{}');
+      ocrRules=JSON.parse(document.getElementById('profilePaperlessOcrRules').value||'[]');
+    }catch(e){ throw new Error('Ungültiges JSON in den Paperless-Regeln: '+e.message); }
+    await api('/api/profiles/'+profileId+'/paperless-rules',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        title_template:document.getElementById('profilePaperlessTitleTemplate').value.trim()||'{filename}',
+        correspondent_map:correspondentMap,
+        document_type_map:documentTypeMap,
+        tags_map:tagsMap,
+        ocr_contains_rules:ocrRules
+      })
+    });
     resetProfileForm();
     await loadProfiles();
   }catch(e){alert(e.message)}
@@ -501,9 +548,15 @@ function editProfile(p){
   document.getElementById('profileOcr').checked=p.ocr_enabled;
   const ocrSettings=profileOcrSettingsCache.find(x=>x.profile_id===p.id);
   const namingSettings=profileNamingSettingsCache.find(x=>x.profile_id===p.id);
+  const paperlessRules=profilePaperlessRulesCache.find(x=>x.profile_id===p.id);
   document.getElementById('profileOcrLanguage').value=ocrSettings?ocrSettings.language:'deu';
   document.getElementById('profileFilenameTemplate').value=namingSettings?namingSettings.filename_template:'{date}_{profile}_{job}_{document}';
   document.getElementById('profileUseOcrFirstLine').checked=!!(namingSettings&&namingSettings.use_ocr_first_line);
+  document.getElementById('profilePaperlessTitleTemplate').value=paperlessRules?paperlessRules.title_template:'{filename}';
+  document.getElementById('profilePaperlessCorrespondentMap').value=JSON.stringify(paperlessRules?paperlessRules.correspondent_map:{});
+  document.getElementById('profilePaperlessDocumentTypeMap').value=JSON.stringify(paperlessRules?paperlessRules.document_type_map:{});
+  document.getElementById('profilePaperlessTagsMap').value=JSON.stringify(paperlessRules?paperlessRules.tags_map:{});
+  document.getElementById('profilePaperlessOcrRules').value=JSON.stringify(paperlessRules?paperlessRules.ocr_contains_rules:[]);
   document.getElementById('profileSplit').checked=p.split_enabled;
   document.getElementById('profileSplitMethod').value=p.split_method==='none'?'patch-t':p.split_method;
   const share=profileSharesCache.find(x=>x.profile_id===p.id);
@@ -530,13 +583,14 @@ async function deleteProfile(p){
   }catch(e){alert(e.message)}
 }
 async function loadProfiles(){
-  const [data,shares,processing,imageProcessing,ocrSettings,namingSettings]=await Promise.all([
+  const [data,shares,processing,imageProcessing,ocrSettings,namingSettings,paperlessRules]=await Promise.all([
     api('/api/profiles'),
     api('/api/profile-shares'),
     api('/api/profile-processing'),
     api('/api/profile-image-processing'),
     api('/api/profile-ocr-settings'),
-    api('/api/profile-naming-settings')
+    api('/api/profile-naming-settings'),
+    api('/api/profile-paperless-rules')
   ]);
   profilesCache=data;
   profileSharesCache=shares;
@@ -544,6 +598,7 @@ async function loadProfiles(){
   profileImageProcessingCache=imageProcessing;
   profileOcrSettingsCache=ocrSettings;
   profileNamingSettingsCache=namingSettings;
+  profilePaperlessRulesCache=paperlessRules;
   populateWorkflowSelectors();
   const box=document.getElementById('profiles');
   const sel=document.getElementById('scanProfile');
@@ -607,6 +662,31 @@ function colorLabel(v){return ({color:'Farbe',grayscale:'Graustufen',blackwhite:
 function splitLabel(v){return ({'patch-t':'Patch-T',qr:'QR-Code',barcode:'Barcode','blank-page':'Leerseite',manual:'Manuell',none:'Keine'})[v]||v}
 
 
+async function loadPaperlessChoicesForCurrent(){
+  const id=Number(document.getElementById('destinationId').value);
+  if(!id){alert('Paperless-Ziel bitte zuerst speichern.');return;}
+  try{
+    const data=await api('/api/destinations/'+id+'/paperless/choices');
+    const fill=(id,rows)=>{
+      const dl=document.getElementById(id); dl.innerHTML='';
+      for(const row of rows){
+        const o=document.createElement('option'); o.value=String(row.id); o.label=row.name; dl.appendChild(o);
+      }
+    };
+    fill('paperlessCorrespondents',data.correspondents||[]);
+    fill('paperlessDocumentTypes',data.document_types||[]);
+    fill('paperlessStoragePaths',data.storage_paths||[]);
+    alert('Paperless-Werte geladen.');
+  }catch(e){alert(e.message)}
+}
+async function checkPaperlessTask(deliveryId,elementId){
+  const box=document.getElementById(elementId);
+  box.textContent='Task wird geprüft…';
+  try{
+    const t=await api('/api/deliveries/'+deliveryId+'/paperless-task');
+    box.textContent='Paperless: '+(t.status||t.task_status||'unbekannt')+(t.related_document?' · Dokument '+t.related_document:'');
+  }catch(e){box.textContent=e.message}
+}
 function toggleDestinationFields(){
   const type=document.getElementById('destinationType').value;
   document.getElementById('destinationLocalFields').style.display=type==='local'?'block':'none';
@@ -917,6 +997,10 @@ async function loadJobs(){
       (j.ocr&&j.ocr.documents?' · OCR: '+j.ocr.documents+' Dok. / '+j.ocr.characters+' Zeichen':'')+
       (j.documents&&j.documents.some(d=>d.final_filename)?' · Dateinamen erzeugt':'')+
       (j.deliveries&&j.deliveries.length?' · Versand: '+j.deliveries.map(d=>d.status).join(', '):'')+'</div>'+
+      (j.deliveries&&j.deliveries.some(d=>String(d.target_path||'').startsWith('paperless-task:'))
+        ? '<div class="muted">'+j.deliveries.filter(d=>String(d.target_path||'').startsWith('paperless-task:')).map(d=>
+            '<button class="secondary" onclick="checkPaperlessTask('+d.id+',\'paperlessTask-'+d.id+'\')">Paperless-Status</button> <span id="paperlessTask-'+d.id+'"></span>'
+          ).join(' ')+'</div>' : '')+
       (j.separation_markers&&j.separation_markers.length?
         '<div class="muted">Erkannte Trenner: '+j.separation_markers.map(m=>'S.'+m.page+' '+escapeHtml(m.type)+': '+escapeHtml(m.value)).join(' | ')+'</div>':'')+
       (j.error?'<div class="err"><strong>Fehler:</strong> '+escapeHtml(j.error)+'</div>':'')+'</div>'+

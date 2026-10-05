@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from .db import Base, SessionLocal, engine
-from .models import InboxImport, ProfileShare, ScanJob
+from .models import InboxImport, JobProcessing, ProfileProcessing, ProfileShare, ScanJob
 
 JOBS_ROOT = Path("/var/lib/scanpro/jobs/inbox")
 POLL_SECONDS = 2
@@ -13,6 +13,7 @@ ALLOWED_SUFFIXES = {".pdf"}
 
 Base.metadata.create_all(bind=engine)
 
+from .services.blank_pages import BlankPageError, remove_blank_pages
 from .services.workflows import deliver_to_matching_inbox_workflows
 
 
@@ -53,6 +54,23 @@ def import_file(profile_id: int, source: Path) -> int:
             )
         )
         db.commit()
+
+        processing = db.query(ProfileProcessing).filter(ProfileProcessing.profile_id == profile_id).first()
+        if processing and processing.remove_blank_pages:
+            try:
+                result = remove_blank_pages(str(target))
+                db.add(JobProcessing(
+                    scan_job_id=job.id,
+                    blank_pages_removed=result["removed"],
+                    blank_pages_json=__import__("json").dumps(result["pages"]),
+                ))
+                db.commit()
+            except BlankPageError as exc:
+                job.status = "processing_error"
+                job.error = str(exc)
+                db.commit()
+                return job.id
+
         deliver_to_matching_inbox_workflows(db, job, profile_id)
         return job.id
     finally:

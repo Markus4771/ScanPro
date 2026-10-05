@@ -4,7 +4,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.1.1-dev**
+Aktuell: **0.1.2-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -20,6 +20,9 @@ Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt hersteller
 - Testscan aus ScanPro starten
 - ScanJob mit Status und Fehler speichern
 - Testscan-PDF unter `/var/lib/scanpro/jobs/`
+- erste Weboberfläche für Scanner-Erkennung, Übernahme und Testscan
+- letzte ScanJobs im Browser anzeigen
+- PDF-Datei eines Jobs über API bereitstellen
 - Scanprofile
 - Scanziele
 - Workflows

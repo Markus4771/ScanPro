@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, engine, get_db
-from .models import Destination, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
+from .models import Destination, InboxImport, ProfileShare, ScanJob, ScanProfile, Scanner, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -160,7 +160,41 @@ def test_scan(scanner_id: int, payload: TestScanRequest, db: Session = Depends(g
 
 @app.get("/api/jobs")
 def list_jobs(db: Session = Depends(get_db)):
-    return db.query(ScanJob).order_by(ScanJob.id.desc()).limit(100).all()
+    jobs = db.query(ScanJob).order_by(ScanJob.id.desc()).limit(100).all()
+    result = []
+    for job in jobs:
+        inbox = db.query(InboxImport).filter(InboxImport.scan_job_id == job.id).first()
+        profile = db.get(ScanProfile, inbox.profile_id) if inbox else None
+        result.append({
+            "id": job.id,
+            "workflow_id": job.workflow_id,
+            "status": job.status,
+            "input_path": job.input_path,
+            "output_path": job.output_path,
+            "error": job.error,
+            "created_at": job.created_at,
+            "profile_id": inbox.profile_id if inbox else None,
+            "profile_name": profile.name if profile else None,
+            "source": "profile-smb" if inbox else "scanner",
+        })
+    return result
+
+@app.get("/api/inbox-imports")
+def list_inbox_imports(db: Session = Depends(get_db)):
+    rows = db.query(InboxImport).order_by(InboxImport.id.desc()).limit(100).all()
+    result = []
+    for row in rows:
+        profile = db.get(ScanProfile, row.profile_id)
+        result.append({
+            "id": row.id,
+            "scan_job_id": row.scan_job_id,
+            "profile_id": row.profile_id,
+            "profile_name": profile.name if profile else None,
+            "source_path": row.source_path,
+            "imported_path": row.imported_path,
+            "created_at": row.created_at,
+        })
+    return result
 
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: int, db: Session = Depends(get_db)):

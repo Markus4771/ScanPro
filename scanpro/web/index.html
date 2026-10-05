@@ -120,6 +120,14 @@
       <label class="check"><input type="checkbox" id="profileRemoveBorders"> Scanner-Ränder entfernen</label>
     </div>
 
+    <div class="grid" style="margin-top:8px">
+      <label>Dateinamensvorlage
+        <input id="profileFilenameTemplate" value="{date}_{profile}_{document}" placeholder="{date}_{profile}_{document}">
+        <span class="muted">Variablen: {date}, {time}, {datetime}, {profile}, {job}, {document}, {code}, {code_type}, {ocr_first_line}</span>
+      </label>
+      <label class="check" style="align-self:end"><input type="checkbox" id="profileUseOcrFirstLine"> OCR-Erstzeile für {ocr_first_line} verwenden</label>
+    </div>
+
     <div class="row">
       <label class="check"><input type="checkbox" id="profileShareEnabled" onchange="toggleProfileShareOptions()"> Eigene SMB-Freigabe auf ScanPro</label>
       <label id="profileShareNameWrap" style="min-width:260px;display:none">Freigabename
@@ -283,6 +291,7 @@ let profileSharesCache=[];
 let profileProcessingCache=[];
 let profileImageProcessingCache=[];
 let profileOcrSettingsCache=[];
+let profileNamingSettingsCache=[];
 let destinationsCache=[];
 let scannersCache=[];
 let workflowsCache=[];
@@ -378,6 +387,8 @@ function resetProfileForm(){
   document.getElementById('profileDuplex').value='false';
   document.getElementById('profileOcr').checked=false;
   document.getElementById('profileOcrLanguage').value='deu';
+  document.getElementById('profileFilenameTemplate').value='{date}_{profile}_{document}';
+  document.getElementById('profileUseOcrFirstLine').checked=false;
   document.getElementById('profileRemoveBlank').checked=false;
   document.getElementById('profileAutoRotate').checked=false;
   document.getElementById('profileDeskew').checked=false;
@@ -441,6 +452,14 @@ async function saveProfile(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({language:document.getElementById('profileOcrLanguage').value})
     });
+    await api('/api/profiles/'+profileId+'/naming-settings',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        filename_template:document.getElementById('profileFilenameTemplate').value.trim(),
+        use_ocr_first_line:document.getElementById('profileUseOcrFirstLine').checked
+      })
+    });
     resetProfileForm();
     await loadProfiles();
   }catch(e){alert(e.message)}
@@ -453,7 +472,10 @@ function editProfile(p){
   document.getElementById('profileDuplex').value=String(p.duplex);
   document.getElementById('profileOcr').checked=p.ocr_enabled;
   const ocrSettings=profileOcrSettingsCache.find(x=>x.profile_id===p.id);
+  const namingSettings=profileNamingSettingsCache.find(x=>x.profile_id===p.id);
   document.getElementById('profileOcrLanguage').value=ocrSettings?ocrSettings.language:'deu';
+  document.getElementById('profileFilenameTemplate').value=namingSettings?namingSettings.filename_template:'{date}_{profile}_{document}';
+  document.getElementById('profileUseOcrFirstLine').checked=!!(namingSettings&&namingSettings.use_ocr_first_line);
   document.getElementById('profileSplit').checked=p.split_enabled;
   document.getElementById('profileSplitMethod').value=p.split_method==='none'?'patch-t':p.split_method;
   const share=profileSharesCache.find(x=>x.profile_id===p.id);
@@ -479,18 +501,20 @@ async function deleteProfile(p){
   }catch(e){alert(e.message)}
 }
 async function loadProfiles(){
-  const [data,shares,processing,imageProcessing,ocrSettings]=await Promise.all([
+  const [data,shares,processing,imageProcessing,ocrSettings,namingSettings]=await Promise.all([
     api('/api/profiles'),
     api('/api/profile-shares'),
     api('/api/profile-processing'),
     api('/api/profile-image-processing'),
-    api('/api/profile-ocr-settings')
+    api('/api/profile-ocr-settings'),
+    api('/api/profile-naming-settings')
   ]);
   profilesCache=data;
   profileSharesCache=shares;
   profileProcessingCache=processing;
   profileImageProcessingCache=imageProcessing;
   profileOcrSettingsCache=ocrSettings;
+  profileNamingSettingsCache=namingSettings;
   populateWorkflowSelectors();
   const box=document.getElementById('profiles');
   const sel=document.getElementById('scanProfile');
@@ -516,6 +540,8 @@ async function loadProfiles(){
     if(imageProcessing&&imageProcessing.remove_borders)imageFlags.push('Ränder');
     const imageText=imageFlags.length?'Bild: '+imageFlags.join(', '):'Bildoptimierung: aus';
     const share=profileSharesCache.find(x=>x.profile_id===p.id);
+    const namingSettings=profileNamingSettingsCache.find(x=>x.profile_id===p.id);
+    const namingText=namingSettings?('Name: '+namingSettings.filename_template):'Name: {date}_{profile}_{document}';
     const shareText=share&&share.enabled?('SMB: \\\\SCANPRO\\'+share.share_name):'SMB: aus';
     const el=document.createElement('div'); el.className='item';
     el.innerHTML='<div class="profilegrid">'+
@@ -524,7 +550,7 @@ async function loadProfiles(){
       '<div>'+escapeHtml(colorLabel(p.color_mode))+'</div>'+
       '<div>'+(p.duplex?'Duplex':'Einseitig')+'</div>'+
       '<div>'+ocr+'<div class="muted">'+blank+'</div><div class="muted">'+escapeHtml(imageText)+'</div></div>'+
-      '<div>'+escapeHtml(split)+'<div class="muted">'+escapeHtml(shareText)+'</div></div>'+
+      '<div>'+escapeHtml(split)+'<div class="muted">'+escapeHtml(shareText)+'</div><div class="muted">'+escapeHtml(namingText)+'</div></div>'+
       '<div class="actions"></div>'+
       '</div>';
     const actions=el.querySelector('.actions');
@@ -827,12 +853,19 @@ async function loadJobs(){
       (j.image_processing&&j.image_processing.pages_rotated?' · gedreht: '+j.image_processing.pages_rotated:'')+
       (j.image_processing&&j.image_processing.pages_cropped?' · zugeschnitten: '+j.image_processing.pages_cropped:'')+
       (j.ocr&&j.ocr.documents?' · OCR: '+j.ocr.documents+' Dok. / '+j.ocr.characters+' Zeichen':'')+
+      (j.documents&&j.documents.some(d=>d.final_filename)?' · Dateinamen erzeugt':'')+
       (j.deliveries&&j.deliveries.length?' · Versand: '+j.deliveries.map(d=>d.status).join(', '):'')+'</div>'+
       (j.separation_markers&&j.separation_markers.length?
         '<div class="muted">Erkannte Trenner: '+j.separation_markers.map(m=>'S.'+m.page+' '+escapeHtml(m.type)+': '+escapeHtml(m.value)).join(' | ')+'</div>':'')+
       (j.error?'<div class="err"><strong>Fehler:</strong> '+escapeHtml(j.error)+'</div>':'')+'</div>'+
       '<div>'+((j.documents&&j.documents.length>1)
-        ? j.documents.map(d=>'<a class="btn secondary" target="_blank" href="'+d.file_url+'">Dok. '+d.sequence+'</a>'+(j.ocr&&j.ocr.documents?' <a class="btn secondary" target="_blank" href="/api/job-documents/'+d.id+'/ocr">OCR '+d.sequence+'</a>':'')).join(' ')
+        ? j.documents.map(d=>
+            '<div style="margin-bottom:6px">'+
+            '<a class="btn secondary" target="_blank" href="'+d.file_url+'">Dok. '+d.sequence+'</a> '+
+            (j.ocr&&j.ocr.documents?'<a class="btn secondary" target="_blank" href="/api/job-documents/'+d.id+'/ocr">OCR '+d.sequence+'</a> ':'')+
+            (d.final_filename?'<span class="muted">'+escapeHtml(d.final_filename)+'</span>':'')+
+            '</div>'
+          ).join('')
         : ((j.status==='finished'||j.status==='imported'||j.status==='delivered'||j.status==='delivery_error'||j.status==='separated')?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':''))+'</div>'+
       '</div>';
     box.appendChild(el);

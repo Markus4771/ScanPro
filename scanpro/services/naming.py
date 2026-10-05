@@ -23,7 +23,7 @@ class NamingError(RuntimeError):
 
 def _sanitize(value: str, max_length: int = 80) -> str:
     value = unicodedata.normalize("NFKC", value or "").strip()
-    value = re.sub(r"[\\/:*?"<>|\r\n\t]+", "_", value)
+    value = re.sub(r'[\\/:*?"<>|\r\n\t]+', '_', value)
     value = re.sub(r"\s+", " ", value).strip(" ._-")
     if not value:
         return "scan"

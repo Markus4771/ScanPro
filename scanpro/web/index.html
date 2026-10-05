@@ -758,8 +758,11 @@ async function loadJobs(){
       (j.source==='profile-smb'?' · SMB-Inbox':'')+
       (j.blank_pages_removed?' · Leerseiten entfernt: '+j.blank_pages_removed:'')+
       (j.documents&&j.documents.length>1?' · Dokumente: '+j.documents.length:'')+
+      (j.separation_markers&&j.separation_markers.length?' · Trenner: '+j.separation_markers.length:'')+
       (j.deliveries&&j.deliveries.length?' · Versand: '+j.deliveries.map(d=>d.status).join(', '):'')+'</div>'+
-      (j.error?'<div class="err">'+escapeHtml(j.error)+'</div>':'')+'</div>'+
+      (j.separation_markers&&j.separation_markers.length?
+        '<div class="muted">Erkannte Trenner: '+j.separation_markers.map(m=>'S.'+m.page+' '+escapeHtml(m.type)+': '+escapeHtml(m.value)).join(' | ')+'</div>':'')+
+      (j.error?'<div class="err"><strong>Fehler:</strong> '+escapeHtml(j.error)+'</div>':'')+'</div>'+
       '<div>'+((j.documents&&j.documents.length>1)
         ? j.documents.map(d=>'<a class="btn secondary" target="_blank" href="'+d.file_url+'">Dok. '+d.sequence+'</a>').join(' ')
         : ((j.status==='finished'||j.status==='imported'||j.status==='delivered'||j.status==='delivery_error'||j.status==='separated')?'<a class="btn secondary" target="_blank" href="/api/jobs/'+j.id+'/file">PDF öffnen</a>':''))+'</div>'+

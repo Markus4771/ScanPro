@@ -4,59 +4,73 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.1.4-dev**
+Aktueller Stand: **0.2.0-dev**
 
-## Erfolgreich getestet
+## Erfolgreich vorhanden
 
 - Brother ADS-2600We über NAPS2/SANE
-- Scanner-Erkennung und Import
+- Scanner-Erkennung und Scannerverwaltung
 - Scan über Weboberfläche
-- PDF-Erzeugung unter `/var/lib/scanpro/jobs/`
-- Scannerstatus online/offline
-- Scannerverwaltung
-- PDF direkt aus Jobliste öffnen
+- ScanJobs mit PDF-Ausgabe
+- Scanprofile
+- OCR-/Trennoptionen im Profil konfigurierbar
+- Scanziele im Webinterface
 
-## In 0.1.4-dev umgesetzt
+## Neu in 0.2.0-dev
 
-- Scanprofile im Webinterface anzeigen
-- Scanprofile anlegen
-- Scanprofile bearbeiten
-- Scanprofile löschen
-- doppelte Profilnamen verhindern
-- Schutz vor Löschen eines Profils, das in einem Workflow verwendet wird
-- DPI speichern
-- Farbmodus speichern
-- Einseitig/Duplex speichern
-- OCR an/aus speichern
-- Trennung an/aus speichern
-- Trennmethode speichern
-- Profil im Testscan auswählen
-- DPI/Farbe/Duplex automatisch aus Profil übernehmen
+### Scanziele
 
-## Trennmethoden im Profil
+Unterstützte Typen:
 
-- `patch-t`
-- `qr`
-- `barcode`
-- `blank-page`
-- `manual`
+- `local`
+- `smb`
 
-## Wichtig
+Funktionen:
 
-OCR und Dokumenttrennung werden in **0.1.4-dev nur konfiguriert und gespeichert**.
+- Scanziel anlegen
+- bearbeiten
+- aktivieren/deaktivieren
+- löschen
+- Verbindung testen
+- doppelte Namen verhindern
+- Schutz vor Löschen, wenn ein Workflow das Ziel verwendet
 
-Die tatsächliche OCR-Verarbeitung und Dokumenttrennung ist noch nicht aktiv.
+### Lokale Ziele
 
-## Relevante Profil-API
+Konfiguration:
+
+- Pfad
+
+Verbindungstest:
+
+- Ordner wird bei Bedarf angelegt
+- temporäre Datei wird geschrieben und wieder gelöscht
+
+### SMB-Ziele
+
+Konfiguration:
+
+- Server/IP
+- Freigabe
+- Unterordner optional
+- Benutzer
+- Passwort
+- Domäne optional
+
+Verbindungstest:
+
+- über `smbclient`
+- Passwort wird in API-Ausgaben maskiert
+
+## Installation
+
+`scripts/install-dev.sh` installiert jetzt zusätzlich:
 
 ```text
-GET    /api/profiles
-POST   /api/profiles
-PATCH  /api/profiles/{profile_id}
-DELETE /api/profiles/{profile_id}
+smbclient
 ```
 
-## Update auf dem Testsystem
+Update:
 
 ```bash
 cd ~/ScanPro
@@ -64,32 +78,41 @@ git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Danach im Browser neu laden:
+Danach:
 
-```text
-http://IP-DES-SCANPRO-SERVERS/
+```bash
+curl http://127.0.0.1:8100/health
 ```
+
+Erwartet:
+
+```json
+{"status":"ok","version":"0.2.0-dev"}
+```
+
+## Wichtig
+
+Noch nicht umgesetzt:
+
+- automatische Weiterleitung eines ScanJobs an ein Ziel
+- SMB-Inbox für Scan-to-Network
+- Workflow-Ausführung
+- tatsächliche OCR
+- tatsächliche Dokumenttrennung
 
 ## Nächster Entwicklungsschritt
 
-**0.2.0-dev – konfigurierbare Scanziele und SMB**
+**0.2.1-dev – Workflows und Weiterleitung**
 
 Geplant:
 
-1. Scanziele im Webinterface
-2. lokale Ordner
-3. SMB-Ziele
-4. Verbindung testen
-5. Ziel aktivieren/deaktivieren
-6. Scanprofil + Scanziel zusammenführen
-7. SMB-Inbox für Scan-to-Network-Geräte
-
-Danach:
-
-- automatische Weiterleitung
-- Patch-T-Verarbeitung
-- OCR
-- QR-/Barcode-Trennung
+1. Scanner + Scanprofil + Scanziel im Webinterface zu Workflow verbinden
+2. Workflow aktivieren/deaktivieren
+3. Scan direkt über Workflow starten
+4. lokale Ziele automatisch beschicken
+5. SMB-Ziele automatisch beschicken
+6. Jobstatus um Weiterleitungsstatus erweitern
+7. danach SMB-Inbox
 
 ## Einstieg in einem neuen Chat
 

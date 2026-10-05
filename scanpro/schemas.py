@@ -68,3 +68,11 @@ class WorkflowCreate(BaseModel):
     profile_id: int
     destination_id: int
     enabled: bool = True
+
+
+class WorkflowUpdate(BaseModel):
+    name: str | None = None
+    scanner_id: int | None = None
+    profile_id: int | None = None
+    destination_id: int | None = None
+    enabled: bool | None = None

@@ -4,86 +4,79 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.2.2-dev**
+Aktueller Stand: **0.2.3-dev**
 
-## Neu in 0.2.2-dev
+## Neu in 0.2.3-dev
 
-Jedes Scanprofil kann optional eine eigene SMB-Freigabe auf dem ScanPro-Server erhalten.
+Profilbezogene SMB-Freigaben werden jetzt automatisch überwacht.
 
-### Beispiel
+Beispiel:
 
 ```text
 Profil: Rechnungen
 Freigabe: \\SCANPRO-SERVER\Rechnungen
 ```
 
-Interner Pfad:
+Wenn dort eine PDF abgelegt wird:
+
+1. ScanPro erkennt die Datei.
+2. ScanPro wartet auf eine stabile Dateigröße.
+3. Die Datei wird dem Scanprofil zugeordnet.
+4. Ein ScanJob wird erzeugt.
+5. Die Datei wird nach `/var/lib/scanpro/jobs/inbox/<PROFIL-ID>/` verschoben.
+6. Der Job erhält Status `imported`.
+7. Profilname und Quelle `profile-smb` werden in der API ausgegeben.
+8. Die PDF kann in der Weboberfläche geöffnet werden.
+
+## Neue Komponenten
 
 ```text
-/var/lib/scanpro/profile-inbox/<PROFIL-ID>
+scanpro/inbox_worker.py
+deploy/scanpro-inbox.service
 ```
-
-## Umsetzung
 
 Neue Tabelle:
 
 ```text
-profile_shares
+inbox_imports
 ```
 
-Sie enthält:
+Sie speichert:
 
 - profile_id
-- enabled
-- share_name
-- path
+- scan_job_id
+- source_path
+- imported_path
+- created_at
 
 Neue API:
 
 ```text
-GET /api/profile-shares
-PUT /api/profiles/{profile_id}/share
+GET /api/inbox-imports
 ```
 
-Im Webinterface gibt es im Scanprofil:
+Die bestehende Job-API liefert zusätzlich:
 
-- Checkbox **Eigene SMB-Freigabe auf ScanPro**
-- Feld **Freigabename**
+- profile_id
+- profile_name
+- source
 
-Die Freigabe kann unabhängig vom Profil aktiviert/deaktiviert werden.
+## Worker
 
-## Samba
-
-Statische ScanPro-Freigaben:
+Systemd-Dienst:
 
 ```text
-ScanPro-Inbox
-ScanPro-Jobs
+scanpro-inbox.service
 ```
 
-Dynamische Profilfreigaben werden erzeugt in:
+Prüfen:
 
-```text
-/var/lib/scanpro/samba-profile-shares.conf
+```bash
+systemctl status scanpro-inbox --no-pager
+journalctl -u scanpro-inbox -f
 ```
 
-Diese Datei wird über:
-
-```text
-include = /var/lib/scanpro/samba-profile-shares.conf
-```
-
-in Samba eingebunden.
-
-Ein systemd Path-Service:
-
-```text
-scanpro-samba-reload.path
-```
-
-überwacht Änderungen und lädt Samba automatisch neu.
-
-## Installation / Update
+## Update
 
 ```bash
 cd ~/ScanPro
@@ -91,43 +84,42 @@ git pull
 sudo bash scripts/install-dev.sh
 ```
 
-Einmalig Samba-Passwort:
-
-```bash
-sudo smbpasswd -a scanpro
-```
-
-Danach prüfen:
+Danach:
 
 ```bash
 curl http://127.0.0.1:8100/health
-smbclient -L localhost -U scanpro
 ```
 
-Erwartete Version:
+Erwartet:
 
 ```json
-{"status":"ok","version":"0.2.2-dev"}
+{"status":"ok","version":"0.2.3-dev"}
 ```
 
-## Noch nicht umgesetzt
+## Aktuelle Einschränkung
 
-- automatische Verarbeitung von Dateien aus den profilbezogenen SMB-Freigaben
+Der Profil-Inbox-Worker verarbeitet zunächst nur PDF-Dateien.
+
+Noch nicht umgesetzt:
+
+- automatische Weiterleitung an Scanziele
 - Workflow-Ausführung
-- automatische Weiterleitung
-- echte OCR
-- echte Dokumenttrennung
+- OCR
+- Dokumenttrennung
 
 ## Nächster Entwicklungsschritt
 
-**Profil-SMB-Inbox-Verarbeitung**
+**0.2.4-dev – Workflows und automatische Weiterleitung**
 
-Neue Dateien in einer Profilfreigabe sollen automatisch:
+Geplant:
 
-1. erkannt werden
-2. dem richtigen Scanprofil zugeordnet werden
-3. als ScanJob angelegt werden
-4. anschließend an das konfigurierte Scanziel weiterlaufen
+1. Scanner oder Profil-SMB-Inbox als Quelle
+2. Scanprofil
+3. Scanziel
+4. Workflow im Webinterface
+5. automatische Weiterleitung an lokale Ziele
+6. automatische Weiterleitung an SMB-Ziele
+7. Status der Weiterleitung im ScanJob
 
 ## Einstieg in einem neuen Chat
 

@@ -1,3 +1,4 @@
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -5,9 +6,26 @@ from pathlib import Path
 class Naps2Error(RuntimeError):
     pass
 
+NAPS2_WORKDIR = Path("/var/lib/scanpro")
+
 def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
+    env = os.environ.copy()
+    env["HOME"] = str(NAPS2_WORKDIR)
+    env["XDG_CONFIG_HOME"] = str(NAPS2_WORKDIR / ".config")
+    env["XDG_CACHE_HOME"] = str(NAPS2_WORKDIR / ".cache")
+    NAPS2_WORKDIR.mkdir(parents=True, exist_ok=True)
+    (NAPS2_WORKDIR / ".config").mkdir(parents=True, exist_ok=True)
+    (NAPS2_WORKDIR / ".cache").mkdir(parents=True, exist_ok=True)
+
     try:
-        return subprocess.run(args, capture_output=True, text=True, check=True)
+        return subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=NAPS2_WORKDIR,
+            env=env,
+        )
     except FileNotFoundError as exc:
         raise Naps2Error("NAPS2 wurde nicht gefunden.") from exc
     except subprocess.CalledProcessError as exc:
@@ -68,7 +86,12 @@ def scan_to_pdf(
         "--pagesize", "a4",
         "-v",
     )
-    _run(args)
+    result = _run(args)
     if not output.exists():
+        details = "\n".join(x for x in (result.stdout.strip(), result.stderr.strip()) if x)
+        if details:
+            raise Naps2Error(
+                "NAPS2 erzeugte keine PDF-Datei. Ausgabe:\n" + details
+            )
         raise Naps2Error("NAPS2 meldete keinen Fehler, aber es wurde keine PDF-Datei erzeugt.")
     return output

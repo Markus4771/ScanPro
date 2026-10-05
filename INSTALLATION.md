@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.3.0-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.3.1-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.3.0-dev"}
+{"status":"ok","version":"0.3.1-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -585,4 +585,46 @@ Die erzeugten Dokumente liegen unter:
 
 ```text
 /var/lib/scanpro/jobs/documents/<JOB-ID>/
+```
+
+
+## QR-/Barcode-Trennung testen
+
+Im Scanprofil:
+
+```text
+Trennung aktivieren: ja
+Trennmethode: QR-Code
+```
+
+oder:
+
+```text
+Trennung aktivieren: ja
+Trennmethode: Barcode
+```
+
+Ein Teststapel kann beispielsweise so aussehen:
+
+```text
+Dokument 1
+QR-Trennblatt
+Dokument 2
+QR-Trennblatt
+Dokument 3
+```
+
+Die Trennerseiten selbst werden verworfen.
+
+Die Jobliste zeigt:
+
+- Anzahl erzeugter Dokumente
+- erkannte Trenner
+- Seite des Trenners
+- Typ und Inhalt des Codes
+
+Das Installationsskript installiert dafür zusätzlich:
+
+```text
+libzbar0
 ```

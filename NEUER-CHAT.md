@@ -171,3 +171,23 @@ Scanner
 ```
 
 Das soll als eigene Profilart umgesetzt werden, damit Dokumentprofile und Bildprofile klar getrennt bleiben.
+
+
+## Backlog: Scanner über VPN
+
+Es gibt mindestens einen weiteren Scanner, der über VPN mit dem ScanPro-Netz verbunden ist.
+
+Dafür ist vorgesehen:
+
+- Standortfeld pro Scanner
+- Verbindungstyp `lokal` oder `VPN`
+- Online-/Offline-Prüfung über geroutete VPN-Verbindungen
+- angepasste Timeouts
+- Retry bei temporären VPN-Aussetzern
+- saubere Fehlerzustände für abgebrochene Remote-Scans
+- Anzeige des Standorts im Webinterface
+- Gruppierung von Scannern nach Standort
+- direkte Nutzung von SANE/eSCL über VPN, soweit technisch stabil
+- optional später ein kleiner Remote-Collector/Gateway pro Standort
+
+Das soll unabhängig von der eigentlichen Scanverarbeitung bleiben, damit dieselben Profile, Workflows und Ziele für lokale und entfernte Scanner verwendet werden können.

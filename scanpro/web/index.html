@@ -407,22 +407,53 @@ async function loadSaved(){
     const badge=!s.enabled?'<span class="badge off">deaktiviert</span>':st.online?'<span class="badge ok">online</span>':'<span class="badge err">offline</span>';
     const el=document.createElement('div'); el.className='item';
     el.innerHTML='<strong>'+escapeHtml(s.name)+'</strong> '+badge+
-      '<div class="muted">'+escapeHtml(s.address||'keine IP')+' · '+escapeHtml(s.driver)+'</div>';
+      '<div class="muted">'+escapeHtml(s.address||'keine IP')+' · '+escapeHtml(s.driver)+
+      ' · '+escapeHtml(st.location||'Lokal')+' · '+escapeHtml((st.connection_type||'local').toUpperCase())+'</div>'+
+      '<div id="scannerReach-'+s.id+'" class="muted">'+escapeHtml(st.reachability_detail||'')+'</div>';
     const actions=document.createElement('div'); actions.className='actions';
-    const rename=document.createElement('button'); rename.className='secondary'; rename.textContent='Bearbeiten'; rename.onclick=()=>editScanner(s);
+    const rename=document.createElement('button'); rename.className='secondary'; rename.textContent='Bearbeiten'; rename.onclick=()=>editScanner(s,st);
+    const reach=document.createElement('button'); reach.className='secondary'; reach.textContent='Erreichbarkeit testen'; reach.onclick=()=>testScannerReachability(s);
     const toggle=document.createElement('button'); toggle.className='secondary'; toggle.textContent=s.enabled?'Deaktivieren':'Aktivieren'; toggle.onclick=()=>toggleScanner(s);
     const del=document.createElement('button'); del.className='danger'; del.textContent='Löschen'; del.onclick=()=>deleteScanner(s);
-    actions.append(rename,toggle,del); el.appendChild(actions); box.appendChild(el);
+    actions.append(rename,reach,toggle,del); el.appendChild(actions); box.appendChild(el);
     if(s.enabled){
       const o=document.createElement('option'); o.value=s.id; o.textContent=s.name; sel.appendChild(o);
     }
   }
 }
-async function editScanner(s){
+async function editScanner(s,st={}){
   const name=prompt('Scannername',s.name); if(name===null)return;
   const address=prompt('IP/Adresse',s.address||''); if(address===null)return;
-  await api('/api/scanners/'+s.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,address})});
+  const location=prompt('Standort',st.location||'Lokal'); if(location===null)return;
+  const type=prompt('Verbindungstyp: local oder vpn',st.connection_type||'local'); if(type===null)return;
+  const timeout=prompt('Scan-Timeout in Sekunden',String(st.timeout_seconds||60)); if(timeout===null)return;
+  const retries=prompt('Wiederholungen bei Fehlern (0-5)',String(st.retries??1)); if(retries===null)return;
+  await api('/api/scanners/'+s.id,{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name,address})
+  });
+  await api('/api/scanners/'+s.id+'/connection-settings',{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      location:location.trim()||'Lokal',
+      connection_type:type.trim().toLowerCase(),
+      timeout_seconds:Number(timeout),
+      retries:Number(retries)
+    })
+  });
   await loadSaved();
+}
+async function testScannerReachability(s){
+  const box=document.getElementById('scannerReach-'+s.id);
+  box.textContent='Teste Erreichbarkeit…';
+  try{
+    const r=await api('/api/scanners/'+s.id+'/reachability',{method:'POST'});
+    box.innerHTML='<span class="'+(r.reachable?'ok':'err')+'">'+escapeHtml(r.detail)+'</span>';
+  }catch(e){
+    box.innerHTML='<span class="err">'+escapeHtml(e.message)+'</span>';
+  }
 }
 async function toggleScanner(s){
   await api('/api/scanners/'+s.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!s.enabled})});

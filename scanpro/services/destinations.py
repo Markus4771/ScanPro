@@ -63,3 +63,52 @@ def test_destination(destination_type: str, config_json: str) -> dict:
         return {"ok": True, "message": f"SMB-Ziel erreichbar: {target}"}
 
     raise DestinationError(f"Zieltyp wird noch nicht unterstützt: {destination_type}")
+
+
+def deliver_file(destination_type: str, config_json: str, source_path: str) -> str:
+    cfg = _load_config(config_json)
+    source = Path(source_path)
+    if not source.exists():
+        raise DestinationError(f"Quelldatei wurde nicht gefunden: {source}")
+
+    if destination_type == "local":
+        path = Path(cfg.get("path", "")).expanduser()
+        if not str(path):
+            raise DestinationError("Lokaler Zielpfad fehlt.")
+        path.mkdir(parents=True, exist_ok=True)
+        target = path / source.name
+        import shutil
+        shutil.copy2(source, target)
+        return str(target)
+
+    if destination_type == "smb":
+        server = cfg.get("server")
+        share = cfg.get("share")
+        username = cfg.get("username", "")
+        password = cfg.get("password", "")
+        domain = cfg.get("domain", "")
+        subfolder = cfg.get("subfolder", "")
+        if not server or not share:
+            raise DestinationError("SMB-Server und Freigabe sind erforderlich.")
+
+        target = f"//{server}/{share}"
+        auth_user = f"{domain}\\{username}" if domain and username else username
+        auth = f"{auth_user}%{password}" if username else "%"
+        remote_name = source.name.replace('"', "_")
+        command_text = f'put "{source}" "{remote_name}"'
+        if subfolder:
+            command_text = f'cd "{subfolder}"; {command_text}'
+        command = ["smbclient", target, "-U", auth, "-c", command_text]
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=120)
+        except FileNotFoundError as exc:
+            raise DestinationError("smbclient ist nicht installiert.") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise DestinationError("SMB-Übertragung hat das Zeitlimit überschritten.") from exc
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()
+            raise DestinationError(detail or "SMB-Übertragung fehlgeschlagen.")
+        suffix = f"/{subfolder}" if subfolder else ""
+        return f"{target}{suffix}/{remote_name}"
+
+    raise DestinationError(f"Zieltyp wird noch nicht unterstützt: {destination_type}")

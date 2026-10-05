@@ -4,100 +4,119 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.1.0-dev**
+Aktueller Stand: **0.1.1-dev**
 
 ScanPro wird als neue Linux-ScanStation von Grund auf entwickelt. Das frühere OpenScanStation-Projekt wird nicht als Codebasis verwendet.
 
-## Ziel
+## Aktuell erfolgreich getestet
 
-Eine stabile, modular aufgebaute ScanStation für Linux mit mehreren konfigurierbaren Scannern, Scanprofilen, Scanzielen und Workflows.
+Der Brother ADS-2600We wird auf Debian über NAPS2/SANE erkannt:
 
-## Anforderungen
+```text
+Brother ADS-2600We (airscan:ip=192.168.0.172)
+```
 
-- Debian als Zielsystem
-- NAPS2 als Scan-Engine
+Der Samsung C48x Series wird ebenfalls erkannt.
+
+eSCL liefert auf dem aktuellen System keine Geräte, SANE/airscan funktioniert jedoch.
+
+Ein direkter NAPS2-ADF-Testscan mit dem Brother war erfolgreich:
+
+```bash
+naps2 console \
+  -o ~/scantest/testscan.pdf \
+  --noprofile \
+  --driver sane \
+  --device "Brother ADS-2600We" \
+  --source feeder \
+  --dpi 300 \
+  --bitdepth color \
+  --pagesize a4 \
+  -v
+```
+
+## In 0.1.1-dev umgesetzt
+
+- NAPS2-Aufruf unter Linux auf `naps2 console` korrigiert
+- Scanner-Erkennung über API
+- SANE/eSCL als wählbare Discovery-Treiber
+- Parser für NAPS2-Geräteliste
+- Scanner-Import/Speicherung
+- Testscan-Endpunkt
+- ScanJob-Status:
+  - queued
+  - scanning
+  - finished
+  - error
+- Testscan-Ausgabe unter `/var/lib/scanpro/jobs/`
+- Job-Abfrage über API
+- Installationsskript legt Job-Verzeichnis und Rechte an
+- Parser-Test für reale Brother-/Samsung-Ausgabe
+
+## Relevante API-Endpunkte
+
+```text
+GET  /api/scanners/discover?driver=sane
+GET  /api/scanners
+POST /api/scanners/import
+POST /api/scanners/{scanner_id}/testscan
+GET  /api/jobs
+GET  /api/jobs/{job_id}
+```
+
+## Nach Update auf dem Testsystem prüfen
+
+```bash
+cd ~/ScanPro
+git pull
+sudo bash scripts/install-dev.sh
+```
+
+Dann:
+
+```bash
+curl http://127.0.0.1:8100/health
+curl "http://127.0.0.1:8100/api/scanners/discover?driver=sane"
+```
+
+Danach Brother importieren, Blatt einlegen und Testscan über ScanPro starten.
+
+## Weiterhin geplante Grundfunktionen
+
 - mehrere Scanner konfigurierbar
-- erster Testscanner: Brother ADS-2600We
-- eSCL und SANE als erste Scanner-Anbindungen
-- zusätzlicher SMB-Eingang für Scan-to-Network-Geräte
 - Scanprofile konfigurierbar
 - Scanziele konfigurierbar
-- Workflows konfigurierbar
-- Dokumenttrennung optional
-- Trennung je Profil bzw. Workflow aktivierbar
-- geplante Trennmethoden:
-  - Patch-T
-  - QR-Code
-  - Barcode
-  - Leerseite
-  - manuell
-- später OCR
+- Workflows
+- SMB-Eingang
+- optionale Dokumenttrennung
+- Patch-T
+- QR-Code
+- Barcode
+- Leerseite
+- manuelle Trennung
+- OCR
 - Vorschau und Seitenbearbeitung
 - Paperless-ngx
 - weitere Ziel-Adapter
 
-## Architekturentscheidung
-
-Scanner, Scanprofile, Scanziele und Workflows bleiben voneinander getrennt.
-
-Ein Scanner ist nicht fest an ein Ziel gebunden. Ein Scanprofil kann später von mehreren Scannern verwendet werden.
-
-## Bereits vorhanden
-
-- `README.md`
-- `INSTALLATION.md`
-- `NEUER-CHAT.md`
-- `docs/ARCHITECTURE.md`
-- `pyproject.toml`
-- `scanpro/main.py`
-- `scanpro/db.py`
-- `scanpro/models.py`
-- `scanpro/schemas.py`
-- `scanpro/services/naps2.py`
-- `scanpro/services/separation.py`
-- `tests/test_health.py`
-- `scripts/install-dev.sh`
-- systemd- und Nginx-Vorlagen
-
-## Bereits im Datenmodell
-
-- Scanner
-- ScanProfile
-- Destination
-- Workflow
-- ScanJob
-
-## Aktuelle Trennmethoden im Modell
-
-- `none`
-- `patch-t`
-- `qr`
-- `barcode`
-- `blank-page`
-- `manual`
-
 ## Nächster Entwicklungsschritt
 
-**0.1.1-dev – Scanner-Erkennung und Testscan**
+Nach erfolgreichem 0.1.1-Test auf dem Server:
 
-1. NAPS2-Geräte über eSCL erkennen
-2. NAPS2-Geräte über SANE erkennen
-3. erkannte Scanner über die API anzeigen
-4. Scanner in ScanPro übernehmen und speichern
-5. Testscan mit gespeichertem Scanner auslösen
-6. ScanJob anlegen
-7. Status und Fehler speichern
-8. PDF in ScanPro-Arbeitsverzeichnis ablegen
+**0.1.2-dev – erste Weboberfläche für Scannerverwaltung**
 
-Danach:
+Geplant:
 
-- erste Weboberfläche für Scannerverwaltung
-- SMB-Inbox
-- Patch-T-Trennung
+1. erkannte Scanner anzeigen
+2. Scanner per Klick übernehmen
+3. gespeicherte Scanner anzeigen
+4. Online/Offline-Status
+5. Testscan per Button
+6. ScanJob-Ergebnis anzeigen
+
+Danach folgen SMB-Inbox und Trennfunktion.
 
 ## Einstieg in einem neuen Chat
-
-Den nächsten Chat mit folgendem Auftrag starten:
 
 ```text
 Lies bitte die Datei NEUER-CHAT.md aus meinem GitHub-Projekt Markus4771/ScanPro und führe die Entwicklung ab dem dort dokumentierten Stand weiter.

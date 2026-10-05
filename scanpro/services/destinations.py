@@ -4,6 +4,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import httpx
+
 class DestinationError(RuntimeError):
     pass
 
@@ -17,10 +19,64 @@ def public_config(destination_type: str, config_json: str) -> dict:
     cfg = _load_config(config_json)
     if destination_type == "smb" and "password" in cfg:
         cfg["password"] = "********"
+    if destination_type == "paperless" and "token" in cfg:
+        cfg["token"] = "********"
     return cfg
 
 def test_destination(destination_type: str, config_json: str) -> dict:
     cfg = _load_config(config_json)
+    if destination_type == "paperless":
+        base_url = str(cfg.get("base_url", "")).rstrip("/")
+        token = str(cfg.get("token", "")).strip()
+        if not base_url or not token:
+            raise DestinationError("Paperless-URL und API-Token sind erforderlich.")
+
+        title = str(cfg.get("title", "")).strip()
+        if not title and target_name:
+            title = Path(target_name).stem
+
+        data: list[tuple[str, str]] = []
+        if title:
+            data.append(("title", title))
+
+        for key in ("correspondent", "document_type", "storage_path"):
+            value = cfg.get(key)
+            if value not in (None, ""):
+                data.append((key, str(value)))
+
+        tags = cfg.get("tags", [])
+        if isinstance(tags, str):
+            tags = [item.strip() for item in tags.split(",") if item.strip()]
+        for tag in tags or []:
+            data.append(("tags", str(tag)))
+
+        headers = {
+            "Authorization": f"Token {token}",
+            "Accept": "application/json; version=10",
+        }
+
+        try:
+            with source.open("rb") as handle:
+                response = httpx.post(
+                    f"{base_url}/api/documents/post_document/",
+                    headers=headers,
+                    data=data,
+                    files={"document": (target_name or source.name, handle, "application/pdf")},
+                    timeout=120,
+                )
+        except httpx.HTTPError as exc:
+            raise DestinationError(f"Paperless-Upload fehlgeschlagen: {exc}") from exc
+        except OSError as exc:
+            raise DestinationError(f"Quelldatei konnte nicht geöffnet werden: {exc}") from exc
+
+        if response.status_code >= 400:
+            raise DestinationError(
+                f"Paperless-Upload HTTP {response.status_code}: {response.text[:500]}"
+            )
+
+        task_id = response.text.strip().strip('"')
+        return f"paperless-task:{task_id}"
+
     if destination_type == "local":
         path = Path(cfg.get("path", "")).expanduser()
         if not str(path):
@@ -33,6 +89,33 @@ def test_destination(destination_type: str, config_json: str) -> dict:
         except OSError as exc:
             raise DestinationError(f"Kein Schreibzugriff auf {path}: {exc}") from exc
         return {"ok": True, "message": f"Lokales Ziel ist beschreibbar: {path}"}
+
+    if destination_type == "paperless":
+        base_url = str(cfg.get("base_url", "")).rstrip("/")
+        token = str(cfg.get("token", "")).strip()
+        if not base_url or not token:
+            raise DestinationError("Paperless-URL und API-Token sind erforderlich.")
+        try:
+            response = httpx.get(
+                f"{base_url}/api/documents/?page_size=1",
+                headers={
+                    "Authorization": f"Token {token}",
+                    "Accept": "application/json; version=10",
+                },
+                timeout=15,
+            )
+        except httpx.HTTPError as exc:
+            raise DestinationError(f"Paperless-Verbindung fehlgeschlagen: {exc}") from exc
+        if response.status_code >= 400:
+            raise DestinationError(
+                f"Paperless antwortet mit HTTP {response.status_code}: {response.text[:300]}"
+            )
+        server_version = response.headers.get("X-Version", "unbekannt")
+        api_version = response.headers.get("X-Api-Version", "unbekannt")
+        return {
+            "ok": True,
+            "message": f"Paperless erreichbar (Server {server_version}, API {api_version}).",
+        }
 
     if destination_type == "smb":
         server = cfg.get("server")

@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.2.1-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.2.2-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.2.1-dev"}
+{"status":"ok","version":"0.2.2-dev"}
 ```
 
 ## Scanner über ScanPro suchen
@@ -250,7 +250,7 @@ Die Weboberfläche bietet aktuell:
 - Einseitig/Duplex wählen
 - letzte ScanJobs anzeigen
 
-## Update auf 0.2.1-dev
+## Update auf 0.2.2-dev
 
 ```bash
 cd ~/ScanPro
@@ -378,3 +378,44 @@ Damit kann ein Netzwerk-Scanner direkt nach:
 ```
 
 scannen.
+
+
+## Optionale SMB-Freigabe je Scanprofil
+
+Ab 0.2.2-dev kann jedes Scanprofil eine eigene SMB-Freigabe bekommen.
+
+Beispiel:
+
+```text
+Scanprofil: Rechnungen
+SMB-Freigabe: Rechnungen
+Netzwerkpfad: \\IP-DES-SCANPRO-SERVERS\Rechnungen
+```
+
+Im Webinterface beim Scanprofil:
+
+1. **Eigene SMB-Freigabe auf ScanPro** aktivieren
+2. Freigabenamen eintragen
+3. Profil speichern
+
+ScanPro erzeugt dann automatisch den Profilordner unter:
+
+```text
+/var/lib/scanpro/profile-inbox/<PROFIL-ID>
+```
+
+Die dynamische Samba-Konfiguration liegt unter:
+
+```text
+/var/lib/scanpro/samba-profile-shares.conf
+```
+
+Ein systemd Path-Service überwacht diese Datei und lädt Samba bei Änderungen automatisch neu.
+
+Prüfen:
+
+```bash
+systemctl status scanpro-samba-reload.path --no-pager
+sudo testparm -s
+smbclient -L localhost -U scanpro
+```

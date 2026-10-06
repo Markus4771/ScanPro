@@ -70,6 +70,30 @@
 
   <section class="card" style="margin-top:16px">
     <div class="row" style="justify-content:space-between">
+      <h2 style="margin-bottom:0">Scanner-Menüprofile</h2>
+      <button class="secondary" onclick="loadScannerMenu()">Aktualisieren</button>
+    </div>
+    <p class="muted">ScanPro erzeugt für aktivierte Profile eine eigene SMB-Inbox. Diese Daten werden anschließend als Scan-to-Network-Profil im Brother hinterlegt.</p>
+    <div class="grid">
+      <label>Scanner
+        <select id="scannerMenuScanner"></select>
+      </label>
+      <label>Scanprofil
+        <select id="scannerMenuProfile"></select>
+      </label>
+      <label>Anzeigename am Scanner
+        <input id="scannerMenuDisplayName" placeholder="z. B. Rechnung">
+      </label>
+    </div>
+    <div class="actions">
+      <button onclick="saveScannerMenuProfile(true)">Am Scanner anzeigen</button>
+      <button class="secondary" onclick="saveScannerMenuProfile(false)">Deaktivieren</button>
+    </div>
+    <div id="scannerMenuEntries" class="muted" style="margin-top:12px">Lade…</div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <div class="row" style="justify-content:space-between">
       <h2 style="margin-bottom:0">Scanprofile</h2>
       <button class="secondary" onclick="resetProfileForm()">Neues Profil</button>
     </div>
@@ -373,6 +397,7 @@ let destinationsCache=[];
 let scannersCache=[];
 let scannerStatusCache=[];
 let scannerStaticTargetsCache=[];
+let scannerMenuCache=[];
 let workflowsCache=[];
 
 async function api(url, options={}) {
@@ -383,7 +408,7 @@ async function api(url, options={}) {
 }
 async function init(){
   const h=await api('/health'); document.getElementById('version').textContent=h.version;
-  await loadSaved(); await loadProfiles(); await loadDestinations(); await loadWorkflows(); await loadJobs();
+  await loadSaved(); await loadProfiles(); await loadScannerMenu(); await loadDestinations(); await loadWorkflows(); await loadJobs();
 }
 async function discover(driver='sane'){
   const box=document.getElementById('discovered'); box.textContent='Suche…';
@@ -423,6 +448,7 @@ async function loadSaved(){
   }
   if([...filter.options].some(o=>o.value===currentFilter))filter.value=currentFilter;
   renderSavedScanners();
+  populateScannerMenuSelectors();
 }
 function renderSavedScanners(){
   const statusMap=new Map(scannerStatusCache.map(x=>[x.id,x]));
@@ -521,6 +547,61 @@ async function deleteScanner(s){
   try{
     await api('/api/scanners/'+s.id,{method:'DELETE'});
     await loadSaved();
+  }catch(e){alert(e.message)}
+}
+
+function populateScannerMenuSelectors(){
+  const scannerSel=document.getElementById('scannerMenuScanner');
+  const profileSel=document.getElementById('scannerMenuProfile');
+  if(!scannerSel||!profileSel)return;
+  const oldScanner=scannerSel.value, oldProfile=profileSel.value;
+  scannerSel.innerHTML='';
+  for(const s of scannersCache){
+    if(!s.enabled)continue;
+    const o=document.createElement('option'); o.value=s.id; o.textContent=s.name; scannerSel.appendChild(o);
+  }
+  profileSel.innerHTML='';
+  for(const p of profilesCache){
+    const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; profileSel.appendChild(o);
+  }
+  if([...scannerSel.options].some(o=>o.value===oldScanner))scannerSel.value=oldScanner;
+  if([...profileSel.options].some(o=>o.value===oldProfile))profileSel.value=oldProfile;
+}
+async function loadScannerMenu(){
+  populateScannerMenuSelectors();
+  const box=document.getElementById('scannerMenuEntries');
+  if(!box)return;
+  try{
+    scannerMenuCache=await api('/api/scanner-menu');
+    box.innerHTML='';
+    if(!scannerMenuCache.length){
+      box.innerHTML='<span class="muted">Noch keine Scanner-Menüprofile eingerichtet.</span>';
+      return;
+    }
+    for(const e of scannerMenuCache){
+      const el=document.createElement('div'); el.className='item';
+      el.innerHTML='<strong>'+escapeHtml(e.display_name)+'</strong> '+
+        (e.enabled?'<span class="badge ok">aktiv</span>':'<span class="badge off">aus</span>')+
+        '<div class="muted">Scanner: '+escapeHtml(e.scanner_name)+' · Profil: '+escapeHtml(e.profile_name)+'</div>'+
+        '<div class="muted">SMB: '+escapeHtml(e.network_path||'noch nicht aktiv')+' · Benutzer: '+escapeHtml(e.username||'scanpro')+'</div>';
+      box.appendChild(el);
+    }
+  }catch(e){ box.innerHTML='<span class="err">'+escapeHtml(e.message)+'</span>'; }
+}
+async function saveScannerMenuProfile(enabled){
+  const scannerId=Number(document.getElementById('scannerMenuScanner').value);
+  const profileId=Number(document.getElementById('scannerMenuProfile').value);
+  if(!scannerId||!profileId){alert('Bitte Scanner und Profil auswählen.');return;}
+  const profile=profilesCache.find(x=>x.id===profileId);
+  const displayName=document.getElementById('scannerMenuDisplayName').value.trim()||(profile?profile.name:'Profil');
+  try{
+    await api('/api/scanners/'+scannerId+'/menu-profile/'+profileId,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({enabled,display_name:displayName})
+    });
+    await loadProfiles();
+    await loadScannerMenu();
   }catch(e){alert(e.message)}
 }
 
@@ -740,6 +821,7 @@ async function loadProfiles(){
   profilePaperlessRulesCache=paperlessRules;
   profileOutputSettingsCache=outputSettings;
   populateWorkflowSelectors();
+  populateScannerMenuSelectors();
   const box=document.getElementById('profiles');
   const sel=document.getElementById('scanProfile');
   const current=sel.value;

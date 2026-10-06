@@ -1,6 +1,6 @@
 # ScanPro – Benutzungsanleitung
 
-**Version:** 0.8.1-dev
+**Version:** 0.9.0-dev
 
 ScanPro ist eine zentrale Scan- und Dokumentenverarbeitungslösung für Linux/Debian. Scanner können lokal oder über VPN angebunden werden. ScanPro kann Dokumente automatisch verarbeiten, trennen, per OCR erkennen, umbenennen und anschließend beispielsweise auf ein SMB-Ziel oder nach Paperless-ngx übertragen.
 
@@ -956,3 +956,28 @@ Foto → Foto-Archiv
 Damit muss ein Benutzer nicht mehr wissen, wie OCR, SMB oder Paperless technisch funktionieren.
 
 Er wählt lediglich den passenden Workflow.
+
+
+## 45. Zugangsdaten und Secret Store
+
+SMB-Passwörter und Paperless-API-Tokens werden ab ScanPro 0.9.0-dev verschlüsselt auf dem ScanPro-Server gespeichert.
+
+Im Webinterface ändert sich die Bedienung nicht. Bereits gespeicherte Zugangsdaten werden weiterhin als:
+
+```text
+********
+```
+
+angezeigt.
+
+Beim Ändern eines Scanziels kann ein neues Passwort bzw. Token eingegeben werden. Wird `********` unverändert übernommen, bleibt das vorhandene Secret erhalten.
+
+Die verschlüsselte Ablage befindet sich unter:
+
+```text
+/var/lib/scanpro/secrets/
+```
+
+Dieser Bereich ist eine Administratorfunktion und sollte nicht für normale Benutzer freigegeben werden.
+
+**Wichtig für Backups:** Die ScanPro-Datenbank und der Secret Store müssen immer gemeinsam gesichert werden. Ohne den zugehörigen `master.key` können vorhandene Zugangsdaten nicht wiederhergestellt werden.

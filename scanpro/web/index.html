@@ -117,6 +117,9 @@ async function loadProfiles(){
   profiles=await api('/api/profiles');
   const box=document.getElementById('profiles'); box.innerHTML='';
   const sel=document.getElementById('iProfile'); sel.innerHTML='';
+  const placeholder=document.createElement('option');
+  placeholder.value=''; placeholder.textContent=profiles.length?'-- Profil wählen --':'-- zuerst Profil anlegen --';
+  sel.appendChild(placeholder);
   for(const p of profiles){
     const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);
     const el=document.createElement('div');el.className='item';
@@ -161,6 +164,10 @@ async function loadDestinations(){
   destinations=await api('/api/destinations');
   const box=document.getElementById('destinations');box.innerHTML='';
   const sel=document.getElementById('iDestination');sel.innerHTML='';
+  const enabledDestinations=destinations.filter(d=>d.enabled);
+  const placeholder=document.createElement('option');
+  placeholder.value=''; placeholder.textContent=enabledDestinations.length?'-- Scanziel wählen --':'-- zuerst Scanziel anlegen --';
+  sel.appendChild(placeholder);
   for(const d of destinations){
     if(d.enabled){const o=document.createElement('option');o.value=d.id;o.textContent=d.name;sel.appendChild(o);}
     const el=document.createElement('div');el.className='item';

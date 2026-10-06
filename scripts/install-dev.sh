@@ -91,7 +91,7 @@ echo "ScanPro-Datenbank initialisieren und Schema migrieren..."
 runuser -u scanpro -- env \
   HOME=/var/lib/scanpro \
   SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro/scanpro.db \
-  /opt/scanpro/.venv/bin/python -c 'from scanpro.db import Base, engine, initialize_database; import scanpro.models; from scanpro.migrations import run_schema_migrations; initialize_database(); Base.metadata.create_all(bind=engine); print("Schema-Version:", run_schema_migrations(engine))'
+  /opt/scanpro/.venv/bin/python -c 'from scanpro.db import Base, SessionLocal, engine, initialize_database; import scanpro.models; from scanpro.migrations import run_schema_migrations; from scanpro.services.destination_secrets import migrate_destination_secrets; initialize_database(); Base.metadata.create_all(bind=engine); print("Schema-Version:", run_schema_migrations(engine)); db=SessionLocal(); print("Migrierte Secrets:", migrate_destination_secrets(db)); db.close()'
 
 systemctl enable scanpro
 systemctl restart scanpro

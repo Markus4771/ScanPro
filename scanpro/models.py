@@ -229,3 +229,13 @@ class ScannerStaticTarget(Base):
     device_name: Mapped[str] = mapped_column(String(255), default="")
     device_id: Mapped[str] = mapped_column(String(255), default="")
     address: Mapped[str] = mapped_column(String(255), default="")
+
+
+class ScannerMenuEntry(Base):
+    __tablename__ = "scanner_menu_entries"
+    __table_args__ = (UniqueConstraint("scanner_id", "profile_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scanner_id: Mapped[int] = mapped_column(ForeignKey("scanners.id", ondelete="CASCADE"))
+    profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    display_name: Mapped[str] = mapped_column(String(80))

@@ -221,14 +221,11 @@ journalctl -u scanpro -f
 
 Die SQLite-Datenbank liegt ab 0.5.2-dev unter `/var/lib/scanpro/scanpro.db`. Vor Updates erstellt das Installationsskript automatisch eine Sicherung unter `/var/lib/scanpro/backups/`.
 
-## Nächster Entwicklungsschritt
+## Aktueller Funktionsstand
 
-Nach erfolgreichem API-Testscan:
+ScanPro 0.9.1-dev enthält bereits Scannerverwaltung, Weboberfläche, SMB-Inboxen, Workflows, Dokumenttrennung, Bildoptimierung, OCR, Paperless-Integration, Foto-/Bildscan, Remote-/VPN-Scanner, Secret Store und Scanner-Menüprofile.
 
-1. Weboberfläche für Scanner-Erkennung und Scannerverwaltung
-2. Testscan-Button im Webinterface
-3. SMB-Inbox
-4. Patch-T-Trennung
+Der nächste geplante Entwicklungsschritt ist **0.9.2-dev – Cleanup / Retention**.
 
 
 ## Weboberfläche
@@ -1094,3 +1091,41 @@ sudo smbpasswd -a scanpro
 ```
 
 Danach kann der Benutzer das Profil direkt am Scanner auswählen. Die eingehende PDF wird von ScanPro automatisch dem zugehörigen Scanprofil zugeordnet und weiterverarbeitet.
+
+
+## Prüfung Scanner-Menüprofile nach dem Update
+
+Scanner-Menüprofile anzeigen:
+
+```bash
+curl http://127.0.0.1:8100/api/scanner-menu
+```
+
+Profil-SMB-Freigaben prüfen:
+
+```bash
+curl http://127.0.0.1:8100/api/profile-shares
+```
+
+Samba-Konfiguration prüfen:
+
+```bash
+sudo testparm -s
+smbclient -L localhost -U scanpro
+```
+
+Für einen Brother ADS-2600We wird der von ScanPro angezeigte SMB-Pfad anschließend einmalig als Scan-to-Network-Profil am Gerät hinterlegt.
+
+## Nächster Entwicklungsschritt
+
+**0.9.2-dev – Cleanup / Retention**
+
+Geplant:
+
+- Aufbewahrungsregeln für Jobs
+- automatische Bereinigung temporärer PDFs/Bilder
+- unterschiedliche Regeln für erfolgreiche und fehlerhafte Jobs
+- manuelle Bereinigung im Webinterface
+- Schutz noch benötigter Dateien
+
+Danach folgen Paperless Custom Fields, automatische Dokumentklassifikation, Remote Collector und Stabilisierung Richtung 1.0.

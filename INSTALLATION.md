@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.9.0-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.9.1-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.9.0-dev","schema_version":6}
+{"status":"ok","version":"0.9.1-dev","schema_version":7}
 ```
 
 ## Scanner über ScanPro suchen
@@ -1062,3 +1062,35 @@ Der Installer legt beim Update eine Sicherung an:
 Für eine Wiederherstellung müssen **Datenbank und Secret Store zusammen** zurückgespielt werden.
 
 Ohne `master.key` können bestehende Secret-Dateien nicht entschlüsselt werden.
+
+
+## Scanner-Menüprofile / Brother Scan-to-Network
+
+Ab 0.9.1-dev können ScanPro-Profile für einen Scanner als Menüprofil vorbereitet werden.
+
+Im ScanPro-Webinterface:
+
+1. **Scanner-Menüprofile** öffnen.
+2. Scanner auswählen.
+3. Scanprofil auswählen.
+4. Anzeigenamen festlegen, z. B. `Rechnung`.
+5. **Am Scanner anzeigen** wählen.
+
+ScanPro aktiviert automatisch eine eigene SMB-Inbox für dieses Profil.
+
+Danach zeigt ScanPro z. B.:
+
+```text
+\\scanpro\Rechnungen
+Benutzer: scanpro
+```
+
+Diesen Pfad einmalig im Brother ADS-2600We als Scan-to-Network-/Netzwerk-Profil hinterlegen.
+
+Wichtig: Das Samba-Passwort des Benutzers `scanpro` muss gesetzt sein:
+
+```bash
+sudo smbpasswd -a scanpro
+```
+
+Danach kann der Benutzer das Profil direkt am Scanner auswählen. Die eingehende PDF wird von ScanPro automatisch dem zugehörigen Scanprofil zugeordnet und weiterverarbeitet.

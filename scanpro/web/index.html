@@ -108,8 +108,10 @@ async function api(url,options={}){
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 async function init(){
   const h=await api('/health'); document.getElementById('version').textContent=h.version;
-  await Promise.all([loadProfiles(),loadDestinations()]);
-  await Promise.all([loadInputs(),loadJobs()]);
+  const results=await Promise.allSettled([loadProfiles(),loadDestinations(),loadInputs(),loadJobs()]);
+  results.forEach((r,i)=>{
+    if(r.status==='rejected')console.error(['Profile','Scanziele','Scan-Eingänge','Jobs'][i]+':',r.reason);
+  });
 }
 async function loadProfiles(){
   profiles=await api('/api/profiles');
@@ -132,7 +134,9 @@ async function createProfile(){
     deskew:document.getElementById('pDeskew').checked,auto_crop:document.getElementById('pCrop').checked,
     split_method:document.getElementById('pSplit').value,filename_template:document.getElementById('pFilename').value
   })});
-  document.getElementById('pName').value=''; await loadProfiles(); await loadInputs();
+  document.getElementById('pName').value='';
+  await loadProfiles();
+  loadInputs().catch(e=>console.error('Scan-Eingänge:',e));
 }
 function toggleDestination(){
   const t=document.getElementById('dType').value;
@@ -149,7 +153,9 @@ function destinationConfig(){
 async function createDestination(){
   const name=document.getElementById('dName').value.trim(); if(!name)return alert('Name fehlt.');
   await api('/api/destinations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,type:document.getElementById('dType').value,enabled:true,config:destinationConfig()})});
-  document.getElementById('dName').value=''; await loadDestinations(); await loadInputs();
+  document.getElementById('dName').value='';
+  await loadDestinations();
+  loadInputs().catch(e=>console.error('Scan-Eingänge:',e));
 }
 async function loadDestinations(){
   destinations=await api('/api/destinations');

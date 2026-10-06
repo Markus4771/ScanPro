@@ -2,8 +2,8 @@
 
 ScanPro ist eine modulare Linux-ScanStation für Dokumenten- und Netzwerkscanner.
 
-**Aktueller Entwicklungsstand: 0.9.1-dev**  
-**Datenbankschema: 7**
+**Aktueller Entwicklungsstand: 0.9.2-dev**  
+**Datenbankschema: 8**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und unterstützt mehrere Scanner, lokale Netze und entfernte Standorte.
 
@@ -360,7 +360,7 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.9.1-dev","schema_version":7}
+{"status":"ok","version":"0.9.2-dev","schema_version":8}
 ```
 
 ## Projektpfade
@@ -376,7 +376,7 @@ Erwartet:
 
 ## Nächste Entwicklungsschritte
 
-### 0.9.2-dev – Cleanup / Retention
+### 0.9.3-dev – Cleanup / Retention
 
 Geplant:
 
@@ -392,3 +392,31 @@ Danach:
 - automatische Dokumentklassifikation
 - Remote Collector
 - Stabilisierung und Tests Richtung 1.0
+
+
+## Mehrere Scanner-Menüprofile mit verschiedenen Zielen
+
+Ab 0.9.2-dev enthält jeder Scanner-Menüeintrag direkt ein Scanziel.
+
+Konfiguration:
+
+```text
+Scanner → Scanprofil → Scanziel → Anzeigename
+```
+
+Beispiele:
+
+```text
+Brother ADS-2600We → Rechnungen → Paperless → Rechnung
+Brother ADS-2600We → Lieferscheine → NAS-Lieferscheine → Lieferschein
+Brother ADS-2600We → Archiv → SMB-Archiv → Archiv
+Brother ADS-2600We → Foto → Foto-Archiv → Foto
+```
+
+Beim Aktivieren erzeugt ScanPro automatisch:
+
+- die profilbezogene SMB-Inbox
+- den passenden Profil-Inbox-Workflow
+- die Verknüpfung zum gewählten Scanziel
+
+Wichtig: Dasselbe Scanprofil darf nicht gleichzeitig auf unterschiedliche Ziele zeigen. Für verschiedene Ziele werden verschiedene Scanprofile verwendet.

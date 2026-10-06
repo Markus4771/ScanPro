@@ -7,6 +7,8 @@ from pathlib import Path
 
 import httpx
 
+from .secret_store import SecretStoreError, get_secret
+
 
 class DestinationError(RuntimeError):
     pass
@@ -19,12 +21,26 @@ def _load_config(config_json: str) -> dict:
         raise DestinationError("Ungültige Zielkonfiguration.") from exc
 
 
+def resolve_config(destination_type: str, config_json: str) -> dict:
+    cfg = _load_config(config_json)
+    try:
+        if destination_type == "smb" and cfg.get("password_secret_ref"):
+            cfg["password"] = get_secret(cfg["password_secret_ref"])
+        if destination_type == "paperless" and cfg.get("token_secret_ref"):
+            cfg["token"] = get_secret(cfg["token_secret_ref"])
+    except SecretStoreError as exc:
+        raise DestinationError(str(exc)) from exc
+    return cfg
+
+
 def public_config(destination_type: str, config_json: str) -> dict:
     cfg = _load_config(config_json)
-    if destination_type == "smb" and "password" in cfg:
-        cfg["password"] = "********"
-    if destination_type == "paperless" and "token" in cfg:
-        cfg["token"] = "********"
+    cfg.pop("password", None)
+    cfg.pop("token", None)
+    if destination_type == "smb":
+        cfg["password"] = "********" if cfg.get("password_secret_ref") else ""
+    if destination_type == "paperless":
+        cfg["token"] = "********" if cfg.get("token_secret_ref") else ""
     return cfg
 
 
@@ -40,7 +56,7 @@ def _paperless_verify(cfg: dict) -> bool:
 
 
 def test_destination(destination_type: str, config_json: str) -> dict:
-    cfg = _load_config(config_json)
+    cfg = resolve_config(destination_type, config_json)
 
     if destination_type == "local":
         path = Path(cfg.get("path", "")).expanduser()
@@ -121,7 +137,7 @@ def deliver_file(
     target_name: str | None = None,
     metadata: dict | None = None,
 ) -> str:
-    cfg = _load_config(config_json)
+    cfg = resolve_config(destination_type, config_json)
     source = Path(source_path)
     if not source.exists():
         raise DestinationError(f"Quelldatei wurde nicht gefunden: {source}")

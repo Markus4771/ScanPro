@@ -4,6 +4,8 @@ from pathlib import Path
 import httpx
 from sqlalchemy.orm import Session
 
+from .destinations import resolve_config
+
 from ..models import (
     Destination,
     JobDocument,
@@ -22,9 +24,9 @@ class PaperlessError(RuntimeError):
 
 def _cfg(destination: Destination) -> dict:
     try:
-        return json.loads(destination.config_json or "{}")
-    except json.JSONDecodeError as exc:
-        raise PaperlessError("Ungültige Paperless-Zielkonfiguration.") from exc
+        return resolve_config(destination.type, destination.config_json)
+    except Exception as exc:
+        raise PaperlessError(f"Paperless-Zielkonfiguration konnte nicht geladen werden: {exc}") from exc
 
 
 def _headers(token: str) -> dict[str, str]:

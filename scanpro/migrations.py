@@ -53,9 +53,7 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(
         version=8,
         description="Scanner menu destinations",
-        statements=(
-            "ALTER TABLE scanner_menu_entries ADD COLUMN destination_id INTEGER REFERENCES destinations(id)",
-        ),
+        statements=(),
     ),
 )
 
@@ -82,6 +80,12 @@ def _ensure_version_table(engine: Engine) -> None:
             )
 
 
+def _column_exists(engine: Engine, table: str, column: str) -> bool:
+    with engine.begin() as connection:
+        rows = connection.execute(text(f"PRAGMA table_info({table})")).mappings().all()
+        return any(row["name"] == column for row in rows)
+
+
 def get_schema_version(engine: Engine) -> int:
     _ensure_version_table(engine)
     with engine.begin() as connection:
@@ -95,6 +99,16 @@ def get_schema_version(engine: Engine) -> int:
 def run_schema_migrations(engine: Engine) -> int:
     _ensure_version_table(engine)
     current = get_schema_version(engine)
+
+    # Schema 8 repair is intentionally idempotent. SQLAlchemy create_all()
+    # does not add columns to existing SQLite tables, while fresh databases
+    # may already contain the column from the current model definition.
+    if not _column_exists(engine, "scanner_menu_entries", "destination_id"):
+        with engine.begin() as connection:
+            connection.execute(text(
+                "ALTER TABLE scanner_menu_entries "
+                "ADD COLUMN destination_id INTEGER REFERENCES destinations(id)"
+            ))
 
     for migration in MIGRATIONS:
         if migration.version <= current:

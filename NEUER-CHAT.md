@@ -4,7 +4,7 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.9.1-dev**
+Aktueller Stand: **0.9.2-dev**
 
 ## Neu in 0.9.0-dev
 
@@ -89,7 +89,7 @@ Datenbank und Secret Store müssen gemeinsam gesichert/wiederhergestellt werden.
 ## Schema-Version
 
 ```text
-6
+8
 ```
 
 ## Update
@@ -109,7 +109,7 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.9.1-dev","schema_version":7}
+{"status":"ok","version":"0.9.2-dev","schema_version":8}
 ```
 
 Secret Store:
@@ -144,7 +144,7 @@ Das Brother-Gerät benötigt anschließend einmalig ein Scan-to-Network-Profil a
 
 Empfohlen:
 
-**0.9.2-dev – Cleanup / Retention**
+**0.9.3-dev – Cleanup / Retention**
 
 - Aufbewahrungsregeln für Jobs
 - temporäre PDFs/Bilder bereinigen
@@ -164,3 +164,24 @@ Danach:
 ```text
 Lies bitte die Datei NEUER-CHAT.md aus meinem GitHub-Projekt Markus4771/ScanPro und führe die Entwicklung ab dem dort dokumentierten Stand weiter.
 ```
+
+
+## Neu in 0.9.2-dev – Ziele pro Scanner-Menüprofil
+
+Scanner-Menüprofile enthalten jetzt zusätzlich:
+
+```text
+destination_id
+```
+
+UI:
+
+```text
+Scanner → Scanprofil → Scanziel → Anzeigename
+```
+
+Beim Aktivieren wird automatisch ein Profil-SMB-Inbox-Workflow für das gewählte Ziel angelegt.
+
+Unterschiedliche Ziele benötigen unterschiedliche Scanprofile, da die Profil-SMB-Inbox nur das Profil und nicht den absendenden Scanner kennt.
+
+Schema-Version: 8.

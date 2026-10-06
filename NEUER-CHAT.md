@@ -4,7 +4,7 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.9.0-dev**
+Aktueller Stand: **0.9.1-dev**
 
 ## Neu in 0.9.0-dev
 
@@ -109,7 +109,7 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.9.0-dev","schema_version":6}
+{"status":"ok","version":"0.9.1-dev","schema_version":7}
 ```
 
 Secret Store:
@@ -119,11 +119,32 @@ sudo ls -lah /var/lib/scanpro/secrets
 sudo -u scanpro sqlite3 /var/lib/scanpro/scanpro.db "SELECT id,name,type,config_json FROM destinations;"
 ```
 
+## Neu in 0.9.1-dev – Scanner-Menüprofile
+
+ScanPro kann Profile jetzt gezielt einem Scanner zuordnen.
+
+Neue Tabelle:
+
+```text
+scanner_menu_entries
+```
+
+Neue API:
+
+```text
+GET /api/scanner-menu
+PUT /api/scanners/{scanner_id}/menu-profile/{profile_id}
+```
+
+Beim Aktivieren eines Scanner-Menüprofils wird die Profil-SMB-Inbox automatisch aktiviert.
+
+Das Brother-Gerät benötigt anschließend einmalig ein Scan-to-Network-Profil auf diese Freigabe.
+
 ## Nächster Entwicklungsschritt
 
 Empfohlen:
 
-**0.9.1-dev – Cleanup / Retention**
+**0.9.2-dev – Cleanup / Retention**
 
 - Aufbewahrungsregeln für Jobs
 - temporäre PDFs/Bilder bereinigen

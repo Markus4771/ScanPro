@@ -124,10 +124,21 @@ async function loadProfiles(){
     const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);
     const el=document.createElement('div');el.className='item';
     el.innerHTML='<strong>'+esc(p.name)+'</strong> <span class="badge '+(p.ocr_enabled?'ok':'')+'">OCR '+(p.ocr_enabled?'an':'aus')+'</span>'+
-      '<div class="muted">'+esc(p.ocr_language)+' · '+esc(p.filename_template)+'</div>';
+      '<div class="muted">'+esc(p.ocr_language)+' · '+esc(p.filename_template)+'</div>'+
+      '<div class="actions"><button class="danger" onclick="deleteProfile('+p.id+',\''+esc(p.name).replace(/&#39;/g,"\\'")+'\')">Löschen</button></div>';
     box.appendChild(el);
   }
   if(!profiles.length)box.textContent='Noch kein Profil angelegt.';
+}
+async function deleteProfile(id,name){
+  if(!confirm('Verarbeitungsprofil "'+name+'" wirklich löschen?'))return;
+  try{
+    await api('/api/profiles/'+id,{method:'DELETE'});
+    await loadProfiles();
+    await loadInputs();
+  }catch(e){
+    alert(e.message);
+  }
 }
 async function createProfile(){
   const name=document.getElementById('pName').value.trim(); if(!name)return alert('Name fehlt.');

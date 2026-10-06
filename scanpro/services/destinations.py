@@ -37,10 +37,12 @@ def public_config(destination_type: str, config_json: str) -> dict:
     cfg = _load_config(config_json)
     cfg.pop("password", None)
     cfg.pop("token", None)
+    has_smb_secret = bool(cfg.pop("password_secret_ref", None))
+    has_paperless_secret = bool(cfg.pop("token_secret_ref", None))
     if destination_type == "smb":
-        cfg["password"] = "********" if cfg.get("password_secret_ref") else ""
+        cfg["password"] = "********" if has_smb_secret else ""
     if destination_type == "paperless":
-        cfg["token"] = "********" if cfg.get("token_secret_ref") else ""
+        cfg["token"] = "********" if has_paperless_secret else ""
     return cfg
 
 

@@ -47,6 +47,12 @@ else
   echo "Keine bestehende Datenbank gefunden; ScanPro legt eine neue Datenbank an."
 fi
 
+if [[ -f /var/lib/scanpro/secrets/master.key ]]; then
+  echo "Sichere ScanPro Secret Store..."
+  tar -C /var/lib/scanpro -czf "/var/lib/scanpro/backups/scanpro-secrets-$BACKUP_STAMP.tar.gz" secrets
+  chmod 0600 "/var/lib/scanpro/backups/scanpro-secrets-$BACKUP_STAMP.tar.gz"
+fi
+
 if [[ -f "$DB_TARGET" ]]; then
   integrity="$(sqlite3 "$DB_TARGET" 'PRAGMA integrity_check;')"
   if [[ "$integrity" != "ok" ]]; then

@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
 from . import __version__
-from .db import Base, DATABASE_URL, engine, get_db, initialize_database
+from .db import Base, DATABASE_URL, SessionLocal, engine, get_db, initialize_database
 from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileOutputSettings, ProfilePaperlessRules, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, ScannerConnectionSettings, ScannerStaticTarget, Workflow
 from .schemas import (
     DestinationCreate,
@@ -33,6 +33,7 @@ from .schemas import (
 from .services.blank_pages import BlankPageError, remove_blank_pages
 from .services.documents import apply_image_processing, prepare_job_documents
 from .services.destinations import DestinationError, public_config, test_destination
+from .services.destination_secrets import delete_destination_secrets, migrate_destination_secrets, protect_destination_config
 from .services.naps2 import Naps2Error, discover_devices, scan_to_pdf
 from .services.scanner_connection import check_reachability, classify_scanner_state, effective_scanner_target, get_connection_settings, get_static_target
 from .services.profile_shares import ProfileShareError, normalize_share_name, profile_path, write_profile_samba_config
@@ -48,6 +49,8 @@ from .migrations import CURRENT_SCHEMA_VERSION, get_schema_version, run_schema_m
 initialize_database()
 Base.metadata.create_all(bind=engine)
 run_schema_migrations(engine)
+with SessionLocal() as _startup_db:
+    migrate_destination_secrets(_startup_db)
 
 
 def sync_profile_shares(db: Session) -> None:
@@ -683,8 +686,19 @@ def create_destination(payload: DestinationCreate, db: Session = Depends(get_db)
     data = payload.model_dump(); config = data.pop("config")
     if data["type"] not in {"local", "smb", "paperless"}:
         raise HTTPException(400, "Unterstützte Zieltypen: lokal, SMB und Paperless-ngx.")
-    obj = Destination(**data, config_json=json.dumps(config))
+    initial_config = dict(config)
+    initial_config.pop("password", None)
+    initial_config.pop("token", None)
+    obj = Destination(**data, config_json=json.dumps(initial_config))
     db.add(obj); db.commit(); db.refresh(obj)
+    protected = protect_destination_config(
+        obj.id,
+        obj.type,
+        config,
+        previous_config_json=obj.config_json,
+    )
+    obj.config_json = json.dumps(protected, ensure_ascii=False)
+    db.commit(); db.refresh(obj)
     return {
         "id": obj.id,
         "name": obj.name,
@@ -707,12 +721,14 @@ def update_destination(destination_id: int, payload: DestinationUpdate, db: Sess
         raise HTTPException(400, "Unterstützte Zieltypen: lokal, SMB und Paperless-ngx.")
     if "config" in data:
         cfg = data.pop("config")
-        previous = json.loads(obj.config_json or "{}")
-        if obj.type == "smb" and cfg.get("password") == "********":
-            cfg["password"] = previous.get("password", "")
-        if obj.type == "paperless" and cfg.get("token") == "********":
-            cfg["token"] = previous.get("token", "")
-        obj.config_json = json.dumps(cfg)
+        destination_type = data.get("type", obj.type)
+        protected = protect_destination_config(
+            obj.id,
+            destination_type,
+            cfg,
+            previous_config_json=obj.config_json,
+        )
+        obj.config_json = json.dumps(protected, ensure_ascii=False)
     for key, value in data.items():
         setattr(obj, key, value)
     db.commit(); db.refresh(obj)
@@ -732,6 +748,7 @@ def delete_destination(destination_id: int, db: Session = Depends(get_db)):
     linked = db.query(Workflow).filter(Workflow.destination_id == destination_id).first()
     if linked:
         raise HTTPException(409, "Scanziel wird noch von einem Workflow verwendet.")
+    delete_destination_secrets(obj)
     db.delete(obj); db.commit()
     return {"deleted": True, "id": destination_id}
 

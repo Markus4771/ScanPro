@@ -105,6 +105,8 @@ sudo smbpasswd -a scanpro
 - Paperless-Upload
 - Job- und Delivery-Protokoll
 - neue reduzierte Weboberfläche
+- automatische Reparatur einer leeren, veralteten `scan_jobs`-Tabelle aus frühen 1.0-dev Builds
+- eindeutige Platzhalter in Profil-/Scanziel-Auswahl, solange noch nichts angelegt wurde
 
 ## Nächste Schritte
 

@@ -15,6 +15,8 @@ echo "== ScanPro 1.0-dev Neuinstallation/Update =="
 
 systemctl stop scanpro.service 2>/dev/null || true
 systemctl stop scanpro-inbox.service 2>/dev/null || true
+systemctl disable --now scanpro-samba-reload.path 2>/dev/null || true
+systemctl disable --now scanpro-samba-reload.service 2>/dev/null || true
 
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y   python3 python3-venv python3-pip   nginx samba smbclient sqlite3   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
@@ -48,6 +50,9 @@ touch "$SAMBA_INCLUDE"
 chown scanpro:scanpro "$SAMBA_INCLUDE"
 chmod 0644 "$SAMBA_INCLUDE"
 
+# Remove only the legacy ScanPro include; other Samba configuration remains untouched.
+sed -i '\|^include = /etc/samba/scanpro.conf$|d' /etc/samba/smb.conf
+rm -f /etc/samba/scanpro.conf
 if ! grep -Fq "include = $SAMBA_INCLUDE" /etc/samba/smb.conf; then
   printf '\n# ScanPro 1.0 dynamic input shares\ninclude = %s\n' "$SAMBA_INCLUDE" >> /etc/samba/smb.conf
 fi

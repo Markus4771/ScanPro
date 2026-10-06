@@ -29,6 +29,7 @@ mkdir -p /var/lib/scanpro/profile-inbox
 mkdir -p /var/lib/scanpro/.config
 mkdir -p /var/lib/scanpro/.cache
 mkdir -p /var/lib/scanpro/backups
+mkdir -p /var/lib/scanpro/secrets
 touch /var/lib/scanpro/samba-profile-shares.conf
 
 DB_TARGET="/var/lib/scanpro/scanpro.db"
@@ -63,9 +64,11 @@ python3 -m venv /opt/scanpro/.venv
 chown -R scanpro:scanpro /opt/scanpro
 chown -R scanpro:scanpro /var/lib/scanpro
 [[ -f "$DB_TARGET" ]] && chmod 0660 "$DB_TARGET" || true
+[[ -f /var/lib/scanpro/secrets/master.key ]] && chmod 0600 /var/lib/scanpro/secrets/master.key || true
 chmod 0770 /var/lib/scanpro/inbox
 chmod 0770 /var/lib/scanpro/profile-inbox
 chmod 0750 /var/lib/scanpro/jobs
+chmod 0700 /var/lib/scanpro/secrets
 chmod 0660 /var/lib/scanpro/samba-profile-shares.conf
 
 cp /opt/scanpro/deploy/scanpro.service /etc/systemd/system/scanpro.service

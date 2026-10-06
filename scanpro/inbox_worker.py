@@ -3,7 +3,7 @@ from pathlib import Path
 
 from .db import Base, SessionLocal, engine, initialize_database
 from .models import ScanInput, ScanJob
-from .services.processor_v1 import ProcessingError, process_job
+from .services.processor import ProcessingError, process_job
 from .services.shares import sync_samba_config
 
 ALLOWED_SUFFIXES = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}

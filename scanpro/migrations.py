@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import Engine, text
 
 
-CURRENT_SCHEMA_VERSION = 5
+CURRENT_SCHEMA_VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -38,6 +38,11 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(
         version=5,
         description="Static remote scanner targets",
+        statements=(),
+    ),
+    Migration(
+        version=6,
+        description="Encrypted destination secret store",
         statements=(),
     ),
 )

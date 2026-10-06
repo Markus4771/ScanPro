@@ -27,9 +27,25 @@ def index():
     return (Path(__file__).parent / "web" / "index.html").read_text(encoding="utf-8")
 
 
+def profile_json(row: ProcessingProfile) -> dict:
+    return {
+        "id": row.id,
+        "name": row.name,
+        "ocr_enabled": row.ocr_enabled,
+        "ocr_language": row.ocr_language,
+        "remove_blank_pages": row.remove_blank_pages,
+        "auto_rotate": row.auto_rotate,
+        "deskew": row.deskew,
+        "auto_crop": row.auto_crop,
+        "split_method": row.split_method,
+        "filename_template": row.filename_template,
+    }
+
+
 @app.get("/api/profiles")
 def list_profiles(db: Session = Depends(get_db)):
-    return db.query(ProcessingProfile).order_by(ProcessingProfile.name).all()
+    rows = db.query(ProcessingProfile).order_by(ProcessingProfile.name).all()
+    return [profile_json(row) for row in rows]
 
 
 @app.post("/api/profiles")
@@ -37,8 +53,10 @@ def create_profile(payload: ProfilePayload, db: Session = Depends(get_db)):
     if db.query(ProcessingProfile).filter(ProcessingProfile.name == payload.name).first():
         raise HTTPException(409, "Profil existiert bereits.")
     row = ProcessingProfile(**payload.model_dump())
-    db.add(row); db.commit(); db.refresh(row)
-    return row
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return profile_json(row)
 
 
 @app.put("/api/profiles/{profile_id}")
@@ -48,8 +66,9 @@ def update_profile(profile_id: int, payload: ProfilePayload, db: Session = Depen
         raise HTTPException(404, "Profil nicht gefunden.")
     for key, value in payload.model_dump().items():
         setattr(row, key, value)
-    db.commit(); db.refresh(row)
-    return row
+    db.commit()
+    db.refresh(row)
+    return profile_json(row)
 
 
 @app.delete("/api/profiles/{profile_id}")

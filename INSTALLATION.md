@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.8.1-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.9.0-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.8.1-dev","schema_version":5}
+{"status":"ok","version":"0.9.0-dev","schema_version":6}
 ```
 
 ## Scanner über ScanPro suchen
@@ -1004,3 +1004,61 @@ scan
 ```
 
 Die Scannerliste kann nach Standort gefiltert werden.
+
+
+## Secret Store prüfen
+
+Ab 0.9.0-dev werden SMB-Passwörter und Paperless-Tokens verschlüsselt gespeichert.
+
+Verzeichnis prüfen:
+
+```bash
+sudo ls -lah /var/lib/scanpro/secrets
+```
+
+Erwartet nach dem ersten gespeicherten Secret:
+
+```text
+master.key
+destination-1-smb-password.secret
+```
+
+oder:
+
+```text
+destination-2-paperless-token.secret
+```
+
+Rechte prüfen:
+
+```bash
+sudo stat -c '%a %U:%G %n' /var/lib/scanpro/secrets /var/lib/scanpro/secrets/master.key
+```
+
+Erwartet:
+
+```text
+700 scanpro:scanpro /var/lib/scanpro/secrets
+600 scanpro:scanpro /var/lib/scanpro/secrets/master.key
+```
+
+Prüfen, dass keine Klartext-Secrets mehr in SQLite liegen:
+
+```bash
+sudo -u scanpro sqlite3 /var/lib/scanpro/scanpro.db \
+  "SELECT id,name,type,config_json FROM destinations;"
+```
+
+Bei SMB/Paperless sollte dort nur noch eine Secret-Referenz stehen, nicht Passwort oder Token.
+
+### Backup
+
+Der Installer legt beim Update eine Sicherung an:
+
+```text
+/var/lib/scanpro/backups/scanpro-secrets-<ZEITSTEMPEL>.tar.gz
+```
+
+Für eine Wiederherstellung müssen **Datenbank und Secret Store zusammen** zurückgespielt werden.
+
+Ohne `master.key` können bestehende Secret-Dateien nicht entschlüsselt werden.

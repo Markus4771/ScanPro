@@ -2,13 +2,13 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
 from . import __version__
 from .db import Base, DATABASE_URL, SessionLocal, engine, get_db, initialize_database
-from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileOutputSettings, ProfilePaperlessRules, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, ScannerConnectionSettings, ScannerStaticTarget, Workflow
+from .models import Destination, InboxImport, JobDelivery, JobDocument, JobDocumentMetadata, JobImageProcessing, JobOcrResult, JobProcessing, JobSeparationMarker, ProfileImageProcessing, ProfileNamingSettings, ProfileOcrSettings, ProfileOutputSettings, ProfilePaperlessRules, ProfileProcessing, ProfileShare, ScanJob, ScanProfile, Scanner, ScannerConnectionSettings, ScannerMenuEntry, ScannerStaticTarget, Workflow
 from .schemas import (
     DestinationCreate,
     DestinationUpdate,
@@ -25,6 +25,7 @@ from .schemas import (
     ScannerImport,
     ScannerUpdate,
     ScannerConnectionSettingsUpdate,
+    ScannerMenuEntryUpdate,
     ScannerStaticTargetUpdate,
     TestScanRequest,
     WorkflowCreate,
@@ -1082,6 +1083,102 @@ def delete_profile(profile_id: int, db: Session = Depends(get_db)):
     db.commit()
     sync_profile_shares(db)
     return {"deleted": True, "id": profile_id}
+
+@app.get("/api/scanner-menu")
+def list_scanner_menu(request: Request, db: Session = Depends(get_db)):
+    host = request.url.hostname or "SCANPRO"
+    rows = db.query(ScannerMenuEntry).order_by(ScannerMenuEntry.scanner_id, ScannerMenuEntry.display_name).all()
+    result = []
+    for row in rows:
+        scanner = db.get(Scanner, row.scanner_id)
+        profile = db.get(ScanProfile, row.profile_id)
+        share = db.query(ProfileShare).filter(ProfileShare.profile_id == row.profile_id).first()
+        if not scanner or not profile:
+            continue
+        result.append({
+            "id": row.id,
+            "scanner_id": row.scanner_id,
+            "scanner_name": scanner.name,
+            "profile_id": row.profile_id,
+            "profile_name": profile.name,
+            "enabled": row.enabled,
+            "display_name": row.display_name,
+            "server": host,
+            "share_name": share.share_name if share and share.enabled else None,
+            "network_path": f"\\\\{host}\\{share.share_name}" if share and share.enabled else None,
+            "username": "scanpro",
+        })
+    return result
+
+@app.put("/api/scanners/{scanner_id}/menu-profile/{profile_id}")
+def configure_scanner_menu_profile(
+    scanner_id: int,
+    profile_id: int,
+    payload: ScannerMenuEntryUpdate,
+    db: Session = Depends(get_db),
+):
+    scanner = db.get(Scanner, scanner_id)
+    profile = db.get(ScanProfile, profile_id)
+    if not scanner:
+        raise HTTPException(404, "Scanner wurde nicht gefunden.")
+    if not profile:
+        raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+
+    display_name = (payload.display_name or profile.name).strip()
+    if not display_name:
+        display_name = profile.name
+    if len(display_name) > 80:
+        raise HTTPException(400, "Anzeigename darf maximal 80 Zeichen haben.")
+
+    share = db.query(ProfileShare).filter(ProfileShare.profile_id == profile_id).first()
+    if payload.enabled:
+        if not share or not share.enabled:
+            try:
+                share_name = normalize_share_name(profile.name)
+            except ProfileShareError:
+                share_name = f"Profil-{profile.id}"
+            duplicate = db.query(ProfileShare).filter(
+                ProfileShare.share_name == share_name,
+                ProfileShare.profile_id != profile_id,
+            ).first()
+            if duplicate:
+                share_name = f"Profil-{profile.id}"
+            path = str(profile_path(profile_id))
+            if share:
+                share.enabled = True
+                share.share_name = share_name
+                share.path = path
+            else:
+                share = ProfileShare(profile_id=profile_id, enabled=True, share_name=share_name, path=path)
+                db.add(share)
+
+    row = db.query(ScannerMenuEntry).filter(
+        ScannerMenuEntry.scanner_id == scanner_id,
+        ScannerMenuEntry.profile_id == profile_id,
+    ).first()
+    if row:
+        row.enabled = payload.enabled
+        row.display_name = display_name
+    else:
+        row = ScannerMenuEntry(
+            scanner_id=scanner_id,
+            profile_id=profile_id,
+            enabled=payload.enabled,
+            display_name=display_name,
+        )
+        db.add(row)
+
+    db.commit()
+    sync_profile_shares(db)
+    db.refresh(row)
+    return {
+        "id": row.id,
+        "scanner_id": row.scanner_id,
+        "profile_id": row.profile_id,
+        "enabled": row.enabled,
+        "display_name": row.display_name,
+        "share_name": share.share_name if share and share.enabled else None,
+    }
 
 @app.get("/api/workflows")
 def list_workflows(db: Session = Depends(get_db)):

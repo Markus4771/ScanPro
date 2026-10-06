@@ -10,7 +10,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.8.1-dev**
+Aktuell: **0.9.0-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -899,3 +899,42 @@ scan_error
 ```
 
 klassifiziert.
+
+
+## Secret Store in 0.9.0-dev
+
+SMB-Passwörter und Paperless-API-Tokens werden nicht mehr im Klartext in der SQLite-Konfiguration gespeichert.
+
+Ablage:
+
+```text
+/var/lib/scanpro/secrets/
+```
+
+Wichtige Dateien:
+
+```text
+master.key
+destination-<ID>-smb-password.secret
+destination-<ID>-paperless-token.secret
+```
+
+Die Secret-Dateien werden mit Fernet verschlüsselt. In SQLite bleibt nur eine interne Referenz auf das Secret.
+
+Beim Update werden vorhandene Klartext-Secrets automatisch migriert und aus `config_json` entfernt.
+
+Dateirechte:
+
+```text
+/var/lib/scanpro/secrets        0700
+master.key                      0600
+*.secret                        0600
+```
+
+Der Installer sichert den Secret Store zusätzlich unter:
+
+```text
+/var/lib/scanpro/backups/scanpro-secrets-<ZEITSTEMPEL>.tar.gz
+```
+
+**Wichtig:** Datenbank und Secret Store gehören bei einer Wiederherstellung zusammen. Ohne `master.key` können vorhandene Secrets nicht entschlüsselt werden.

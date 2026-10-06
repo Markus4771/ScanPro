@@ -410,8 +410,36 @@ async function api(url, options={}) {
   return data;
 }
 async function init(){
-  const h=await api('/health'); document.getElementById('version').textContent=h.version;
-  await loadSaved(); await loadProfiles(); await loadDestinations(); await loadScannerMenu(); await loadWorkflows(); await loadJobs();
+  try{
+    const health=await api('/health');
+    document.getElementById('version').textContent=health.version;
+  }catch(e){
+    console.error('Health:',e);
+  }
+
+  const first=await Promise.allSettled([
+    loadSaved(),
+    loadProfiles(),
+    loadDestinations()
+  ]);
+  first.forEach((r,i)=>{
+    if(r.status==='rejected'){
+      console.error(['Scanner','Profile','Scanziele'][i]+':',r.reason);
+    }
+  });
+
+  populateScannerMenuSelectors();
+
+  const second=await Promise.allSettled([
+    loadScannerMenu(),
+    loadWorkflows(),
+    loadJobs()
+  ]);
+  second.forEach((r,i)=>{
+    if(r.status==='rejected'){
+      console.error(['Scanner-Menü','Workflows','Jobs'][i]+':',r.reason);
+    }
+  });
 }
 async function discover(driver='sane'){
   const box=document.getElementById('discovered'); box.textContent='Suche…';
@@ -813,7 +841,9 @@ async function deleteProfile(p){
   }catch(e){alert(e.message)}
 }
 async function loadProfiles(){
-  const [data,shares,processing,imageProcessing,ocrSettings,namingSettings,paperlessRules,outputSettings]=await Promise.all([
+  let data,shares,processing,imageProcessing,ocrSettings,namingSettings,paperlessRules,outputSettings;
+  try{
+    [data,shares,processing,imageProcessing,ocrSettings,namingSettings,paperlessRules,outputSettings]=await Promise.all([
     api('/api/profiles'),
     api('/api/profile-shares'),
     api('/api/profile-processing'),
@@ -822,7 +852,12 @@ async function loadProfiles(){
     api('/api/profile-naming-settings'),
     api('/api/profile-paperless-rules'),
     api('/api/profile-output-settings')
-  ]);
+    ]);
+  }catch(e){
+    const box=document.getElementById('profiles');
+    if(box) box.innerHTML='<span class="err">Profile konnten nicht geladen werden: '+escapeHtml(e.message)+'</span>';
+    throw e;
+  }
   profilesCache=data;
   profileSharesCache=shares;
   profileProcessingCache=processing;
@@ -1041,7 +1076,14 @@ async function testDestination(d){
   }
 }
 async function loadDestinations(){
-  const data=await api('/api/destinations');
+  let data;
+  try{
+    data=await api('/api/destinations');
+  }catch(e){
+    const box=document.getElementById('destinations');
+    if(box) box.innerHTML='<span class="err">Scanziele konnten nicht geladen werden: '+escapeHtml(e.message)+'</span>';
+    throw e;
+  }
   destinationsCache=data;
   populateWorkflowSelectors();
   populateScannerMenuSelectors();

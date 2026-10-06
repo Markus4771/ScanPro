@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import Engine, text
 
 
-CURRENT_SCHEMA_VERSION = 7
+CURRENT_SCHEMA_VERSION = 8
 
 
 @dataclass(frozen=True)
@@ -49,6 +49,13 @@ MIGRATIONS: tuple[Migration, ...] = (
         version=7,
         description="Scanner menu profile assignments",
         statements=(),
+    ),
+    Migration(
+        version=8,
+        description="Scanner menu destinations",
+        statements=(
+            "ALTER TABLE scanner_menu_entries ADD COLUMN destination_id INTEGER REFERENCES destinations(id)",
+        ),
     ),
 )
 

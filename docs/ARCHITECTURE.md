@@ -1,75 +1,197 @@
 # ScanPro Architektur
 
+**Stand: ScanPro 0.9.1-dev**  
+**Datenbankschema: 7**
+
 ## Grundprinzip
 
-ScanPro trennt Hardware, Scanparameter, Verarbeitung und Ausgabe voneinander.
+ScanPro trennt Scannerhardware, Scanparameter, Verarbeitung und Ausgabe voneinander.
 
 ```text
-Scanner / SMB-Inbox
-        |
-        v
-     ScanJob
-        |
-        v
-    ScanProfile
-        |
-        +--> optionale Trennung
-        +--> OCR (später)
-        +--> Seitenbearbeitung (später)
-        |
-        v
+Scanner / Profil-SMB-Inbox
+        ↓
+      ScanJob
+        ↓
+     ScanProfile
+        ↓
+Leerseiten / Trennung
+        ↓
+Bildoptimierung
+        ↓
+PDF / JPEG / PNG
+        ↓
+OCR bei PDF
+        ↓
+Dateiname / Metadaten
+        ↓
       Workflow
-        |
-        v
-   Destination
+        ↓
+    Destination
 ```
 
 ## Scanner
 
-Ein Scanner ist ein konfigurierbares Gerät oder ein logischer Eingang.
+Ein Scanner ist ein gespeichertes physisches Gerät.
 
-Geplante Backends:
+Unterstützte Anbindung:
 
-- NAPS2 + eSCL
-- NAPS2 + SANE
-- USB/SANE
-- SMB-Inbox
-- weitere Adapter später
+- NAPS2
+- SANE
+- eSCL
+- sane-airscan
+- lokale Scanner
+- Netzwerk-Scanner
+- VPN-/Remote-Scanner
+- statische Scannerziele ohne mDNS
 
-Der Brother ADS-2600We ist das erste Testgerät, aber nicht fest im Kern verdrahtet.
+Pro Scanner können gespeichert werden:
+
+- Name
+- Driver
+- IP/Adresse
+- Device-ID
+- Standort
+- Verbindungstyp `local` oder `vpn`
+- Timeout
+- Retry-Anzahl
+
+Remote-Ziele können statisch hinterlegt werden. Für statische SANE/AirScan-Ziele kann ScanPro pro Scanprozess `SANE_AIRSCAN_DEVICE` setzen.
+
+## Scanner-Menüprofile
+
+Die Tabelle:
+
+```text
+scanner_menu_entries
+```
+
+verbindet einen physischen Scanner mit einem Scanprofil.
+
+Beim Aktivieren eines Scanner-Menüprofils wird automatisch die profilbezogene SMB-Inbox aktiviert.
+
+Beispiel:
+
+```text
+Brother ADS-2600We
+        ↓
+Anzeige "Rechnung"
+        ↓
+\\SCANPRO\Rechnungen
+        ↓
+Profil Rechnungen
+```
+
+Der physische Scanner verwaltet den sichtbaren Scan-to-Network-Eintrag selbst. ScanPro liefert dazu die SMB-Zieldaten.
+
+## Profil-SMB-Inbox
+
+Jedes Scanprofil kann eine eigene Samba-Freigabe erhalten.
+
+Datenmodell:
+
+```text
+profile_shares
+```
+
+Dateisystem:
+
+```text
+/var/lib/scanpro/profile-inbox/<PROFIL-ID>/
+```
+
+Der Inbox-Worker überwacht eingehende PDFs, wartet bis die Datei stabil geschrieben wurde und überführt sie in einen ScanJob.
 
 ## Scanprofile
 
-Ein Profil enthält geräteunabhängige Scan- und Verarbeitungsparameter:
+Ein Scanprofil enthält geräteunabhängige Scan- und Verarbeitungsparameter.
+
+Kernwerte:
 
 - DPI
-- Farbe/Graustufe
+- Farbe/Graustufen/Schwarzweiß
 - Duplex
-- OCR an/aus
-- Dokumenttrennung an/aus
-- Trennmethode
+- OCR
+- Dokumenttrennung
 
-Trennmethoden im Datenmodell:
+Erweiterte Profileinstellungen liegen in eigenen Tabellen:
 
-- none
-- patch-t
-- qr
-- barcode
-- blank-page
-- manual
+- `profile_processing`
+- `profile_image_processing`
+- `profile_ocr_settings`
+- `profile_naming_settings`
+- `profile_output_settings`
+- `profile_paperless_rules`
+- `profile_shares`
 
-## Scanziele
+## Dokumenttrennung
 
-Ziele werden dynamisch gespeichert. Der typabhängige Teil liegt in `config_json`.
+Unterstützte Methoden:
 
-Vorgesehene Zieltypen:
+- `none`
+- `patch-t`
+- `qr`
+- `barcode`
+- `blank-page`
+- `manual`
 
-- local
-- smb
-- paperless
-- sftp
-- webdav
-- später E-Mail/DATEV-Adapter
+Teildokumente werden als `job_documents` gespeichert.
+
+QR-/Barcode-Ergebnisse werden in `job_separation_markers` gespeichert.
+
+## Bildverarbeitung
+
+Die Bildverarbeitung verwendet PyMuPDF, Pillow, OpenCV und Tesseract OSD.
+
+Optional:
+
+- Rotation
+- Deskew
+- Auto-Crop
+- Randentfernung
+
+Verarbeitungsergebnisse werden pro Job/Dokument protokolliert.
+
+## OCR
+
+OCR erfolgt mit OCRmyPDF und Tesseract.
+
+Ergebnis:
+
+- durchsuchbares PDF
+- OCR-Text in `job_ocr_results`
+
+Der OCR-Text kann anschließend für Dateinamen und Paperless-Regeln verwendet werden.
+
+## Foto-/Bildmodus
+
+Profil-Ausgabe:
+
+```text
+mode: document | photo
+output_format: pdf | jpeg | png
+```
+
+JPEG/PNG werden aus dem PDF-Zwischenformat gerendert.
+
+Bei Bildausgabe werden OCR und Dokumenttrennung deaktiviert.
+
+## Dateinamen und Metadaten
+
+Die Namensengine erzeugt finale Dateinamen erst vor der Auslieferung.
+
+Variablen:
+
+- `{date}`
+- `{time}`
+- `{datetime}`
+- `{profile}`
+- `{job}`
+- `{document}`
+- `{code}`
+- `{code_type}`
+- `{ocr_first_line}`
+
+Dokumentmetadaten werden in `job_document_metadata` gespeichert.
 
 ## Workflows
 
@@ -79,33 +201,124 @@ Ein Workflow verbindet:
 - ein Scanprofil
 - ein Scanziel
 
-Damit kann ein Profil scannerübergreifend wiederverwendet werden.
+Scanner-Workflows starten einen echten Scan.
 
-## Sicherheitsprinzipien
+Workflows ohne `scanner_id` werden als Profil-SMB-Inbox-Workflows verwendet und können beim Dateieingang automatisch gestartet werden.
 
-- Passwörter/API-Tokens nicht im Klartext in Repository-Dateien ablegen.
-- Ziel-Credentials später über Secret Store/verschlüsselte Konfiguration verwalten.
-- Scan-Jobs bekommen Zustände und Fehlerprotokollierung.
-- Eingehende Dateien werden zunächst in einem kontrollierten Arbeitsbereich verarbeitet.
+## Scanziele
 
-## 0.1.0-dev
+Aktuell:
 
-Aktuell umgesetzt:
+- `local`
+- `smb`
+- `paperless`
 
-- FastAPI-Grundsystem
-- SQLite/SQLAlchemy
-- Scanner-CRUD-Basis
-- Scanprofile
-- Scanziele
-- Workflows
-- optionale Trennkonfiguration
-- NAPS2-Servicegrundlage
-- Health-Endpunkt
+Der nicht geheime Teil der Zielkonfiguration liegt in `destinations.config_json`.
 
-Als Nächstes:
+## Secret Store
 
-1. Scanner-Erkennung über NAPS2
-2. Testscan-Endpunkt
-3. Weboberfläche
-4. SMB-Inbox
-5. Patch-T-Verarbeitung
+SMB-Passwörter und Paperless-Tokens liegen nicht im Klartext in SQLite.
+
+Ablage:
+
+```text
+/var/lib/scanpro/secrets/
+```
+
+Verschlüsselung:
+
+```text
+cryptography / Fernet
+```
+
+SQLite speichert nur Secret-Referenzen.
+
+Die öffentliche API gibt weder Secret-Werte noch interne Secret-Referenzen zurück.
+
+Datenbank und Secret Store müssen gemeinsam gesichert und wiederhergestellt werden.
+
+## Paperless-ngx
+
+Paperless ist ein eigener Destination-Typ.
+
+Unterstützt:
+
+- Dokumentupload
+- Titel
+- Korrespondent
+- Dokumenttyp
+- Speicherpfad
+- Tags
+- Consumption-Taskstatus
+- profilbezogene QR-/Barcode-Regeln
+- OCR-Regeln
+
+## Datenbank
+
+Persistenter Pfad:
+
+```text
+/var/lib/scanpro/scanpro.db
+```
+
+SQLite-Konfiguration:
+
+- WAL
+- Foreign Keys
+- Busy Timeout
+- `synchronous=NORMAL`
+
+Schema-Version:
+
+```text
+7
+```
+
+Der Installer erstellt vor Updates Datenbank- und Secret-Backups.
+
+## Dienste
+
+Hauptdienst:
+
+```text
+scanpro.service
+```
+
+Inbox-Worker:
+
+```text
+scanpro-inbox.service
+```
+
+Samba-Konfigurationsreload:
+
+```text
+scanpro-samba-reload.path
+scanpro-samba-reload.service
+```
+
+Nginx veröffentlicht ScanPro über Port 80 und leitet intern auf Uvicorn Port 8100 weiter.
+
+## Dateisystem
+
+```text
+/opt/scanpro/                         Anwendung
+/var/lib/scanpro/scanpro.db          Datenbank
+/var/lib/scanpro/jobs/               Arbeits- und Ergebnisdateien
+/var/lib/scanpro/profile-inbox/      profilbezogene SMB-Eingänge
+/var/lib/scanpro/secrets/            verschlüsselte Secrets
+/var/lib/scanpro/backups/            Backups
+/var/lib/scanpro/samba-profile-shares.conf
+```
+
+## Nächster Architekturbaustein
+
+0.9.2-dev soll Cleanup/Retention einführen:
+
+- Retention-Regeln
+- Job- und Dateibereinigung
+- Schutz noch referenzierter Dateien
+- unterschiedliche Behandlung erfolgreicher und fehlerhafter Jobs
+- manuelle Bereinigung über die Weboberfläche
+
+Danach folgen Paperless Custom Fields, automatische Klassifikation, Remote Collector und Stabilisierung Richtung 1.0.

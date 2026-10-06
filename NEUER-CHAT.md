@@ -1,187 +1,87 @@
 # ScanPro – Neuer Chat
 
-## Projekt
+## Aktueller Stand
 
-Repository: `Markus4771/ScanPro`
-
-Aktueller Stand: **0.9.2-dev**
-
-## Neu in 0.9.0-dev
-
-Ein verschlüsselter lokaler Secret Store ist umgesetzt.
-
-## Geschützte Werte
-
-Aktuell:
-
-- SMB-Passwörter
-- Paperless-API-Tokens
-
-## Ablage
+Repository:
 
 ```text
-/var/lib/scanpro/secrets/
+Markus4771/ScanPro
 ```
 
-Dateien:
+Version:
 
 ```text
-master.key
-destination-<ID>-smb-password.secret
-destination-<ID>-paperless-token.secret
+1.0.0-dev
 ```
 
-Verschlüsselung:
+ScanPro wurde nach 0.9.2 fachlich komplett neu gestartet.
+
+Alter Stand:
 
 ```text
-cryptography / Fernet
+archive/scanpro-0.9.2
 ```
 
-## SQLite
-
-In `destinations.config_json` liegen keine Klartext-Secrets mehr.
-
-Stattdessen intern:
-
-```json
-{"password_secret_ref":"destination-1-smb-password"}
-```
-
-oder:
-
-```json
-{"token_secret_ref":"destination-2-paperless-token"}
-```
-
-Diese Referenzen werden über die öffentliche API nicht ausgegeben.
-
-Das Webinterface erhält weiterhin nur:
+## Neue Architektur
 
 ```text
-********
+Scanner
+  ↓
+SMB-Freigabe
+  ↓
+ScanInput
+  ↓
+ProcessingProfile
+  ↓
+Destination
 ```
 
-## Migration
+Keine Scannerverwaltung und kein NAPS2 mehr im Kern.
 
-Beim Update von älteren Versionen werden vorhandene Klartext-Passwörter/-Tokens automatisch verschlüsselt ausgelagert und aus SQLite entfernt.
-
-Der Installer führt diese Migration vor dem Start der Dienste aus.
-
-## Rechte
+## Neue Datenbank
 
 ```text
-secrets/    0700
-master.key  0600
-*.secret    0600
+/var/lib/scanpro-v1/scanpro-v1.db
 ```
 
-## Backup
+Tabellen:
 
-Beim Update:
+- processing_profiles
+- destinations
+- scan_inputs
+- scan_jobs
+- job_documents
+- job_deliveries
+
+Schema-Version: 1.
+
+## Aktuell umgesetzt
+
+- Profil-CRUD-Basis
+- Ziel-CRUD-Basis
+- Scan-Eingänge mit dynamischen Samba-Freigaben
+- Inbox-Worker
+- OCR für PDF
+- Dateinamen
+- Local/SMB/Paperless Delivery
+- Jobanzeige
+
+## Nächster Schritt
+
+Die gespeicherten Profiloptionen für:
+
+- Leerseiten
+- Rotation
+- Deskew
+- Auto-Crop
+- QR/Barcode-Trennung
+
+müssen als echte Verarbeitungspipeline neu implementiert und getestet werden.
+
+Danach Secret Store und Retention.
+
+## Einstieg
 
 ```text
-/var/lib/scanpro/backups/scanpro-<ZEITSTEMPEL>.db
-/var/lib/scanpro/backups/scanpro-secrets-<ZEITSTEMPEL>.tar.gz
+Lies bitte NEUER-CHAT.md aus Markus4771/ScanPro und entwickle ScanPro 1.0-dev ab diesem Stand weiter.
 ```
-
-Datenbank und Secret Store müssen gemeinsam gesichert/wiederhergestellt werden.
-
-## Schema-Version
-
-```text
-8
-```
-
-## Update
-
-```bash
-cd ~/ScanPro
-git pull
-sudo bash scripts/install-dev.sh
-```
-
-Prüfen:
-
-```bash
-curl http://127.0.0.1:8100/health
-```
-
-Erwartet:
-
-```json
-{"status":"ok","version":"0.9.2-dev","schema_version":8}
-```
-
-Secret Store:
-
-```bash
-sudo ls -lah /var/lib/scanpro/secrets
-sudo -u scanpro sqlite3 /var/lib/scanpro/scanpro.db "SELECT id,name,type,config_json FROM destinations;"
-```
-
-## Neu in 0.9.1-dev – Scanner-Menüprofile
-
-ScanPro kann Profile jetzt gezielt einem Scanner zuordnen.
-
-Neue Tabelle:
-
-```text
-scanner_menu_entries
-```
-
-Neue API:
-
-```text
-GET /api/scanner-menu
-PUT /api/scanners/{scanner_id}/menu-profile/{profile_id}
-```
-
-Beim Aktivieren eines Scanner-Menüprofils wird die Profil-SMB-Inbox automatisch aktiviert.
-
-Das Brother-Gerät benötigt anschließend einmalig ein Scan-to-Network-Profil auf diese Freigabe.
-
-## Nächster Entwicklungsschritt
-
-Empfohlen:
-
-**0.9.3-dev – Cleanup / Retention**
-
-- Aufbewahrungsregeln für Jobs
-- temporäre PDFs/Bilder bereinigen
-- erfolgreiche/fehlerhafte Jobs unterschiedlich behandeln
-- manuelle Bereinigung im Webinterface
-- Schutz noch benötigter Dateien
-
-Danach:
-
-- Paperless Custom Fields
-- automatische Dokumentklassifikation
-- Remote Collector
-- Stabilisierung Richtung 1.0
-
-## Einstieg in einem neuen Chat
-
-```text
-Lies bitte die Datei NEUER-CHAT.md aus meinem GitHub-Projekt Markus4771/ScanPro und führe die Entwicklung ab dem dort dokumentierten Stand weiter.
-```
-
-
-## Neu in 0.9.2-dev – Ziele pro Scanner-Menüprofil
-
-Scanner-Menüprofile enthalten jetzt zusätzlich:
-
-```text
-destination_id
-```
-
-UI:
-
-```text
-Scanner → Scanprofil → Scanziel → Anzeigename
-```
-
-Beim Aktivieren wird automatisch ein Profil-SMB-Inbox-Workflow für das gewählte Ziel angelegt.
-
-Unterschiedliche Ziele benötigen unterschiedliche Scanprofile, da die Profil-SMB-Inbox nur das Profil und nicht den absendenden Scanner kennt.
-
-Schema-Version: 8.

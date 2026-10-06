@@ -1,7 +1,7 @@
 # ScanPro Architektur
 
-**Stand: ScanPro 0.9.1-dev**  
-**Datenbankschema: 7**
+**Stand: ScanPro 0.9.2-dev**  
+**Datenbankschema: 8**
 
 ## Grundprinzip
 
@@ -271,7 +271,7 @@ SQLite-Konfiguration:
 Schema-Version:
 
 ```text
-7
+8
 ```
 
 Der Installer erstellt vor Updates Datenbank- und Secret-Backups.
@@ -313,7 +313,7 @@ Nginx veröffentlicht ScanPro über Port 80 und leitet intern auf Uvicorn Port 8
 
 ## Nächster Architekturbaustein
 
-0.9.2-dev soll Cleanup/Retention einführen:
+0.9.3-dev soll Cleanup/Retention einführen:
 
 - Retention-Regeln
 - Job- und Dateibereinigung
@@ -322,3 +322,22 @@ Nginx veröffentlicht ScanPro über Port 80 und leitet intern auf Uvicorn Port 8
 - manuelle Bereinigung über die Weboberfläche
 
 Danach folgen Paperless Custom Fields, automatische Klassifikation, Remote Collector und Stabilisierung Richtung 1.0.
+
+
+## destination_id im Scanner-Menü
+
+Ab 0.9.2-dev kann ein `scanner_menu_entries`-Datensatz zusätzlich ein `destination_id` enthalten.
+
+Beim Aktivieren eines Menüeintrags sorgt ScanPro dafür, dass ein passender Workflow mit:
+
+```text
+scanner_id = NULL
+profile_id = <Profil>
+destination_id = <Ziel>
+```
+
+existiert und aktiviert ist.
+
+Damit werden Scans aus der profilbezogenen SMB-Inbox automatisch zum gewählten Ziel ausgeliefert.
+
+Da die Inbox profilbezogen ist, darf dasselbe Profil nicht gleichzeitig auf verschiedene Ziele zeigen.

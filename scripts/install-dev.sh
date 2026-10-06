@@ -18,7 +18,7 @@ systemctl stop scanpro-inbox.service 2>/dev/null || true
 systemctl stop scanpro-samba-reload.path 2>/dev/null || true
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y   python3 python3-venv python3-pip   nginx samba smbclient sqlite3   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
+DEBIAN_FRONTEND=noninteractive apt-get install -y   python3 python3-venv python3-pip   nginx samba smbclient sqlite3 rsync   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
 
 if ! id scanpro >/dev/null 2>&1; then
   useradd --system --home "$DATA_ROOT" --shell /usr/sbin/nologin scanpro
@@ -60,7 +60,7 @@ fi
 
 chown -R scanpro:scanpro "$DATA_ROOT"
 
-sudo -u scanpro env   SCANPRO_DATA_ROOT="$DATA_ROOT"   SCANPRO_DATABASE_URL="sqlite:///$DB_FILE"   "$APP_DIR/.venv/bin/python" -c   'from scanpro.db import Base, engine, initialize_database; import scanpro.models; initialize_database(); Base.metadata.create_all(bind=engine); print("ScanPro 1.0 Datenbank bereit.")'
+runuser -u scanpro -- env   SCANPRO_DATA_ROOT="$DATA_ROOT"   SCANPRO_DATABASE_URL="sqlite:///$DB_FILE"   "$APP_DIR/.venv/bin/python" -c   'from scanpro.db import Base, engine, initialize_database; import scanpro.models; initialize_database(); Base.metadata.create_all(bind=engine); print("ScanPro 1.0 Datenbank bereit.")'
 
 nginx -t
 testparm -s >/dev/null

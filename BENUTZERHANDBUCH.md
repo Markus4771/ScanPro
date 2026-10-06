@@ -1,6 +1,6 @@
 # ScanPro – Benutzungsanleitung
 
-**Version:** 0.9.1-dev
+**Version:** 0.9.2-dev
 
 ScanPro ist eine zentrale Scan- und Dokumentenverarbeitungslösung für Linux/Debian. Scanner können lokal oder über VPN angebunden werden. ScanPro kann Dokumente automatisch verarbeiten, trennen, per OCR erkennen, umbenennen und anschließend beispielsweise auf ein SMB-Ziel oder nach Paperless-ngx übertragen.
 
@@ -1039,3 +1039,43 @@ Dokument einlegen
 ```
 
 Damit muss für diesen Scan kein PC und kein ScanPro-Browser geöffnet werden.
+
+
+## 47. Mehrere Profile mit verschiedenen Scanzielen
+
+Ein Brother-Scanner kann mehrere ScanPro-Menüprofile erhalten.
+
+Für jeden Eintrag werden gewählt:
+
+```text
+Scanner
+Scanprofil
+Scanziel
+Anzeigename
+```
+
+Beispiel:
+
+```text
+Rechnung
+  Profil: Rechnungen
+  Ziel: Paperless
+
+Lieferschein
+  Profil: Lieferscheine
+  Ziel: NAS-Lieferscheine
+
+Archiv
+  Profil: Archiv
+  Ziel: SMB-Archiv
+
+Foto
+  Profil: Foto
+  Ziel: Foto-Archiv
+```
+
+ScanPro erzeugt beim Aktivieren automatisch die jeweilige SMB-Inbox und den Workflow zum Ziel.
+
+Der Brother erhält für jede SMB-Freigabe ein eigenes Scan-to-Network-Profil.
+
+Wichtig: Für unterschiedliche Ziele sollten unterschiedliche Scanprofile verwendet werden.

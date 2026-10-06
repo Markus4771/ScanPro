@@ -1,6 +1,6 @@
 # ScanPro – Benutzungsanleitung
 
-**Version:** 0.9.0-dev
+**Version:** 0.9.1-dev
 
 ScanPro ist eine zentrale Scan- und Dokumentenverarbeitungslösung für Linux/Debian. Scanner können lokal oder über VPN angebunden werden. ScanPro kann Dokumente automatisch verarbeiten, trennen, per OCR erkennen, umbenennen und anschließend beispielsweise auf ein SMB-Ziel oder nach Paperless-ngx übertragen.
 
@@ -981,3 +981,61 @@ Die verschlüsselte Ablage befindet sich unter:
 Dieser Bereich ist eine Administratorfunktion und sollte nicht für normale Benutzer freigegeben werden.
 
 **Wichtig für Backups:** Die ScanPro-Datenbank und der Secret Store müssen immer gemeinsam gesichert werden. Ohne den zugehörigen `master.key` können vorhandene Zugangsdaten nicht wiederhergestellt werden.
+
+
+## 46. Profile direkt am Brother auswählen
+
+Ab ScanPro 0.9.1-dev können ScanPro-Profile für einen bestimmten Scanner als **Scanner-Menüprofile** vorbereitet werden.
+
+Im ScanPro-Webinterface gibt es dafür den Bereich:
+
+```text
+Scanner-Menüprofile
+```
+
+Dort:
+
+1. Brother-Scanner auswählen.
+2. gewünschtes Scanprofil auswählen.
+3. Anzeigenamen eintragen, z. B. `Rechnung`.
+4. **Am Scanner anzeigen** anklicken.
+
+ScanPro erzeugt bzw. aktiviert automatisch die passende SMB-Inbox.
+
+Beispiel:
+
+```text
+Anzeigename: Rechnung
+SMB-Pfad: \\SCANPRO\Rechnungen
+Benutzer: scanpro
+```
+
+### Einmalige Einrichtung am Brother ADS-2600We
+
+Der Brother verwaltet seine Display-Einträge selbst. Deshalb muss der von ScanPro angezeigte SMB-Pfad einmalig als Scan-to-Network-/Netzwerk-Profil im Brother-Webinterface eingetragen werden.
+
+Dort werden sinngemäß hinterlegt:
+
+```text
+Profilname: Rechnung
+Host/Server: IP oder Hostname des ScanPro-Servers
+Freigabe: Rechnungen
+Benutzer: scanpro
+Passwort: Samba-Passwort des Benutzers scanpro
+```
+
+Danach erscheint `Rechnung` als auswählbares Netzwerk-Scanprofil am Brother.
+
+Der tägliche Ablauf ist anschließend:
+
+```text
+Dokument einlegen
+→ am Brother "Rechnung" auswählen
+→ Scan starten
+→ PDF landet in der ScanPro-Profil-Inbox
+→ ScanPro erkennt das Profil
+→ Verarbeitung/OCR/Trennung
+→ Workflow-Ziel
+```
+
+Damit muss für diesen Scan kein PC und kein ScanPro-Browser geöffnet werden.

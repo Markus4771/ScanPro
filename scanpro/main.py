@@ -66,10 +66,15 @@ def delete_profile(profile_id: int, db: Session = Depends(get_db)):
 @app.get("/api/destinations")
 def list_destinations(db: Session = Depends(get_db)):
     rows = db.query(Destination).order_by(Destination.name).all()
-    return [
-        {"id": r.id, "name": r.name, "type": r.type, "enabled": r.enabled, "config": json.loads(r.config_json or "{}")}
-        for r in rows
-    ]
+    result = []
+    for r in rows:
+        cfg = json.loads(r.config_json or "{}")
+        if "password" in cfg and cfg["password"]:
+            cfg["password"] = "********"
+        if "token" in cfg and cfg["token"]:
+            cfg["token"] = "********"
+        result.append({"id": r.id, "name": r.name, "type": r.type, "enabled": r.enabled, "config": cfg})
+    return result
 
 
 @app.post("/api/destinations")

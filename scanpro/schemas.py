@@ -125,3 +125,8 @@ class ScannerStaticTargetUpdate(BaseModel):
     device_name: str = ""
     device_id: str = ""
     address: str = ""
+
+
+class ScannerMenuEntryUpdate(BaseModel):
+    enabled: bool = True
+    display_name: str = ""

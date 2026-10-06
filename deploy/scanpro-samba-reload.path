@@ -1,9 +1,9 @@
 [Unit]
-Description=Watch ScanPro profile SMB share configuration
+Description=Watch ScanPro 1.0 dynamic Samba input shares
 
 [Path]
-PathChanged=/var/lib/scanpro/samba-profile-shares.conf
-PathModified=/var/lib/scanpro/samba-profile-shares.conf
+PathChanged=/var/lib/scanpro-v1/samba-inputs.conf
+Unit=scanpro-samba-reload.service
 
 [Install]
 WantedBy=multi-user.target

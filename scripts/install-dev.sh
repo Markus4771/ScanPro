@@ -15,8 +15,7 @@ echo "== ScanPro 1.0-dev Neuinstallation/Update =="
 
 systemctl stop scanpro.service 2>/dev/null || true
 systemctl stop scanpro-inbox.service 2>/dev/null || true
-systemctl disable --now scanpro-samba-reload.path 2>/dev/null || true
-systemctl disable --now scanpro-samba-reload.service 2>/dev/null || true
+systemctl stop scanpro-samba-reload.path 2>/dev/null || true
 
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y   python3 python3-venv python3-pip   nginx samba smbclient sqlite3   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
@@ -41,6 +40,8 @@ python3 -m venv "$APP_DIR/.venv"
 
 install -m 0644 "$APP_DIR/deploy/scanpro.service" /etc/systemd/system/scanpro.service
 install -m 0644 "$APP_DIR/deploy/scanpro-inbox.service" /etc/systemd/system/scanpro-inbox.service
+install -m 0644 "$APP_DIR/deploy/scanpro-samba-reload.service" /etc/systemd/system/scanpro-samba-reload.service
+install -m 0644 "$APP_DIR/deploy/scanpro-samba-reload.path" /etc/systemd/system/scanpro-samba-reload.path
 install -m 0644 "$APP_DIR/deploy/nginx.conf" /etc/nginx/sites-available/scanpro
 
 ln -sf /etc/nginx/sites-available/scanpro /etc/nginx/sites-enabled/scanpro
@@ -69,6 +70,7 @@ systemctl enable --now smbd
 systemctl enable --now nginx
 systemctl enable --now scanpro.service
 systemctl enable --now scanpro-inbox.service
+systemctl enable --now scanpro-samba-reload.path
 
 echo
 echo "ScanPro 1.0-dev läuft über http://<server>/"

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import Engine, text
 
 
-CURRENT_SCHEMA_VERSION = 6
+CURRENT_SCHEMA_VERSION = 7
 
 
 @dataclass(frozen=True)
@@ -43,6 +43,11 @@ MIGRATIONS: tuple[Migration, ...] = (
     Migration(
         version=6,
         description="Encrypted destination secret store",
+        statements=(),
+    ),
+    Migration(
+        version=7,
+        description="Scanner menu profile assignments",
         statements=(),
     ),
 )

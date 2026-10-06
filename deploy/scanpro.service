@@ -1,5 +1,5 @@
 [Unit]
-Description=ScanPro Scan Station
+Description=ScanPro 1.0 API
 After=network-online.target
 Wants=network-online.target
 
@@ -9,10 +9,8 @@ User=scanpro
 Group=scanpro
 WorkingDirectory=/opt/scanpro
 Environment=PYTHONUNBUFFERED=1
-Environment=HOME=/var/lib/scanpro
-Environment=XDG_CONFIG_HOME=/var/lib/scanpro/.config
-Environment=XDG_CACHE_HOME=/var/lib/scanpro/.cache
-Environment=SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro/scanpro.db
+Environment=SCANPRO_DATA_ROOT=/var/lib/scanpro-v1
+Environment=SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro-v1/scanpro-v1.db
 ExecStart=/opt/scanpro/.venv/bin/uvicorn scanpro.main:app --host 127.0.0.1 --port 8100
 Restart=on-failure
 RestartSec=3

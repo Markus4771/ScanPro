@@ -81,6 +81,9 @@
       <label>Scanprofil
         <select id="scannerMenuProfile"></select>
       </label>
+      <label>Scanziel
+        <select id="scannerMenuDestination"></select>
+      </label>
       <label>Anzeigename am Scanner
         <input id="scannerMenuDisplayName" placeholder="z. B. Rechnung">
       </label>
@@ -408,7 +411,7 @@ async function api(url, options={}) {
 }
 async function init(){
   const h=await api('/health'); document.getElementById('version').textContent=h.version;
-  await loadSaved(); await loadProfiles(); await loadScannerMenu(); await loadDestinations(); await loadWorkflows(); await loadJobs();
+  await loadSaved(); await loadProfiles(); await loadDestinations(); await loadScannerMenu(); await loadWorkflows(); await loadJobs();
 }
 async function discover(driver='sane'){
   const box=document.getElementById('discovered'); box.textContent='Suche…';
@@ -553,8 +556,9 @@ async function deleteScanner(s){
 function populateScannerMenuSelectors(){
   const scannerSel=document.getElementById('scannerMenuScanner');
   const profileSel=document.getElementById('scannerMenuProfile');
-  if(!scannerSel||!profileSel)return;
-  const oldScanner=scannerSel.value, oldProfile=profileSel.value;
+  const destinationSel=document.getElementById('scannerMenuDestination');
+  if(!scannerSel||!profileSel||!destinationSel)return;
+  const oldScanner=scannerSel.value, oldProfile=profileSel.value, oldDestination=destinationSel.value;
   scannerSel.innerHTML='';
   for(const s of scannersCache){
     if(!s.enabled)continue;
@@ -564,8 +568,13 @@ function populateScannerMenuSelectors(){
   for(const p of profilesCache){
     const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; profileSel.appendChild(o);
   }
+  destinationSel.innerHTML='';
+  for(const d of destinationsCache.filter(x=>x.enabled)){
+    const o=document.createElement('option'); o.value=d.id; o.textContent=d.name+' ('+d.type.toUpperCase()+')'; destinationSel.appendChild(o);
+  }
   if([...scannerSel.options].some(o=>o.value===oldScanner))scannerSel.value=oldScanner;
   if([...profileSel.options].some(o=>o.value===oldProfile))profileSel.value=oldProfile;
+  if([...destinationSel.options].some(o=>o.value===oldDestination))destinationSel.value=oldDestination;
 }
 async function loadScannerMenu(){
   populateScannerMenuSelectors();
@@ -582,7 +591,7 @@ async function loadScannerMenu(){
       const el=document.createElement('div'); el.className='item';
       el.innerHTML='<strong>'+escapeHtml(e.display_name)+'</strong> '+
         (e.enabled?'<span class="badge ok">aktiv</span>':'<span class="badge off">aus</span>')+
-        '<div class="muted">Scanner: '+escapeHtml(e.scanner_name)+' · Profil: '+escapeHtml(e.profile_name)+'</div>'+
+        '<div class="muted">Scanner: '+escapeHtml(e.scanner_name)+' · Profil: '+escapeHtml(e.profile_name)+' · Ziel: '+escapeHtml(e.destination_name||'nicht gesetzt')+'</div>'+
         '<div class="muted">SMB: '+escapeHtml(e.network_path||'noch nicht aktiv')+' · Benutzer: '+escapeHtml(e.username||'scanpro')+'</div>';
       box.appendChild(el);
     }
@@ -591,14 +600,16 @@ async function loadScannerMenu(){
 async function saveScannerMenuProfile(enabled){
   const scannerId=Number(document.getElementById('scannerMenuScanner').value);
   const profileId=Number(document.getElementById('scannerMenuProfile').value);
+  const destinationId=Number(document.getElementById('scannerMenuDestination').value);
   if(!scannerId||!profileId){alert('Bitte Scanner und Profil auswählen.');return;}
+  if(enabled&&!destinationId){alert('Bitte ein Scanziel auswählen.');return;}
   const profile=profilesCache.find(x=>x.id===profileId);
   const displayName=document.getElementById('scannerMenuDisplayName').value.trim()||(profile?profile.name:'Profil');
   try{
     await api('/api/scanners/'+scannerId+'/menu-profile/'+profileId,{
       method:'PUT',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({enabled,display_name:displayName})
+      body:JSON.stringify({enabled,display_name:displayName,destination_id:destinationId||null})
     });
     await loadProfiles();
     await loadScannerMenu();
@@ -1033,6 +1044,7 @@ async function loadDestinations(){
   const data=await api('/api/destinations');
   destinationsCache=data;
   populateWorkflowSelectors();
+  populateScannerMenuSelectors();
   const box=document.getElementById('destinations');
   box.innerHTML='';
   if(!data.length){

@@ -1,6 +1,6 @@
 [Unit]
-Description=ScanPro Profile SMB Inbox Worker
-After=network-online.target scanpro.service
+Description=ScanPro 1.0 Inbox Worker
+After=network-online.target smbd.service
 Wants=network-online.target
 
 [Service]
@@ -9,12 +9,10 @@ User=scanpro
 Group=scanpro
 WorkingDirectory=/opt/scanpro
 Environment=PYTHONUNBUFFERED=1
-Environment=HOME=/var/lib/scanpro
-Environment=XDG_CONFIG_HOME=/var/lib/scanpro/.config
-Environment=XDG_CACHE_HOME=/var/lib/scanpro/.cache
-Environment=SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro/scanpro.db
+Environment=SCANPRO_DATA_ROOT=/var/lib/scanpro-v1
+Environment=SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro-v1/scanpro-v1.db
 ExecStart=/opt/scanpro/.venv/bin/python -m scanpro.inbox_worker
-Restart=on-failure
+Restart=always
 RestartSec=3
 
 [Install]

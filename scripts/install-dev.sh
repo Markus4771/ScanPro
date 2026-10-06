@@ -1,124 +1,74 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+APP_DIR=/opt/scanpro
+DATA_ROOT=/var/lib/scanpro-v1
+DB_FILE="$DATA_ROOT/scanpro-v1.db"
+SAMBA_INCLUDE="$DATA_ROOT/samba-inputs.conf"
+
 if [[ $EUID -ne 0 ]]; then
-  echo "Bitte als root ausführen."
+  echo "Bitte mit sudo/root ausführen."
   exit 1
 fi
 
-apt-get update
-apt-get install -y python3 python3-venv nginx git sane-utils samba smbclient sqlite3 libzbar0 tesseract-ocr tesseract-ocr-osd tesseract-ocr-deu tesseract-ocr-eng ocrmypdf
+echo "== ScanPro 1.0-dev Neuinstallation/Update =="
 
-systemctl stop scanpro-inbox 2>/dev/null || true
-systemctl stop scanpro 2>/dev/null || true
+systemctl stop scanpro.service 2>/dev/null || true
+systemctl stop scanpro-inbox.service 2>/dev/null || true
+
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y   python3 python3-venv python3-pip   nginx samba smbclient sqlite3   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
 
 if ! id scanpro >/dev/null 2>&1; then
-  useradd --system --home /var/lib/scanpro --shell /usr/sbin/nologin scanpro
-else
-  current_home="$(getent passwd scanpro | cut -d: -f6)"
-  if [[ "$current_home" != "/var/lib/scanpro" ]]; then
-    systemctl stop scanpro 2>/dev/null || true
-    usermod --home /var/lib/scanpro scanpro
-  fi
+  useradd --system --home "$DATA_ROOT" --shell /usr/sbin/nologin scanpro
 fi
 
-mkdir -p /opt/scanpro
-mkdir -p /var/lib/scanpro/jobs
-mkdir -p /var/lib/scanpro/inbox
-mkdir -p /var/lib/scanpro/profile-inbox
-mkdir -p /var/lib/scanpro/.config
-mkdir -p /var/lib/scanpro/.cache
-mkdir -p /var/lib/scanpro/backups
-mkdir -p /var/lib/scanpro/secrets
-touch /var/lib/scanpro/samba-profile-shares.conf
+mkdir -p "$APP_DIR" "$DATA_ROOT"/{inputs,jobs,backups}
+chown -R scanpro:scanpro "$DATA_ROOT"
+chmod 0750 "$DATA_ROOT" "$DATA_ROOT/inputs" "$DATA_ROOT/jobs" "$DATA_ROOT/backups"
 
-DB_TARGET="/var/lib/scanpro/scanpro.db"
-LEGACY_DB="/opt/scanpro/scanpro.db"
-BACKUP_STAMP="$(date +%Y%m%d-%H%M%S)"
-
-if [[ -f "$DB_TARGET" ]]; then
-  echo "Sichere bestehende ScanPro-Datenbank..."
-  sqlite3 "$DB_TARGET" ".backup '/var/lib/scanpro/backups/scanpro-$BACKUP_STAMP.db'"
-elif [[ -f "$LEGACY_DB" ]]; then
-  echo "Übernehme bestehende Datenbank von $LEGACY_DB nach $DB_TARGET..."
-  sqlite3 "$LEGACY_DB" ".backup '$DB_TARGET'"
-  sqlite3 "$LEGACY_DB" ".backup '/var/lib/scanpro/backups/scanpro-pre-0.5.2-$BACKUP_STAMP.db'"
-else
-  echo "Keine bestehende Datenbank gefunden; ScanPro legt eine neue Datenbank an."
+if [[ -f "$DB_FILE" ]]; then
+  stamp=$(date +%Y%m%d-%H%M%S)
+  sqlite3 "$DB_FILE" ".backup '$DATA_ROOT/backups/scanpro-v1-$stamp.db'"
 fi
 
-if [[ -f /var/lib/scanpro/secrets/master.key ]]; then
-  echo "Sichere ScanPro Secret Store..."
-  tar -C /var/lib/scanpro -czf "/var/lib/scanpro/backups/scanpro-secrets-$BACKUP_STAMP.tar.gz" secrets
-  chmod 0600 "/var/lib/scanpro/backups/scanpro-secrets-$BACKUP_STAMP.tar.gz"
-fi
+rsync -a --delete --exclude '.git' --exclude '.venv' ./ "$APP_DIR/"
+python3 -m venv "$APP_DIR/.venv"
+"$APP_DIR/.venv/bin/pip" install --upgrade pip
+"$APP_DIR/.venv/bin/pip" install "$APP_DIR"
 
-if [[ -f "$DB_TARGET" ]]; then
-  integrity="$(sqlite3 "$DB_TARGET" 'PRAGMA integrity_check;')"
-  if [[ "$integrity" != "ok" ]]; then
-    echo "FEHLER: SQLite-Integritätsprüfung fehlgeschlagen: $integrity"
-    exit 1
-  fi
-fi
+install -m 0644 "$APP_DIR/deploy/scanpro.service" /etc/systemd/system/scanpro.service
+install -m 0644 "$APP_DIR/deploy/scanpro-inbox.service" /etc/systemd/system/scanpro-inbox.service
+install -m 0644 "$APP_DIR/deploy/nginx.conf" /etc/nginx/sites-available/scanpro
 
-cp -a . /opt/scanpro/
-
-python3 -m venv /opt/scanpro/.venv
-/opt/scanpro/.venv/bin/pip install --upgrade pip
-/opt/scanpro/.venv/bin/pip install /opt/scanpro
-
-chown -R scanpro:scanpro /opt/scanpro
-chown -R scanpro:scanpro /var/lib/scanpro
-[[ -f "$DB_TARGET" ]] && chmod 0660 "$DB_TARGET" || true
-[[ -f /var/lib/scanpro/secrets/master.key ]] && chmod 0600 /var/lib/scanpro/secrets/master.key || true
-chmod 0770 /var/lib/scanpro/inbox
-chmod 0770 /var/lib/scanpro/profile-inbox
-chmod 0750 /var/lib/scanpro/jobs
-chmod 0700 /var/lib/scanpro/secrets
-chmod 0660 /var/lib/scanpro/samba-profile-shares.conf
-
-cp /opt/scanpro/deploy/scanpro.service /etc/systemd/system/scanpro.service
-cp /opt/scanpro/deploy/scanpro-samba-reload.service /etc/systemd/system/scanpro-samba-reload.service
-cp /opt/scanpro/deploy/scanpro-samba-reload.path /etc/systemd/system/scanpro-samba-reload.path
-cp /opt/scanpro/deploy/scanpro-inbox.service /etc/systemd/system/scanpro-inbox.service
-
-cp /opt/scanpro/deploy/nginx.conf /etc/nginx/sites-available/scanpro
 ln -sf /etc/nginx/sites-available/scanpro /etc/nginx/sites-enabled/scanpro
 rm -f /etc/nginx/sites-enabled/default
 
-cp /opt/scanpro/deploy/samba-scanpro.conf /etc/samba/scanpro.conf
-if ! grep -Fxq "include = /etc/samba/scanpro.conf" /etc/samba/smb.conf; then
-  printf '\ninclude = /etc/samba/scanpro.conf\n' >> /etc/samba/smb.conf
+touch "$SAMBA_INCLUDE"
+chown scanpro:scanpro "$SAMBA_INCLUDE"
+chmod 0644 "$SAMBA_INCLUDE"
+
+if ! grep -Fq "include = $SAMBA_INCLUDE" /etc/samba/smb.conf; then
+  printf '\n# ScanPro 1.0 dynamic input shares\ninclude = %s\n' "$SAMBA_INCLUDE" >> /etc/samba/smb.conf
 fi
 
-systemctl daemon-reload
+chown -R scanpro:scanpro "$DATA_ROOT"
 
-echo "ScanPro-Datenbank initialisieren und Schema migrieren..."
-runuser -u scanpro -- env \
-  HOME=/var/lib/scanpro \
-  SCANPRO_DATABASE_URL=sqlite:////var/lib/scanpro/scanpro.db \
-  /opt/scanpro/.venv/bin/python -c 'from scanpro.db import Base, SessionLocal, engine, initialize_database; import scanpro.models; from scanpro.migrations import run_schema_migrations; from scanpro.services.destination_secrets import migrate_destination_secrets; initialize_database(); Base.metadata.create_all(bind=engine); print("Schema-Version:", run_schema_migrations(engine)); db=SessionLocal(); print("Migrierte Secrets:", migrate_destination_secrets(db)); db.close()'
-
-systemctl enable scanpro
-systemctl restart scanpro
-systemctl enable --now scanpro-inbox.service
-systemctl restart scanpro-inbox.service
-systemctl enable --now scanpro-samba-reload.path
+sudo -u scanpro env   SCANPRO_DATA_ROOT="$DATA_ROOT"   SCANPRO_DATABASE_URL="sqlite:///$DB_FILE"   "$APP_DIR/.venv/bin/python" -c   'from scanpro.db import Base, engine, initialize_database; import scanpro.models; initialize_database(); Base.metadata.create_all(bind=engine); print("ScanPro 1.0 Datenbank bereit.")'
 
 nginx -t
-systemctl reload nginx
-
 testparm -s >/dev/null
+
+systemctl daemon-reload
 systemctl enable --now smbd
-systemctl reload smbd
+systemctl enable --now nginx
+systemctl enable --now scanpro.service
+systemctl enable --now scanpro-inbox.service
 
-echo "ScanPro läuft über http://<server>/"
-echo "SMB-Freigaben: \\<server>\ScanPro-Inbox und \\<server>\ScanPro-Jobs"
-echo "Profilbezogene SMB-Freigaben können optional im Webinterface aktiviert werden."
-echo "Einmalig Samba-Passwort setzen mit: sudo smbpasswd -a scanpro"
-
-if command -v naps2 >/dev/null 2>&1; then
-  echo "NAPS2 gefunden: $(naps2 --version 2>/dev/null || true)"
-else
-  echo "WARNUNG: NAPS2 ist noch nicht installiert. Scanner-Erkennung und Scannen funktionieren erst nach der NAPS2-Installation."
-fi
+echo
+echo "ScanPro 1.0-dev läuft über http://<server>/"
+echo "Datenverzeichnis: $DATA_ROOT"
+echo "Neue SMB-Freigaben werden im Webinterface als Scan-Eingänge angelegt."
+echo "Einmalig Samba-Passwort setzen: sudo smbpasswd -a scanpro"
+echo
+echo "Alte ScanPro-Daten unter /var/lib/scanpro bleiben unverändert erhalten."

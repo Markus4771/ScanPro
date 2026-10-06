@@ -130,3 +130,4 @@ class ScannerStaticTargetUpdate(BaseModel):
 class ScannerMenuEntryUpdate(BaseModel):
     enabled: bool = True
     display_name: str = ""
+    destination_id: int | None = None

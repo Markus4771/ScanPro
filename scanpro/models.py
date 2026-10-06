@@ -40,6 +40,7 @@ class ProfileShare(Base):
     __table_args__ = (UniqueConstraint("profile_id"), UniqueConstraint("share_name"))
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
+    destination_id: Mapped[int | None] = mapped_column(ForeignKey("destinations.id"), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     share_name: Mapped[str] = mapped_column(String(80))
     path: Mapped[str] = mapped_column(String(255))

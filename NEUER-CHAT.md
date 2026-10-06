@@ -4,96 +4,92 @@
 
 Repository: `Markus4771/ScanPro`
 
-Aktueller Stand: **0.8.1-dev**
+Aktueller Stand: **0.9.0-dev**
 
-## Neu in 0.8.1-dev
+## Neu in 0.9.0-dev
 
-Remote-Scanner-Härtung ist umgesetzt.
+Ein verschlüsselter lokaler Secret Store ist umgesetzt.
 
-## Statische Scannerziele
+## Geschützte Werte
 
-Neue Tabelle:
+Aktuell:
 
-```text
-scanner_static_targets
-```
+- SMB-Passwörter
+- Paperless-API-Tokens
 
-Felder:
-
-- scanner_id
-- enabled
-- driver
-- device_name
-- device_id
-- address
-
-API:
+## Ablage
 
 ```text
-GET /api/scanner-static-targets
-PUT /api/scanners/{scanner_id}/static-target
+/var/lib/scanpro/secrets/
 ```
 
-## sane-airscan ohne mDNS
-
-Bei aktiviertem statischem SANE-Ziel setzt ScanPro für den Scanprozess:
+Dateien:
 
 ```text
-SANE_AIRSCAN_DEVICE=escl:<NAME>:<URL>
+master.key
+destination-<ID>-smb-password.secret
+destination-<ID>-paperless-token.secret
 ```
 
-Wird nur eine IP gespeichert, erzeugt ScanPro:
+Verschlüsselung:
 
 ```text
-http://<IP>/eSCL
+cryptography / Fernet
 ```
 
-Eine vollständige http/https-eSCL-URL kann ebenfalls angegeben werden.
+## SQLite
 
-## Fehlerklassifikation
+In `destinations.config_json` liegen keine Klartext-Secrets mehr.
 
-NAPS2-/Scannerfehler werden kategorisiert:
+Stattdessen intern:
+
+```json
+{"password_secret_ref":"destination-1-smb-password"}
+```
+
+oder:
+
+```json
+{"token_secret_ref":"destination-2-paperless-token"}
+```
+
+Diese Referenzen werden über die öffentliche API nicht ausgegeben.
+
+Das Webinterface erhält weiterhin nur:
 
 ```text
-network
-discovery
-scan
+********
 ```
 
-Jobs können entsprechend folgende Stati erhalten:
+## Migration
+
+Beim Update von älteren Versionen werden vorhandene Klartext-Passwörter/-Tokens automatisch verschlüsselt ausgelagert und aus SQLite entfernt.
+
+Der Installer führt diese Migration vor dem Start der Dienste aus.
+
+## Rechte
 
 ```text
-network_error
-discovery_error
-scan_error
+secrets/    0700
+master.key  0600
+*.secret    0600
 ```
 
-## Scannerstatus
+## Backup
 
-Die Scannerliste zeigt:
-
-- Online/Offline
-- Netzwerk/Discovery/OK
-- Standort
-- LOCAL/VPN
-- Reachability-Details
-
-Statisch konfigurierte, erreichbare Scanner gelten nicht als Discovery-Fehler.
-
-## Standortfilter
-
-Im Webinterface gibt es jetzt:
+Beim Update:
 
 ```text
-Standortfilter
+/var/lib/scanpro/backups/scanpro-<ZEITSTEMPEL>.db
+/var/lib/scanpro/backups/scanpro-secrets-<ZEITSTEMPEL>.tar.gz
 ```
 
-Damit können Scanner z. B. nach Hauptstandort und Außenstellen gefiltert werden.
+Datenbank und Secret Store müssen gemeinsam gesichert/wiederhergestellt werden.
 
 ## Schema-Version
 
 ```text
-5
+6
 ```
 
 ## Update
@@ -113,26 +109,34 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"0.8.1-dev","schema_version":5}
+{"status":"ok","version":"0.9.0-dev","schema_version":6}
+```
+
+Secret Store:
+
+```bash
+sudo ls -lah /var/lib/scanpro/secrets
+sudo -u scanpro sqlite3 /var/lib/scanpro/scanpro.db "SELECT id,name,type,config_json FROM destinations;"
 ```
 
 ## Nächster Entwicklungsschritt
 
 Empfohlen:
 
-**0.9.0-dev – Secret Store**
+**0.9.1-dev – Cleanup / Retention**
 
-- SMB-Passwörter nicht mehr im Klartext
-- Paperless-Tokens nicht mehr im Klartext
-- verschlüsselte lokale Secret-Ablage
-- Maskierung bleibt im Webinterface
+- Aufbewahrungsregeln für Jobs
+- temporäre PDFs/Bilder bereinigen
+- erfolgreiche/fehlerhafte Jobs unterschiedlich behandeln
+- manuelle Bereinigung im Webinterface
+- Schutz noch benötigter Dateien
 
 Danach:
 
-- Remote Collector
 - Paperless Custom Fields
-- Dokumentklassifikation
-- Cleanup/Retention
+- automatische Dokumentklassifikation
+- Remote Collector
+- Stabilisierung Richtung 1.0
 
 ## Einstieg in einem neuen Chat
 

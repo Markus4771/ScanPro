@@ -10,7 +10,7 @@ ScanPro ist eine modulare Linux-ScanStation für Dokumentenscanner.
 
 ## Entwicklungsstand
 
-Aktuell: **0.9.0-dev**
+Aktuell: **0.9.1-dev**
 
 Der Brother ADS-2600We ist das erste reale Testgerät. ScanPro bleibt herstellerunabhängig und ist von Anfang an für mehrere Scanner ausgelegt.
 
@@ -938,3 +938,49 @@ Der Installer sichert den Secret Store zusätzlich unter:
 ```
 
 **Wichtig:** Datenbank und Secret Store gehören bei einer Wiederherstellung zusammen. Ohne `master.key` können vorhandene Secrets nicht entschlüsselt werden.
+
+
+## Scanner-Menüprofile in 0.9.1-dev
+
+ScanPro-Profile können jetzt gezielt einem physischen Scanner als **Scanner-Menüprofil** zugeordnet werden.
+
+Neue Funktion im Webinterface:
+
+```text
+Scanner-Menüprofile
+```
+
+Dort wird gewählt:
+
+```text
+Scanner
+Scanprofil
+Anzeigename am Scanner
+```
+
+Beim Aktivieren erzeugt ScanPro automatisch eine profilbezogene SMB-Inbox.
+
+Beispiel:
+
+```text
+Scanner: Brother ADS-2600We
+Profil: Rechnungen
+Anzeigename: Rechnung
+SMB: \\SCANPRO\Rechnungen
+Benutzer: scanpro
+```
+
+Der Brother ADS-2600We verwaltet seine Display-Einträge selbst. Deshalb wird das von ScanPro erzeugte SMB-Ziel anschließend einmalig als **Scan-to-Network-Profil** im Brother-Webinterface hinterlegt.
+
+Neue API:
+
+```text
+GET /api/scanner-menu
+PUT /api/scanners/{scanner_id}/menu-profile/{profile_id}
+```
+
+Neue Tabelle:
+
+```text
+scanner_menu_entries
+```

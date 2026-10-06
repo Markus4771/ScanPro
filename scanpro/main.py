@@ -1092,15 +1092,25 @@ def list_scanner_menu(request: Request, db: Session = Depends(get_db)):
     for row in rows:
         scanner = db.get(Scanner, row.scanner_id)
         profile = db.get(ScanProfile, row.profile_id)
+        destination = db.get(Destination, row.destination_id) if row.destination_id else None
         share = db.query(ProfileShare).filter(ProfileShare.profile_id == row.profile_id).first()
         if not scanner or not profile:
             continue
+        workflow = db.query(Workflow).filter(
+            Workflow.profile_id == row.profile_id,
+            Workflow.scanner_id.is_(None),
+            Workflow.destination_id == row.destination_id,
+        ).first() if row.destination_id else None
         result.append({
             "id": row.id,
             "scanner_id": row.scanner_id,
             "scanner_name": scanner.name,
             "profile_id": row.profile_id,
             "profile_name": profile.name,
+            "destination_id": row.destination_id,
+            "destination_name": destination.name if destination else None,
+            "destination_type": destination.type if destination else None,
+            "workflow_id": workflow.id if workflow else None,
             "enabled": row.enabled,
             "display_name": row.display_name,
             "server": host,
@@ -1123,6 +1133,26 @@ def configure_scanner_menu_profile(
         raise HTTPException(404, "Scanner wurde nicht gefunden.")
     if not profile:
         raise HTTPException(404, "Scanprofil wurde nicht gefunden.")
+
+    destination = db.get(Destination, payload.destination_id) if payload.destination_id else None
+    if payload.enabled and not destination:
+        raise HTTPException(400, "Für ein aktives Scanner-Menüprofil muss ein Scanziel gewählt werden.")
+    if destination and not destination.enabled:
+        raise HTTPException(400, "Das gewählte Scanziel ist deaktiviert.")
+
+    if payload.enabled and payload.destination_id:
+        conflict = db.query(ScannerMenuEntry).filter(
+            ScannerMenuEntry.profile_id == profile_id,
+            ScannerMenuEntry.enabled.is_(True),
+            ScannerMenuEntry.destination_id.is_not(None),
+            ScannerMenuEntry.destination_id != payload.destination_id,
+        ).first()
+        if conflict:
+            raise HTTPException(
+                409,
+                "Dieses Scanprofil ist bereits mit einem anderen Scanziel verknüpft. "
+                "Für unterschiedliche Ziele bitte unterschiedliche Scanprofile verwenden.",
+            )
 
     display_name = (payload.display_name or profile.name).strip()
     if not display_name:
@@ -1159,14 +1189,40 @@ def configure_scanner_menu_profile(
     if row:
         row.enabled = payload.enabled
         row.display_name = display_name
+        row.destination_id = payload.destination_id
     else:
         row = ScannerMenuEntry(
             scanner_id=scanner_id,
             profile_id=profile_id,
+            destination_id=payload.destination_id,
             enabled=payload.enabled,
             display_name=display_name,
         )
         db.add(row)
+
+    if payload.enabled and destination:
+        workflow = db.query(Workflow).filter(
+            Workflow.profile_id == profile_id,
+            Workflow.scanner_id.is_(None),
+            Workflow.destination_id == destination.id,
+        ).first()
+        if not workflow:
+            base_name = f"Scanner-Menü: {profile.name} → {destination.name}"
+            workflow_name = base_name
+            sequence = 2
+            while db.query(Workflow).filter(Workflow.name == workflow_name).first():
+                workflow_name = f"{base_name} ({sequence})"
+                sequence += 1
+            workflow = Workflow(
+                name=workflow_name,
+                scanner_id=None,
+                profile_id=profile_id,
+                destination_id=destination.id,
+                enabled=True,
+            )
+            db.add(workflow)
+        else:
+            workflow.enabled = True
 
     db.commit()
     sync_profile_shares(db)
@@ -1175,6 +1231,8 @@ def configure_scanner_menu_profile(
         "id": row.id,
         "scanner_id": row.scanner_id,
         "profile_id": row.profile_id,
+        "destination_id": row.destination_id,
+        "destination_name": destination.name if destination else None,
         "enabled": row.enabled,
         "display_name": row.display_name,
         "share_name": share.share_name if share and share.enabled else None,

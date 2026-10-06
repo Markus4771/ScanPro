@@ -2,7 +2,7 @@
 
 ## Status
 
-Diese Anleitung gilt für **ScanPro 0.9.1-dev** auf Debian 13.
+Diese Anleitung gilt für **ScanPro 0.9.2-dev** auf Debian 13.
 
 ## Voraussetzungen
 
@@ -128,7 +128,7 @@ curl http://127.0.0.1:8100/health
 Erwartete Antwort:
 
 ```json
-{"status":"ok","version":"0.9.1-dev","schema_version":7}
+{"status":"ok","version":"0.9.2-dev","schema_version":8}
 ```
 
 ## Scanner über ScanPro suchen
@@ -225,7 +225,7 @@ Die SQLite-Datenbank liegt ab 0.5.2-dev unter `/var/lib/scanpro/scanpro.db`. Vor
 
 ScanPro 0.9.1-dev enthält bereits Scannerverwaltung, Weboberfläche, SMB-Inboxen, Workflows, Dokumenttrennung, Bildoptimierung, OCR, Paperless-Integration, Foto-/Bildscan, Remote-/VPN-Scanner, Secret Store und Scanner-Menüprofile.
 
-Der nächste geplante Entwicklungsschritt ist **0.9.2-dev – Cleanup / Retention**.
+Der nächste geplante Entwicklungsschritt ist **0.9.3-dev – Cleanup / Retention**.
 
 
 ## Weboberfläche
@@ -1129,3 +1129,39 @@ Geplant:
 - Schutz noch benötigter Dateien
 
 Danach folgen Paperless Custom Fields, automatische Dokumentklassifikation, Remote Collector und Stabilisierung Richtung 1.0.
+
+
+## Mehrere Brother-Menüprofile mit unterschiedlichen Zielen
+
+Im Bereich **Scanner-Menüprofile** werden ab 0.9.2-dev vier Werte gewählt:
+
+```text
+Scanner
+Scanprofil
+Scanziel
+Anzeigename am Scanner
+```
+
+Beispiel:
+
+```text
+Brother ADS-2600We
+Profil: Rechnungen
+Ziel: Paperless
+Anzeigename: Rechnung
+```
+
+Danach **Am Scanner anzeigen**.
+
+ScanPro erzeugt automatisch die passende Profil-SMB-Inbox und einen aktiven Inbox-Workflow zum gewählten Scanziel.
+
+Für weitere Einträge werden weitere Scanprofile verwendet, z. B.:
+
+```text
+Rechnungen → Paperless
+Lieferscheine → NAS
+Archiv → SMB-Archiv
+Foto → Foto-Archiv
+```
+
+Dasselbe Scanprofil kann technisch nicht gleichzeitig auf unterschiedliche Ziele zeigen, weil seine SMB-Inbox den absendenden Scanner nicht unterscheiden kann.

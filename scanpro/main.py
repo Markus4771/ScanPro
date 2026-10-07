@@ -18,7 +18,7 @@ from .schemas import (
     SmbPasswordPayload, UserPayload,
 )
 from .services.shares import (
-    ShareError, input_path, normalize_share_name, reload_samba,
+    ShareError, delete_samba_user, input_path, normalize_share_name, reload_samba,
     set_samba_password, sync_samba_config,
 )
 
@@ -55,19 +55,12 @@ def setup(payload: UserPayload, response: Response, db: Session = Depends(get_db
         username=payload.username.strip(),
         display_name=payload.display_name.strip() or payload.username.strip(),
         password_hash=password_hash,
-        smb_username="pending",
-        smb_password=payload.smb_password,
+        smb_username="legacy_" + payload.username.strip(),
+        smb_password="",
         is_admin=True,
         enabled=True,
     )
     db.add(row)
-    db.flush()
-    row.smb_username = f"scanpro_u{row.id}"
-    try:
-        set_samba_password(row, payload.smb_password)
-    except ShareError as exc:
-        db.rollback()
-        raise HTTPException(500, str(exc)) from exc
     db.commit()
     db.refresh(row)
     claim_unowned_rows(row.id)
@@ -109,8 +102,6 @@ def user_json(row: User) -> dict:
         "id": row.id,
         "username": row.username,
         "display_name": row.display_name,
-        "smb_username": row.smb_username,
-        "smb_password": row.smb_password,
         "is_admin": row.is_admin,
         "enabled": row.enabled,
     }
@@ -148,37 +139,15 @@ def create_user(
         username=username,
         display_name=payload.display_name.strip() or username,
         password_hash=password_hash,
-        smb_username="pending",
-        smb_password=payload.smb_password,
+        smb_username="legacy_" + username,
+        smb_password="",
         is_admin=payload.is_admin,
         enabled=payload.enabled,
     )
     db.add(row)
-    db.flush()
-    row.smb_username = f"scanpro_u{row.id}"
-    try:
-        set_samba_password(row, payload.smb_password)
-    except ShareError as exc:
-        db.rollback()
-        raise HTTPException(500, str(exc)) from exc
     db.commit()
     db.refresh(row)
     return user_json(row)
-
-
-@app.put("/api/me/smb-password")
-def change_my_smb_password(
-    payload: SmbPasswordPayload,
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user),
-):
-    try:
-        set_samba_password(user, payload.smb_password)
-    except ShareError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    user.smb_password = payload.smb_password
-    db.commit()
-    return user_json(user)
 
 
 def profile_json(row: ProcessingProfile) -> dict:
@@ -307,8 +276,8 @@ def list_inputs(
             "profile_id": r.profile_id, "profile_name": profile.name if profile else None,
             "destination_id": r.destination_id,
             "destination_name": destination.name if destination else None,
-            "enabled": r.enabled, "username": user.smb_username,
-            "password": user.smb_password,
+            "enabled": r.enabled, "username": r.smb_username,
+            "password": r.smb_password,
         })
     return result
 
@@ -333,15 +302,47 @@ def create_input(
         ScanInput.owner_id == user.id, ScanInput.name == payload.name
     ).first():
         raise HTTPException(409, "Name wird bereits verwendet.")
+    if len(payload.smb_password) < 8:
+        raise HTTPException(400, "SMB-Passwort muss mindestens 8 Zeichen lang sein.")
     row = ScanInput(
         owner_id=user.id, name=payload.name, share_name=share, path="",
+        smb_username=None, smb_password=payload.smb_password,
         profile_id=profile.id, destination_id=destination.id, enabled=payload.enabled,
     )
-    db.add(row); db.commit(); db.refresh(row)
+    db.add(row); db.flush()
+    row.smb_username = f"scanpro_s{row.id}"
     row.path = str(input_path(row.id))
+    try:
+        set_samba_password(row.smb_username, payload.smb_password)
+    except ShareError as exc:
+        db.rollback()
+        raise HTTPException(500, str(exc)) from exc
+    db.commit(); db.refresh(row)
+    sync_samba_config(db); reload_samba()
+    return {"id": row.id, "share_name": row.share_name, "path": row.path,
+            "username": row.smb_username, "password": row.smb_password}
+
+
+@app.put("/api/inputs/{input_id}/smb-password")
+def change_input_smb_password(
+    input_id: int,
+    payload: SmbPasswordPayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    row = owned(db, ScanInput, input_id, user)
+    if len(payload.smb_password) < 8:
+        raise HTTPException(400, "SMB-Passwort muss mindestens 8 Zeichen lang sein.")
+    if not row.smb_username:
+        row.smb_username = f"scanpro_s{row.id}"
+    try:
+        set_samba_password(row.smb_username, payload.smb_password)
+    except ShareError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    row.smb_password = payload.smb_password
     db.commit()
     sync_samba_config(db); reload_samba()
-    return {"id": row.id, "share_name": row.share_name, "path": row.path}
+    return {"id": row.id, "username": row.smb_username, "password": row.smb_password}
 
 
 @app.delete("/api/inputs/{input_id}")
@@ -355,7 +356,9 @@ def delete_input(
         ScanJob.owner_id == user.id, ScanJob.input_id == input_id
     ).first():
         raise HTTPException(409, "Scan-Eingang wurde bereits benutzt und kann nur deaktiviert werden.")
+    samba_username = row.smb_username
     db.delete(row); db.commit()
+    delete_samba_user(samba_username)
     sync_samba_config(db); reload_samba()
     return {"deleted": True}
 

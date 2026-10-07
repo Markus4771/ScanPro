@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scanpro"
-version = "1.0.0.dev0"
+version = "1.1.0.dev0"
 description = "SMB input first scan processing server"
 requires-python = ">=3.11"
 dependencies = [

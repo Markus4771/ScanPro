@@ -3,7 +3,7 @@ from pathlib import Path
 
 from .db import Base, SessionLocal, engine, initialize_database
 from .models import ScanInput, ScanJob
-from .services.processor import ProcessingError, process_job
+from .services.processor import process_job
 from .services.shares import sync_samba_config
 
 ALLOWED_SUFFIXES = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
@@ -26,13 +26,16 @@ def stable(path: Path) -> bool:
 
 def handle(db, scan_input: ScanInput, path: Path):
     job = ScanJob(
+        owner_id=scan_input.owner_id,
         input_id=scan_input.id,
         profile_id=scan_input.profile_id,
         destination_id=scan_input.destination_id,
         status="queued",
         source_path=str(path),
     )
-    db.add(job); db.commit(); db.refresh(job)
+    db.add(job)
+    db.commit()
+    db.refresh(job)
     try:
         process_job(db, job)
     except Exception as exc:

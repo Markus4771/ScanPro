@@ -6,7 +6,7 @@
 <title>ScanPro</title>
 <style>
 body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:0;background:#f4f6f8;color:#172033}
-header{background:#111827;color:#fff;padding:18px 24px}
+header{background:#111827;color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 main{max-width:1180px;margin:24px auto;padding:0 16px}
 .card{background:#fff;border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 1px 4px #0001}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
@@ -17,16 +17,66 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.item{padding:12px 0;border-top:1px solid #e5e7eb}
 .item:first-child{border-top:0}.muted{color:#6b7280}.ok{color:#047857}.err{color:#b91c1c}
 .badge{padding:3px 8px;border-radius:999px;background:#e5e7eb;font-size:.82rem}.badge.ok{background:#d1fae5;color:#065f46}
-h1,h2{margin-top:0}
+.secret{font-family:ui-monospace,Consolas,monospace;background:#f3f4f6;padding:8px;border-radius:7px;word-break:break-all}
+.hidden{display:none!important}h1,h2{margin-top:0}header h1{margin:0}
+.auth{max-width:520px;margin:50px auto}
 </style>
 </head>
 <body>
-<header><h1>ScanPro <span id="version" class="muted"></span></h1></header>
+<header>
+  <h1>ScanPro <span id="version" class="muted"></span></h1>
+  <div id="sessionBox" class="hidden"><span id="who"></span> <button class="secondary" onclick="logout()">Abmelden</button></div>
+</header>
 <main>
+
+<section id="setupBox" class="card auth hidden">
+<h2>Ersteinrichtung</h2>
+<p class="muted">Lege den ersten Administrator an. WebGUI- und SMB-Passwort sind getrennt.</p>
+<label>Benutzername<input id="setupUser" value="admin"></label>
+<label>Anzeigename<input id="setupName" placeholder="Administrator"></label>
+<label>WebGUI-Passwort<input id="setupPassword" type="password" placeholder="mindestens 10 Zeichen"></label>
+<label>SMB-Passwort für Scanner/Freigaben<input id="setupSmbPassword" type="text" placeholder="mindestens 8 Zeichen"></label>
+<div class="actions"><button onclick="setup()">ScanPro einrichten</button></div>
+</section>
+
+<section id="loginBox" class="card auth hidden">
+<h2>Anmelden</h2>
+<label>Benutzername<input id="loginUser"></label>
+<label>Passwort<input id="loginPassword" type="password"></label>
+<div class="actions"><button onclick="login()">Anmelden</button></div>
+</section>
+
+<div id="app" class="hidden">
+<section class="card">
+<h2>Mein Konto</h2>
+<div class="grid">
+<div><strong>WebGUI-Benutzer</strong><div id="meUser"></div></div>
+<div><strong>SMB-Benutzer</strong><div id="meSmbUser" class="secret"></div></div>
+<div><strong>SMB-Passwort</strong><div id="meSmbPassword" class="secret"></div></div>
+</div>
+<p class="muted">Diese SMB-Zugangsdaten werden am Scanner für deine persönlichen Scan-Freigaben eingetragen.</p>
+<div class="grid">
+<label>Neues SMB-Passwort<input id="newSmbPassword" type="text" placeholder="mindestens 8 Zeichen"></label>
+</div>
+<div class="actions"><button class="secondary" onclick="changeSmbPassword()">SMB-Passwort ändern</button></div>
+</section>
+
+<section id="adminCard" class="card hidden">
+<h2>Benutzerverwaltung</h2>
+<div class="grid">
+<label>Benutzername<input id="uUsername"></label>
+<label>Anzeigename<input id="uDisplay"></label>
+<label>WebGUI-Passwort<input id="uPassword" type="password"></label>
+<label>SMB-Passwort<input id="uSmbPassword" type="text"></label>
+<label class="check"><input id="uAdmin" type="checkbox"> Administrator</label>
+</div>
+<div class="actions"><button onclick="createUser()">Benutzer anlegen</button></div>
+<div id="users" class="muted"></div>
+</section>
 
 <section class="card">
 <h2>1. Verarbeitungsprofile</h2>
-<p class="muted">Das Profil bestimmt, was ScanPro nach dem Eingang einer Datei macht.</p>
+<p class="muted">Nur deine eigenen Profile werden angezeigt.</p>
 <div class="grid">
 <label>Name<input id="pName" placeholder="Rechnungen"></label>
 <label>OCR-Sprache<select id="pLang"><option value="deu">Deutsch</option><option value="eng">Englisch</option><option value="deu+eng">Deutsch + Englisch</option></select></label>
@@ -46,7 +96,7 @@ h1,h2{margin-top:0}
 
 <section class="card">
 <h2>2. Scanziele</h2>
-<p class="muted">Wohin soll das fertige Dokument nach der Verarbeitung?</p>
+<p class="muted">Nur deine eigenen Ziele werden angezeigt.</p>
 <div class="grid">
 <label>Name<input id="dName" placeholder="Paperless"></label>
 <label>Typ<select id="dType" onchange="toggleDestination()"><option value="local">Lokaler Ordner</option><option value="smb">SMB</option><option value="paperless">Paperless-ngx</option></select></label>
@@ -71,7 +121,7 @@ h1,h2{margin-top:0}
 
 <section class="card">
 <h2>3. Scan-Eingänge / SMB-Freigaben</h2>
-<p class="muted">Der Scanner scannt ausschließlich in diese Freigabe. Erst dann beginnt ScanPro mit der Verarbeitung.</p>
+<p class="muted">Jede hier angelegte Freigabe gehört nur deinem Benutzer.</p>
 <div class="grid">
 <label>Name<input id="iName" placeholder="Rechnungen"></label>
 <label>Freigabe<input id="iShare" placeholder="Rechnungen"></label>
@@ -87,160 +137,102 @@ h1,h2{margin-top:0}
 <div class="actions"><button class="secondary" onclick="loadJobs()">Aktualisieren</button></div>
 <div id="jobs" class="muted">Lade…</div>
 </section>
+</div>
 
 </main>
 <script>
-let profiles=[],destinations=[];
+let profiles=[],destinations=[],me=null;
 
 async function api(url,options={}){
   const r=await fetch(url,options);
-  const raw=await r.text();
-  let data={};
-  try{ data=raw?JSON.parse(raw):{}; }catch(e){ data={}; }
-  if(!r.ok){
-    const detail=typeof data.detail==='string'
-      ? data.detail
-      : (raw || JSON.stringify(data.detail || data) || ('HTTP '+r.status));
-    throw new Error(detail);
-  }
+  const raw=await r.text(); let data={};
+  try{data=raw?JSON.parse(raw):{};}catch(e){data={};}
+  if(!r.ok)throw new Error(typeof data.detail==='string'?data.detail:(raw||('HTTP '+r.status)));
   return data;
 }
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-async function init(){
-  const h=await api('/health'); document.getElementById('version').textContent=h.version;
-  const results=await Promise.allSettled([loadProfiles(),loadDestinations(),loadInputs(),loadJobs()]);
-  results.forEach((r,i)=>{
-    if(r.status==='rejected')console.error(['Profile','Scanziele','Scan-Eingänge','Jobs'][i]+':',r.reason);
-  });
+function q(id){return document.getElementById(id)}
+function jsonPost(url,data){return api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})}
+
+async function boot(){
+  const h=await api('/health');q('version').textContent=h.version;
+  const s=await api('/api/setup-status');
+  if(s.needs_setup){q('setupBox').classList.remove('hidden');return;}
+  try{me=await api('/api/me');await showApp();}catch(e){q('loginBox').classList.remove('hidden');}
+}
+async function setup(){
+  me=await jsonPost('/api/setup',{username:q('setupUser').value.trim(),display_name:q('setupName').value.trim(),password:q('setupPassword').value,smb_password:q('setupSmbPassword').value,is_admin:true,enabled:true});
+  q('setupBox').classList.add('hidden');await showApp();
+}
+async function login(){
+  me=await jsonPost('/api/login',{username:q('loginUser').value.trim(),password:q('loginPassword').value});
+  q('loginBox').classList.add('hidden');await showApp();
+}
+async function logout(){await api('/api/logout',{method:'POST'});location.reload();}
+async function showApp(){
+  q('app').classList.remove('hidden');q('sessionBox').classList.remove('hidden');
+  q('who').textContent=me.display_name||me.username;q('meUser').textContent=me.username;
+  q('meSmbUser').textContent=me.smb_username;q('meSmbPassword').textContent=me.smb_password;
+  if(me.is_admin){q('adminCard').classList.remove('hidden');await loadUsers();}
+  await Promise.all([loadProfiles(),loadDestinations(),loadInputs(),loadJobs()]);
+}
+async function changeSmbPassword(){
+  const p=q('newSmbPassword').value;
+  me=await api('/api/me/smb-password',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({smb_password:p})});
+  q('meSmbPassword').textContent=me.smb_password;q('newSmbPassword').value='';await loadInputs();
+}
+async function loadUsers(){
+  const rows=await api('/api/users');q('users').innerHTML='';
+  for(const u of rows){
+    const el=document.createElement('div');el.className='item';
+    el.innerHTML='<strong>'+esc(u.display_name)+'</strong> <span class="badge">'+esc(u.username)+'</span>'+
+      (u.is_admin?' <span class="badge ok">Admin</span>':'')+
+      '<div>SMB: <span class="secret">'+esc(u.smb_username)+' / '+esc(u.smb_password)+'</span></div>';
+    q('users').appendChild(el);
+  }
+}
+async function createUser(){
+  await jsonPost('/api/users',{username:q('uUsername').value.trim(),display_name:q('uDisplay').value.trim(),password:q('uPassword').value,smb_password:q('uSmbPassword').value,is_admin:q('uAdmin').checked,enabled:true});
+  q('uUsername').value='';q('uDisplay').value='';q('uPassword').value='';q('uSmbPassword').value='';q('uAdmin').checked=false;await loadUsers();
 }
 async function loadProfiles(){
-  profiles=await api('/api/profiles');
-  const box=document.getElementById('profiles'); box.innerHTML='';
-  const sel=document.getElementById('iProfile'); sel.innerHTML='';
-  const placeholder=document.createElement('option');
-  placeholder.value=''; placeholder.textContent=profiles.length?'-- Profil wählen --':'-- zuerst Profil anlegen --';
-  sel.appendChild(placeholder);
+  profiles=await api('/api/profiles');q('profiles').innerHTML='';q('iProfile').innerHTML='<option value="">'+(profiles.length?'-- Profil wählen --':'-- zuerst Profil anlegen --')+'</option>';
   for(const p of profiles){
-    const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);
+    q('iProfile').insertAdjacentHTML('beforeend','<option value="'+p.id+'">'+esc(p.name)+'</option>');
     const el=document.createElement('div');el.className='item';
-    el.innerHTML='<strong>'+esc(p.name)+'</strong> <span class="badge '+(p.ocr_enabled?'ok':'')+'">OCR '+(p.ocr_enabled?'an':'aus')+'</span>'+
-      '<div class="muted">'+esc(p.ocr_language)+' · '+esc(p.filename_template)+'</div>'+
-      '<div class="actions"><button class="danger" onclick="deleteProfile('+p.id+',\''+esc(p.name).replace(/&#39;/g,"\\'")+'\')">Löschen</button></div>';
-    box.appendChild(el);
+    el.innerHTML='<strong>'+esc(p.name)+'</strong> <span class="badge '+(p.ocr_enabled?'ok':'')+'">OCR '+(p.ocr_enabled?'an':'aus')+'</span><div class="muted">'+esc(p.ocr_language)+' · '+esc(p.filename_template)+'</div><div class="actions"><button class="danger" data-id="'+p.id+'">Löschen</button></div>';
+    el.querySelector('button').onclick=()=>deleteProfile(p.id,p.name);q('profiles').appendChild(el);
   }
-  if(!profiles.length)box.textContent='Noch kein Profil angelegt.';
-}
-async function deleteProfile(id,name){
-  if(!confirm('Verarbeitungsprofil "'+name+'" wirklich löschen?'))return;
-  try{
-    await api('/api/profiles/'+id,{method:'DELETE'});
-    await loadProfiles();
-    await loadInputs();
-  }catch(e){
-    alert(e.message);
-  }
+  if(!profiles.length)q('profiles').textContent='Noch kein Profil angelegt.';
 }
 async function createProfile(){
-  const name=document.getElementById('pName').value.trim(); if(!name)return alert('Name fehlt.');
-  await api('/api/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
-    name,ocr_enabled:document.getElementById('pOcr').checked,ocr_language:document.getElementById('pLang').value,
-    remove_blank_pages:document.getElementById('pBlank').checked,auto_rotate:document.getElementById('pRotate').checked,
-    deskew:document.getElementById('pDeskew').checked,auto_crop:document.getElementById('pCrop').checked,
-    split_method:document.getElementById('pSplit').value,filename_template:document.getElementById('pFilename').value
-  })});
-  document.getElementById('pName').value='';
-  await loadProfiles();
-  loadInputs().catch(e=>console.error('Scan-Eingänge:',e));
+  const name=q('pName').value.trim();if(!name)return alert('Name fehlt.');
+  await jsonPost('/api/profiles',{name,ocr_enabled:q('pOcr').checked,ocr_language:q('pLang').value,remove_blank_pages:q('pBlank').checked,auto_rotate:q('pRotate').checked,deskew:q('pDeskew').checked,auto_crop:q('pCrop').checked,split_method:q('pSplit').value,filename_template:q('pFilename').value});
+  q('pName').value='';await loadProfiles();
 }
-function toggleDestination(){
-  const t=document.getElementById('dType').value;
-  document.getElementById('dLocal').style.display=t==='local'?'block':'none';
-  document.getElementById('dSmb').style.display=t==='smb'?'grid':'none';
-  document.getElementById('dPaperless').style.display=t==='paperless'?'grid':'none';
-}
-function destinationConfig(){
-  const t=document.getElementById('dType').value;
-  if(t==='local')return {path:document.getElementById('dLocalPath').value.trim()};
-  if(t==='smb')return {server:document.getElementById('dServer').value.trim(),share:document.getElementById('dShare').value.trim(),subfolder:document.getElementById('dSubfolder').value.trim(),username:document.getElementById('dUser').value.trim(),password:document.getElementById('dPassword').value,domain:document.getElementById('dDomain').value.trim()};
-  return {base_url:document.getElementById('dPaperlessUrl').value.trim(),token:document.getElementById('dPaperlessToken').value,verify_ssl:document.getElementById('dVerify').checked};
-}
-async function deleteDestination(id,name){
-  if(!confirm('Scanziel "'+name+'" wirklich löschen?'))return;
-  try{
-    await api('/api/destinations/'+id,{method:'DELETE'});
-    await loadDestinations();
-    await loadInputs();
-  }catch(e){
-    alert(e.message);
-  }
-}
-async function createDestination(){
-  const name=document.getElementById('dName').value.trim(); if(!name)return alert('Name fehlt.');
-  await api('/api/destinations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,type:document.getElementById('dType').value,enabled:true,config:destinationConfig()})});
-  document.getElementById('dName').value='';
-  await loadDestinations();
-  loadInputs().catch(e=>console.error('Scan-Eingänge:',e));
-}
+async function deleteProfile(id,name){if(!confirm('Verarbeitungsprofil "'+name+'" wirklich löschen?'))return;try{await api('/api/profiles/'+id,{method:'DELETE'});await loadProfiles();}catch(e){alert(e.message);}}
+function toggleDestination(){const t=q('dType').value;q('dLocal').style.display=t==='local'?'block':'none';q('dSmb').style.display=t==='smb'?'grid':'none';q('dPaperless').style.display=t==='paperless'?'grid':'none';}
+function destinationConfig(){const t=q('dType').value;if(t==='local')return {path:q('dLocalPath').value.trim()};if(t==='smb')return {server:q('dServer').value.trim(),share:q('dShare').value.trim(),subfolder:q('dSubfolder').value.trim(),username:q('dUser').value.trim(),password:q('dPassword').value,domain:q('dDomain').value.trim()};return {base_url:q('dPaperlessUrl').value.trim(),token:q('dPaperlessToken').value,verify_ssl:q('dVerify').checked};}
+async function createDestination(){const name=q('dName').value.trim();if(!name)return alert('Name fehlt.');await jsonPost('/api/destinations',{name,type:q('dType').value,enabled:true,config:destinationConfig()});q('dName').value='';await loadDestinations();}
 async function loadDestinations(){
-  destinations=await api('/api/destinations');
-  const box=document.getElementById('destinations');box.innerHTML='';
-  const sel=document.getElementById('iDestination');sel.innerHTML='';
-  const enabledDestinations=destinations.filter(d=>d.enabled);
-  const placeholder=document.createElement('option');
-  placeholder.value=''; placeholder.textContent=enabledDestinations.length?'-- Scanziel wählen --':'-- zuerst Scanziel anlegen --';
-  sel.appendChild(placeholder);
-  for(const d of destinations){
-    if(d.enabled){const o=document.createElement('option');o.value=d.id;o.textContent=d.name;sel.appendChild(o);}
-    const el=document.createElement('div');el.className='item';
-    el.innerHTML='<strong>'+esc(d.name)+'</strong> <span class="badge ok">'+esc(d.type.toUpperCase())+'</span>'+
-      '<div class="actions"><button class="danger" onclick="deleteDestination('+d.id+',\''+esc(d.name).replace(/&#39;/g,"\\'")+'\')">Löschen</button></div>';
-    box.appendChild(el);
-  }
-  if(!destinations.length)box.textContent='Noch kein Scanziel angelegt.';
+  destinations=await api('/api/destinations');q('destinations').innerHTML='';const enabled=destinations.filter(d=>d.enabled);q('iDestination').innerHTML='<option value="">'+(enabled.length?'-- Scanziel wählen --':'-- zuerst Scanziel anlegen --')+'</option>';
+  for(const d of destinations){if(d.enabled)q('iDestination').insertAdjacentHTML('beforeend','<option value="'+d.id+'">'+esc(d.name)+'</option>');const el=document.createElement('div');el.className='item';el.innerHTML='<strong>'+esc(d.name)+'</strong> <span class="badge ok">'+esc(d.type.toUpperCase())+'</span><div class="actions"><button class="danger">Löschen</button></div>';el.querySelector('button').onclick=()=>deleteDestination(d.id,d.name);q('destinations').appendChild(el);}
+  if(!destinations.length)q('destinations').textContent='Noch kein Scanziel angelegt.';
 }
-async function createInput(){
-  const name=document.getElementById('iName').value.trim();
-  const share=document.getElementById('iShare').value.trim()||name;
-  const profile_id=Number(document.getElementById('iProfile').value);
-  const destination_id=Number(document.getElementById('iDestination').value);
-  if(!name||!profile_id||!destination_id)return alert('Name, Profil und Ziel sind erforderlich.');
-  await api('/api/inputs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,share_name:share,profile_id,destination_id,enabled:true})});
-  document.getElementById('iName').value='';document.getElementById('iShare').value='';await loadInputs();
-}
-async function deleteInput(id,name){
-  if(!confirm('Scan-Eingang "'+name+'" wirklich löschen?'))return;
-  try{
-    await api('/api/inputs/'+id,{method:'DELETE'});
-    await loadInputs();
-  }catch(e){
-    alert(e.message);
-  }
-}
+async function deleteDestination(id,name){if(!confirm('Scanziel "'+name+'" wirklich löschen?'))return;try{await api('/api/destinations/'+id,{method:'DELETE'});await loadDestinations();}catch(e){alert(e.message);}}
+async function createInput(){const name=q('iName').value.trim(),share=q('iShare').value.trim()||name,profile_id=Number(q('iProfile').value),destination_id=Number(q('iDestination').value);if(!name||!profile_id||!destination_id)return alert('Name, Profil und Ziel sind erforderlich.');await jsonPost('/api/inputs',{name,share_name:share,profile_id,destination_id,enabled:true});q('iName').value='';q('iShare').value='';await loadInputs();}
 async function loadInputs(){
-  const data=await api('/api/inputs');const box=document.getElementById('inputs');box.innerHTML='';
-  for(const i of data){
-    const el=document.createElement('div');el.className='item';
-    el.innerHTML='<strong>'+esc(i.name)+'</strong> <span class="badge ok">aktiv</span>'+
-      '<div>'+esc(i.network_path)+'</div>'+
-      '<div class="muted">Benutzer: '+esc(i.username)+' · Profil: '+esc(i.profile_name)+' · Ziel: '+esc(i.destination_name)+'</div>'+
-      '<div class="actions"><button class="danger" onclick="deleteInput('+i.id+',\''+esc(i.name).replace(/&#39;/g,"\\'")+'\')">Löschen</button></div>';
-    box.appendChild(el);
-  }
-  if(!data.length)box.textContent='Noch kein Scan-Eingang angelegt.';
+  const data=await api('/api/inputs');q('inputs').innerHTML='';
+  for(const i of data){const el=document.createElement('div');el.className='item';el.innerHTML='<strong>'+esc(i.name)+'</strong> <span class="badge ok">aktiv</span><div class="secret">'+esc(i.network_path)+'</div><div class="muted">SMB-Benutzer: '+esc(i.username)+' · SMB-Passwort: '+esc(i.password)+'</div><div class="muted">Profil: '+esc(i.profile_name)+' · Ziel: '+esc(i.destination_name)+'</div><div class="actions"><button class="danger">Löschen</button></div>';el.querySelector('button').onclick=()=>deleteInput(i.id,i.name);q('inputs').appendChild(el);}
+  if(!data.length)q('inputs').textContent='Noch kein Scan-Eingang angelegt.';
 }
+async function deleteInput(id,name){if(!confirm('Scan-Eingang "'+name+'" wirklich löschen?'))return;try{await api('/api/inputs/'+id,{method:'DELETE'});await loadInputs();}catch(e){alert(e.message);}}
 async function loadJobs(){
-  const data=await api('/api/jobs');const box=document.getElementById('jobs');box.innerHTML='';
-  for(const j of data){
-    const el=document.createElement('div');el.className='item';
-    el.innerHTML='<strong>Job '+j.id+'</strong> <span class="badge '+(j.status==='delivered'?'ok':'')+'">'+esc(j.status)+'</span>'+
-      '<div class="muted">'+esc(j.input_name)+' → '+esc(j.profile_name)+' → '+esc(j.destination_name)+'</div>'+
-      (j.error?'<div class="err">'+esc(j.error)+'</div>':'')+
-      (j.documents||[]).map(d=>'<div><a class="btn" href="'+d.file_url+'" target="_blank">'+esc(d.final_name)+'</a></div>').join('');
-    box.appendChild(el);
-  }
-  if(!data.length)box.textContent='Noch keine ScanJobs.';
+  const data=await api('/api/jobs');q('jobs').innerHTML='';
+  for(const j of data){const el=document.createElement('div');el.className='item';el.innerHTML='<strong>Job '+j.id+'</strong> <span class="badge '+(j.status==='delivered'?'ok':'')+'">'+esc(j.status)+'</span><div class="muted">'+esc(j.input_name)+' → '+esc(j.profile_name)+' → '+esc(j.destination_name)+'</div>'+(j.error?'<div class="err">'+esc(j.error)+'</div>':'')+(j.documents||[]).map(d=>'<div><a class="btn" href="'+d.file_url+'" target="_blank">'+esc(d.final_name)+'</a></div>').join('');q('jobs').appendChild(el);}
+  if(!data.length)q('jobs').textContent='Noch keine ScanJobs.';
 }
-init().catch(e=>alert(e.message));
+boot().catch(e=>alert(e.message));
 </script>
 </body>
 </html>

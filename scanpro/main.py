@@ -264,7 +264,8 @@ def list_inputs(
 ):
     host = request.url.hostname or "SCANPRO"
     rows = db.query(ScanInput).filter(
-        ScanInput.owner_id == user.id
+        ScanInput.owner_id == user.id,
+        ScanInput.enabled.is_(True),
     ).order_by(ScanInput.name).all()
     result = []
     for r in rows:
@@ -352,15 +353,28 @@ def delete_input(
     user: User = Depends(current_user),
 ):
     row = owned(db, ScanInput, input_id, user)
-    if db.query(ScanJob).filter(
-        ScanJob.owner_id == user.id, ScanJob.input_id == input_id
-    ).first():
-        raise HTTPException(409, "Scan-Eingang wurde bereits benutzt und kann nur deaktiviert werden.")
     samba_username = row.smb_username
-    db.delete(row); db.commit()
+    has_jobs = db.query(ScanJob).filter(
+        ScanJob.owner_id == user.id, ScanJob.input_id == input_id
+    ).first() is not None
+
+    if has_jobs:
+        # Historie erhalten, aber Freigabe vollständig aus dem aktiven Betrieb entfernen.
+        original_name = row.name
+        original_share = row.share_name
+        row.enabled = False
+        row.name = f"[gelöscht] {original_name} #{row.id}"
+        row.share_name = f"__deleted_{row.id}_{original_share}"[:80]
+        row.smb_username = None
+        row.smb_password = None
+        db.commit()
+    else:
+        db.delete(row)
+        db.commit()
+
     delete_samba_user(samba_username)
     sync_samba_config(db); reload_samba()
-    return {"deleted": True}
+    return {"deleted": True, "history_preserved": has_jobs}
 
 
 @app.get("/api/jobs")

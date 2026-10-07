@@ -70,6 +70,16 @@ def _add_owner_columns(connection: sqlite3.Connection) -> None:
             connection.execute(f"ALTER TABLE {table} ADD COLUMN owner_id INTEGER")
 
 
+def _add_share_credentials(connection: sqlite3.Connection) -> None:
+    if not _table_exists(connection, "scan_inputs"):
+        return
+    columns = _columns(connection, "scan_inputs")
+    if "smb_username" not in columns:
+        connection.execute("ALTER TABLE scan_inputs ADD COLUMN smb_username VARCHAR(80)")
+    if "smb_password" not in columns:
+        connection.execute("ALTER TABLE scan_inputs ADD COLUMN smb_password TEXT")
+
+
 def initialize_database():
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
     if DATABASE_URL.startswith("sqlite:///"):
@@ -80,6 +90,7 @@ def initialize_database():
             connection.execute("PRAGMA journal_mode=WAL")
             _repair_legacy_scan_jobs(connection)
             _add_owner_columns(connection)
+            _add_share_credentials(connection)
             connection.execute("PRAGMA foreign_keys=ON")
             connection.commit()
         finally:

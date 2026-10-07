@@ -1,32 +1,11 @@
-# ScanPro 1.0-dev – Installation
+# ScanPro 1.1-dev – Installation
 
-Diese Anleitung gilt für den kompletten Neustart von ScanPro.
-
-## Bestehende 0.x-Installation
-
-Die alte Datenbank unter:
-
-```text
-/var/lib/scanpro/
-```
-
-wird nicht gelöscht.
-
-ScanPro 1.0 verwendet stattdessen:
-
-```text
-/var/lib/scanpro-v1/
-```
-
-Der alte Quellstand ist zusätzlich im Git-Branch:
-
-```text
-archive/scanpro-0.9.2
-```
-
-gesichert.
+ScanPro 1.1 führt WebGUI-Benutzer und persönliche SMB-Freigaben ein.
 
 ## Update / Installation
+
+Vor jedem Update legt der Installer automatisch ein Backup der SQLite-Datenbank unter
+`/var/lib/scanpro-v1/backups/` an.
 
 ```bash
 cd ~/ScanPro
@@ -38,13 +17,13 @@ Installiert werden u. a.:
 
 - Python 3
 - Nginx
-- Samba
-- smbclient
+- Samba / smbclient
 - SQLite
+- sudo für den eingeschränkten ScanPro-Samba-Helfer
 - OCRmyPDF
 - Tesseract Deutsch/Englisch
 
-## Dienste
+## Dienste prüfen
 
 ```bash
 systemctl status scanpro --no-pager
@@ -61,24 +40,81 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"1.0.0-dev","schema_version":1}
+{"status":"ok","version":"1.1.0-dev","schema_version":2}
 ```
 
-## Samba
+## Erster Aufruf
 
-Einmalig Passwort für den Systembenutzer setzen:
+Im Browser:
 
-```bash
-sudo smbpasswd -a scanpro
+```text
+http://IP-DES-SCANPRO-SERVERS/
 ```
 
-Freigaben anzeigen:
+Beim ersten Aufruf wird der erste Administrator angelegt.
 
-```bash
-smbclient -L localhost -U scanpro
+Dabei werden zwei getrennte Kennwörter vergeben:
+
+1. **WebGUI-Passwort** – wird nur gehasht gespeichert und ist später nicht auslesbar.
+2. **SMB-Passwort** – wird für den Scanner benötigt und darf im angemeldeten Benutzerbereich sichtbar sein.
+
+Bestehende Profile, Ziele, Scan-Eingänge und ScanJobs ohne Eigentümer werden beim Anlegen
+des ersten Administrators diesem Benutzer zugeordnet.
+
+## Benutzer und SMB
+
+Jeder ScanPro-Benutzer erhält automatisch einen eigenen Samba-Benutzer, zum Beispiel:
+
+```text
+scanpro_u1
+scanpro_u2
+scanpro_u3
 ```
 
-ScanPro erzeugt die Freigaben dynamisch aus den **Scan-Eingängen**.
+Der Administrator muss diese Linux-/Samba-Konten nicht manuell anlegen.
+
+Ein Scan-Eingang wird in Samba beispielsweise so eingeschränkt:
+
+```text
+[Rechnungen-Markus]
+    path = /var/lib/scanpro-v1/inputs/1
+    read only = no
+    guest ok = no
+    valid users = scanpro_u1
+    force user = scanpro
+```
+
+Damit kann nur der Eigentümer mit seinen persönlichen SMB-Zugangsdaten in diese Freigabe scannen.
+
+## WebGUI-Benutzerverwaltung
+
+Administratoren können weitere Benutzer anlegen. Für jeden Benutzer werden festgelegt:
+
+- Benutzername
+- Anzeigename
+- WebGUI-Passwort
+- SMB-Passwort
+- Administrator ja/nein
+
+Der Benutzer sieht nach seiner Anmeldung nur:
+
+- seine Verarbeitungsprofile
+- seine Scanziele
+- seine Scan-Eingänge / SMB-Freigaben
+- seine ScanJobs
+- seine eigenen SMB-Zugangsdaten
+
+## Brother-Scanner
+
+Für einen persönlichen Scan-Eingang zeigt ScanPro beispielsweise:
+
+```text
+\\192.168.0.240\Rechnungen-Markus
+Benutzer: scanpro_u1
+Passwort: <sichtbares SMB-Passwort>
+```
+
+Diese drei Angaben werden am Brother als Scan-to-Network-/SMB-Profil hinterlegt.
 
 ## Datenbank
 
@@ -86,19 +122,6 @@ ScanPro erzeugt die Freigaben dynamisch aus den **Scan-Eingängen**.
 /var/lib/scanpro-v1/scanpro-v1.db
 ```
 
-## Typischer Einstieg
-
-Im Webinterface zuerst:
-
-1. Profil `Rechnungen`
-2. Ziel `Paperless`
-3. Eingang `Rechnungen`
-
-Danach erscheint z. B.:
-
-```text
-\\192.168.0.240\Rechnungen
-Benutzer: scanpro
-```
-
-Diesen Pfad am Brother als Scan-to-Network-Profil hinterlegen.
+Die SMB-Passwörter werden absichtlich lesbar in der ScanPro-Datenbank gespeichert, damit der
+angemeldete Benutzer sie für die Scanner-Konfiguration anzeigen kann. Das Datenverzeichnis ist
+auf dem Server entsprechend restriktiv berechtigt.

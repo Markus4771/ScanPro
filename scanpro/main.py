@@ -358,13 +358,19 @@ def delete_input(
         ScanJob.owner_id == user.id, ScanJob.input_id == input_id
     ).first() is not None
 
+    # Zuerst immer deaktivieren und aus der Samba-Konfiguration entfernen.
+    row.enabled = False
+    db.commit()
+    sync_samba_config(db)
+    reload_samba()
+    delete_samba_user(samba_username)
+
     if has_jobs:
-        # Historie erhalten, aber Freigabe vollständig aus dem aktiven Betrieb entfernen.
+        # Historischen Datensatz behalten, aber so markieren, dass er weder
+        # angezeigt noch erneut als Freigabe verwendet wird.
         original_name = row.name
-        original_share = row.share_name
-        row.enabled = False
-        row.name = f"[gelöscht] {original_name} #{row.id}"
-        row.share_name = f"__deleted_{row.id}_{original_share}"[:80]
+        row.name = f"[gelöscht #{row.id}] {original_name}"
+        row.share_name = f"__deleted_{row.id}"
         row.smb_username = None
         row.smb_password = None
         db.commit()
@@ -372,8 +378,6 @@ def delete_input(
         db.delete(row)
         db.commit()
 
-    delete_samba_user(samba_username)
-    sync_samba_config(db); reload_samba()
     return {"deleted": True, "history_preserved": has_jobs}
 
 

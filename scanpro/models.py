@@ -60,6 +60,8 @@ class ScanInput(Base):
     name: Mapped[str] = mapped_column(String(120), unique=True)
     share_name: Mapped[str] = mapped_column(String(80))
     path: Mapped[str] = mapped_column(String(255))
+    smb_username: Mapped[str | None] = mapped_column(String(80), unique=True, nullable=True)
+    smb_password: Mapped[str | None] = mapped_column(Text, nullable=True)
     profile_id: Mapped[int] = mapped_column(ForeignKey("processing_profiles.id"))
     destination_id: Mapped[int] = mapped_column(ForeignKey("destinations.id"))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)

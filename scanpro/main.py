@@ -1,15 +1,26 @@
+import hashlib
 import json
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
 from . import __version__
-from .db import Base, DATA_ROOT, engine, get_db, initialize_database
-from .models import Destination, JobDelivery, JobDocument, ProcessingProfile, ScanInput, ScanJob
-from .schemas import DestinationPayload, ProfilePayload, ScanInputPayload
-from .services.shares import ShareError, input_path, normalize_share_name, reload_samba, sync_samba_config
+from .auth import admin_user, current_user, hash_password, new_session, verify_password
+from .db import Base, DATA_ROOT, claim_unowned_rows, engine, get_db, initialize_database
+from .models import (
+    Destination, JobDelivery, JobDocument, ProcessingProfile, ScanInput, ScanJob,
+    User, UserSession,
+)
+from .schemas import (
+    DestinationPayload, LoginPayload, ProfilePayload, ScanInputPayload,
+    SmbPasswordPayload, UserPayload,
+)
+from .services.shares import (
+    ShareError, input_path, normalize_share_name, reload_samba,
+    set_samba_password, sync_samba_config,
+)
 
 initialize_database()
 Base.metadata.create_all(bind=engine)
@@ -19,7 +30,7 @@ app = FastAPI(title="ScanPro", version=__version__)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": __version__, "schema_version": 1}
+    return {"status": "ok", "version": __version__, "schema_version": 2}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -27,64 +38,209 @@ def index():
     return (Path(__file__).parent / "web" / "index.html").read_text(encoding="utf-8")
 
 
-def profile_json(row: ProcessingProfile) -> dict:
+@app.get("/api/setup-status")
+def setup_status(db: Session = Depends(get_db)):
+    return {"needs_setup": db.query(User).count() == 0}
+
+
+@app.post("/api/setup")
+def setup(payload: UserPayload, response: Response, db: Session = Depends(get_db)):
+    if db.query(User).count() != 0:
+        raise HTTPException(409, "ScanPro wurde bereits eingerichtet.")
+    try:
+        password_hash = hash_password(payload.password)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    row = User(
+        username=payload.username.strip(),
+        display_name=payload.display_name.strip() or payload.username.strip(),
+        password_hash=password_hash,
+        smb_username="pending",
+        smb_password=payload.smb_password,
+        is_admin=True,
+        enabled=True,
+    )
+    db.add(row)
+    db.flush()
+    row.smb_username = f"scanpro_u{row.id}"
+    try:
+        set_samba_password(row, payload.smb_password)
+    except ShareError as exc:
+        db.rollback()
+        raise HTTPException(500, str(exc)) from exc
+    db.commit()
+    db.refresh(row)
+    claim_unowned_rows(row.id)
+    token = new_session(db, row)
+    response.set_cookie("scanpro_session", token, httponly=True, samesite="lax")
+    sync_samba_config(db)
+    reload_samba()
+    return user_json(row)
+
+
+@app.post("/api/login")
+def login(payload: LoginPayload, response: Response, db: Session = Depends(get_db)):
+    row = db.query(User).filter(User.username == payload.username.strip()).first()
+    if not row or not row.enabled or not verify_password(payload.password, row.password_hash):
+        raise HTTPException(401, "Benutzername oder Passwort ist falsch.")
+    token = new_session(db, row)
+    response.set_cookie("scanpro_session", token, httponly=True, samesite="lax")
+    return user_json(row)
+
+
+@app.post("/api/logout")
+def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    token = request.cookies.get("scanpro_session")
+    if token:
+        digest = hashlib.sha256(token.encode()).hexdigest()
+        db.query(UserSession).filter(UserSession.token_hash == digest).delete()
+        db.commit()
+    response.delete_cookie("scanpro_session")
+    return {"ok": True}
+
+
+def user_json(row: User) -> dict:
     return {
         "id": row.id,
-        "name": row.name,
-        "ocr_enabled": row.ocr_enabled,
-        "ocr_language": row.ocr_language,
-        "remove_blank_pages": row.remove_blank_pages,
-        "auto_rotate": row.auto_rotate,
-        "deskew": row.deskew,
-        "auto_crop": row.auto_crop,
-        "split_method": row.split_method,
-        "filename_template": row.filename_template,
+        "username": row.username,
+        "display_name": row.display_name,
+        "smb_username": row.smb_username,
+        "smb_password": row.smb_password,
+        "is_admin": row.is_admin,
+        "enabled": row.enabled,
     }
 
 
+@app.get("/api/me")
+def me(user: User = Depends(current_user)):
+    return user_json(user)
+
+
+@app.get("/api/users")
+def list_users(
+    db: Session = Depends(get_db),
+    admin: User = Depends(admin_user),
+):
+    return [user_json(u) for u in db.query(User).order_by(User.username).all()]
+
+
+@app.post("/api/users")
+def create_user(
+    payload: UserPayload,
+    db: Session = Depends(get_db),
+    admin: User = Depends(admin_user),
+):
+    username = payload.username.strip()
+    if not username:
+        raise HTTPException(400, "Benutzername fehlt.")
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(409, "Benutzer existiert bereits.")
+    try:
+        password_hash = hash_password(payload.password)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    row = User(
+        username=username,
+        display_name=payload.display_name.strip() or username,
+        password_hash=password_hash,
+        smb_username="pending",
+        smb_password=payload.smb_password,
+        is_admin=payload.is_admin,
+        enabled=payload.enabled,
+    )
+    db.add(row)
+    db.flush()
+    row.smb_username = f"scanpro_u{row.id}"
+    try:
+        set_samba_password(row, payload.smb_password)
+    except ShareError as exc:
+        db.rollback()
+        raise HTTPException(500, str(exc)) from exc
+    db.commit()
+    db.refresh(row)
+    return user_json(row)
+
+
+@app.put("/api/me/smb-password")
+def change_my_smb_password(
+    payload: SmbPasswordPayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    try:
+        set_samba_password(user, payload.smb_password)
+    except ShareError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    user.smb_password = payload.smb_password
+    db.commit()
+    return user_json(user)
+
+
+def profile_json(row: ProcessingProfile) -> dict:
+    return {
+        "id": row.id, "name": row.name, "ocr_enabled": row.ocr_enabled,
+        "ocr_language": row.ocr_language, "remove_blank_pages": row.remove_blank_pages,
+        "auto_rotate": row.auto_rotate, "deskew": row.deskew, "auto_crop": row.auto_crop,
+        "split_method": row.split_method, "filename_template": row.filename_template,
+    }
+
+
+def owned(db: Session, model, row_id: int, user: User):
+    row = db.get(model, row_id)
+    if not row or getattr(row, "owner_id", None) != user.id:
+        raise HTTPException(404, "Eintrag nicht gefunden.")
+    return row
+
+
 @app.get("/api/profiles")
-def list_profiles(db: Session = Depends(get_db)):
-    rows = db.query(ProcessingProfile).order_by(ProcessingProfile.name).all()
+def list_profiles(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.query(ProcessingProfile).filter(
+        ProcessingProfile.owner_id == user.id
+    ).order_by(ProcessingProfile.name).all()
     return [profile_json(row) for row in rows]
 
 
 @app.post("/api/profiles")
-def create_profile(payload: ProfilePayload, db: Session = Depends(get_db)):
-    if db.query(ProcessingProfile).filter(ProcessingProfile.name == payload.name).first():
+def create_profile(
+    payload: ProfilePayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    if db.query(ProcessingProfile).filter(
+        ProcessingProfile.owner_id == user.id,
+        ProcessingProfile.name == payload.name,
+    ).first():
         raise HTTPException(409, "Profil existiert bereits.")
-    row = ProcessingProfile(**payload.model_dump())
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return profile_json(row)
-
-
-@app.put("/api/profiles/{profile_id}")
-def update_profile(profile_id: int, payload: ProfilePayload, db: Session = Depends(get_db)):
-    row = db.get(ProcessingProfile, profile_id)
-    if not row:
-        raise HTTPException(404, "Profil nicht gefunden.")
-    for key, value in payload.model_dump().items():
-        setattr(row, key, value)
-    db.commit()
-    db.refresh(row)
+    row = ProcessingProfile(owner_id=user.id, **payload.model_dump())
+    db.add(row); db.commit(); db.refresh(row)
     return profile_json(row)
 
 
 @app.delete("/api/profiles/{profile_id}")
-def delete_profile(profile_id: int, db: Session = Depends(get_db)):
-    if db.query(ScanInput).filter(ScanInput.profile_id == profile_id).first():
+def delete_profile(
+    profile_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    row = owned(db, ProcessingProfile, profile_id, user)
+    if db.query(ScanInput).filter(
+        ScanInput.owner_id == user.id, ScanInput.profile_id == profile_id
+    ).first():
         raise HTTPException(409, "Profil wird noch von einem Scan-Eingang verwendet.")
-    row = db.get(ProcessingProfile, profile_id)
-    if not row:
-        raise HTTPException(404, "Profil nicht gefunden.")
     db.delete(row); db.commit()
     return {"deleted": True}
 
 
 @app.get("/api/destinations")
-def list_destinations(db: Session = Depends(get_db)):
-    rows = db.query(Destination).order_by(Destination.name).all()
+def list_destinations(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.query(Destination).filter(
+        Destination.owner_id == user.id
+    ).order_by(Destination.name).all()
     result = []
     for r in rows:
         cfg = json.loads(r.config_json or "{}")
@@ -97,113 +253,91 @@ def list_destinations(db: Session = Depends(get_db)):
 
 
 @app.post("/api/destinations")
-def create_destination(payload: DestinationPayload, db: Session = Depends(get_db)):
+def create_destination(
+    payload: DestinationPayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     if payload.type not in {"local", "smb", "paperless"}:
         raise HTTPException(400, "Zieltyp muss local, smb oder paperless sein.")
-    if db.query(Destination).filter(Destination.name == payload.name).first():
+    if db.query(Destination).filter(
+        Destination.owner_id == user.id, Destination.name == payload.name
+    ).first():
         raise HTTPException(409, "Scanziel existiert bereits.")
     row = Destination(
-        name=payload.name, type=payload.type, enabled=payload.enabled,
-        config_json=json.dumps(payload.config, ensure_ascii=False),
+        owner_id=user.id, name=payload.name, type=payload.type,
+        enabled=payload.enabled, config_json=json.dumps(payload.config, ensure_ascii=False),
     )
     db.add(row); db.commit(); db.refresh(row)
-    return {"id": row.id, "name": row.name, "type": row.type, "enabled": row.enabled, "config": payload.config}
-
-
-@app.put("/api/destinations/{destination_id}")
-def update_destination(destination_id: int, payload: DestinationPayload, db: Session = Depends(get_db)):
-    row = db.get(Destination, destination_id)
-    if not row:
-        raise HTTPException(404, "Scanziel nicht gefunden.")
-    row.name = payload.name
-    row.type = payload.type
-    row.enabled = payload.enabled
-    row.config_json = json.dumps(payload.config, ensure_ascii=False)
-    db.commit(); db.refresh(row)
-    return {"id": row.id, "name": row.name, "type": row.type, "enabled": row.enabled, "config": payload.config}
+    return {"id": row.id, "name": row.name, "type": row.type, "enabled": row.enabled}
 
 
 @app.delete("/api/destinations/{destination_id}")
-def delete_destination(destination_id: int, db: Session = Depends(get_db)):
-    if db.query(ScanInput).filter(ScanInput.destination_id == destination_id).first():
+def delete_destination(
+    destination_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    row = owned(db, Destination, destination_id, user)
+    if db.query(ScanInput).filter(
+        ScanInput.owner_id == user.id, ScanInput.destination_id == destination_id
+    ).first():
         raise HTTPException(409, "Scanziel wird noch von einem Scan-Eingang verwendet.")
-    row = db.get(Destination, destination_id)
-    if not row:
-        raise HTTPException(404, "Scanziel nicht gefunden.")
     db.delete(row); db.commit()
     return {"deleted": True}
 
 
 @app.get("/api/inputs")
-def list_inputs(request: Request, db: Session = Depends(get_db)):
+def list_inputs(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     host = request.url.hostname or "SCANPRO"
-    rows = db.query(ScanInput).order_by(ScanInput.name).all()
+    rows = db.query(ScanInput).filter(
+        ScanInput.owner_id == user.id
+    ).order_by(ScanInput.name).all()
     result = []
     for r in rows:
         profile = db.get(ProcessingProfile, r.profile_id)
         destination = db.get(Destination, r.destination_id)
         result.append({
-            "id": r.id,
-            "name": r.name,
-            "share_name": r.share_name,
-            "path": r.path,
+            "id": r.id, "name": r.name, "share_name": r.share_name, "path": r.path,
             "network_path": f"\\\\{host}\\{r.share_name}",
-            "profile_id": r.profile_id,
-            "profile_name": profile.name if profile else None,
+            "profile_id": r.profile_id, "profile_name": profile.name if profile else None,
             "destination_id": r.destination_id,
             "destination_name": destination.name if destination else None,
-            "enabled": r.enabled,
-            "username": "scanpro",
+            "enabled": r.enabled, "username": user.smb_username,
+            "password": user.smb_password,
         })
     return result
 
 
 @app.post("/api/inputs")
-def create_input(payload: ScanInputPayload, db: Session = Depends(get_db)):
-    if not db.get(ProcessingProfile, payload.profile_id):
-        raise HTTPException(400, "Profil existiert nicht.")
-    destination = db.get(Destination, payload.destination_id)
-    if not destination or not destination.enabled:
-        raise HTTPException(400, "Scanziel existiert nicht oder ist deaktiviert.")
+def create_input(
+    payload: ScanInputPayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    profile = owned(db, ProcessingProfile, payload.profile_id, user)
+    destination = owned(db, Destination, payload.destination_id, user)
+    if not destination.enabled:
+        raise HTTPException(400, "Scanziel ist deaktiviert.")
     try:
         share = normalize_share_name(payload.share_name or payload.name)
     except ShareError as exc:
         raise HTTPException(400, str(exc)) from exc
-    if db.query(ScanInput).filter((ScanInput.name == payload.name) | (ScanInput.share_name == share)).first():
-        raise HTTPException(409, "Name oder Freigabe wird bereits verwendet.")
+    if db.query(ScanInput).filter(ScanInput.share_name == share).first():
+        raise HTTPException(409, "Freigabename wird bereits verwendet.")
+    if db.query(ScanInput).filter(
+        ScanInput.owner_id == user.id, ScanInput.name == payload.name
+    ).first():
+        raise HTTPException(409, "Name wird bereits verwendet.")
     row = ScanInput(
-        name=payload.name,
-        share_name=share,
-        path="",
-        profile_id=payload.profile_id,
-        destination_id=payload.destination_id,
-        enabled=payload.enabled,
+        owner_id=user.id, name=payload.name, share_name=share, path="",
+        profile_id=profile.id, destination_id=destination.id, enabled=payload.enabled,
     )
     db.add(row); db.commit(); db.refresh(row)
-    row.path = str(input_path(row.id))
-    db.commit()
-    sync_samba_config(db); reload_samba()
-    return {"id": row.id, "share_name": row.share_name, "path": row.path}
-
-
-@app.put("/api/inputs/{input_id}")
-def update_input(input_id: int, payload: ScanInputPayload, db: Session = Depends(get_db)):
-    row = db.get(ScanInput, input_id)
-    if not row:
-        raise HTTPException(404, "Scan-Eingang nicht gefunden.")
-    if not db.get(ProcessingProfile, payload.profile_id):
-        raise HTTPException(400, "Profil existiert nicht.")
-    if not db.get(Destination, payload.destination_id):
-        raise HTTPException(400, "Scanziel existiert nicht.")
-    try:
-        share = normalize_share_name(payload.share_name or payload.name)
-    except ShareError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    row.name = payload.name
-    row.share_name = share
-    row.profile_id = payload.profile_id
-    row.destination_id = payload.destination_id
-    row.enabled = payload.enabled
     row.path = str(input_path(row.id))
     db.commit()
     sync_samba_config(db); reload_samba()
@@ -211,38 +345,45 @@ def update_input(input_id: int, payload: ScanInputPayload, db: Session = Depends
 
 
 @app.delete("/api/inputs/{input_id}")
-def delete_input(input_id: int, db: Session = Depends(get_db)):
-    if db.query(ScanJob).filter(ScanJob.input_id == input_id).first():
+def delete_input(
+    input_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    row = owned(db, ScanInput, input_id, user)
+    if db.query(ScanJob).filter(
+        ScanJob.owner_id == user.id, ScanJob.input_id == input_id
+    ).first():
         raise HTTPException(409, "Scan-Eingang wurde bereits benutzt und kann nur deaktiviert werden.")
-    row = db.get(ScanInput, input_id)
-    if not row:
-        raise HTTPException(404, "Scan-Eingang nicht gefunden.")
     db.delete(row); db.commit()
     sync_samba_config(db); reload_samba()
     return {"deleted": True}
 
 
 @app.get("/api/jobs")
-def list_jobs(db: Session = Depends(get_db)):
-    rows = db.query(ScanJob).order_by(ScanJob.id.desc()).limit(100).all()
+def list_jobs(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.query(ScanJob).filter(
+        ScanJob.owner_id == user.id
+    ).order_by(ScanJob.id.desc()).limit(100).all()
     result = []
     for job in rows:
         scan_input = db.get(ScanInput, job.input_id)
         profile = db.get(ProcessingProfile, job.profile_id)
         destination = db.get(Destination, job.destination_id)
-        documents = db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).order_by(JobDocument.sequence).all()
+        documents = db.query(JobDocument).filter(
+            JobDocument.scan_job_id == job.id
+        ).order_by(JobDocument.sequence).all()
         deliveries = db.query(JobDelivery).filter(JobDelivery.scan_job_id == job.id).all()
         result.append({
-            "id": job.id,
-            "status": job.status,
+            "id": job.id, "status": job.status,
             "input_name": scan_input.name if scan_input else None,
             "profile_name": profile.name if profile else None,
             "destination_name": destination.name if destination else None,
-            "error": job.error,
-            "created_at": job.created_at,
+            "error": job.error, "created_at": job.created_at,
             "completed_at": job.completed_at,
             "documents": [
-                {"id": d.id, "sequence": d.sequence, "final_name": d.final_name, "file_url": f"/api/documents/{d.id}/file"}
+                {"id": d.id, "sequence": d.sequence, "final_name": d.final_name,
+                 "file_url": f"/api/documents/{d.id}/file"}
                 for d in documents
             ],
             "deliveries": [
@@ -254,20 +395,26 @@ def list_jobs(db: Session = Depends(get_db)):
 
 
 @app.get("/api/documents/{document_id}/file")
-def document_file(document_id: int, db: Session = Depends(get_db)):
+def document_file(
+    document_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     row = db.get(JobDocument, document_id)
-    if not row or not Path(row.path).exists():
+    if not row:
+        raise HTTPException(404, "Datei nicht gefunden.")
+    job = db.get(ScanJob, row.scan_job_id)
+    if not job or job.owner_id != user.id or not Path(row.path).exists():
         raise HTTPException(404, "Datei nicht gefunden.")
     return FileResponse(row.path, filename=row.final_name)
 
 
 @app.get("/api/system")
-def system_status(db: Session = Depends(get_db)):
+def system_status(db: Session = Depends(get_db), user: User = Depends(current_user)):
     return {
-        "version": __version__,
-        "data_root": str(DATA_ROOT),
-        "profiles": db.query(ProcessingProfile).count(),
-        "destinations": db.query(Destination).count(),
-        "inputs": db.query(ScanInput).count(),
-        "jobs": db.query(ScanJob).count(),
+        "version": __version__, "data_root": str(DATA_ROOT),
+        "profiles": db.query(ProcessingProfile).filter(ProcessingProfile.owner_id == user.id).count(),
+        "destinations": db.query(Destination).filter(Destination.owner_id == user.id).count(),
+        "inputs": db.query(ScanInput).filter(ScanInput.owner_id == user.id).count(),
+        "jobs": db.query(ScanJob).filter(ScanJob.owner_id == user.id).count(),
     }

@@ -1,6 +1,24 @@
 from pydantic import BaseModel, Field
 
 
+class LoginPayload(BaseModel):
+    username: str
+    password: str
+
+
+class UserPayload(BaseModel):
+    username: str
+    display_name: str
+    password: str
+    smb_password: str
+    is_admin: bool = False
+    enabled: bool = True
+
+
+class SmbPasswordPayload(BaseModel):
+    smb_password: str
+
+
 class ProfilePayload(BaseModel):
     name: str
     ocr_enabled: bool = True

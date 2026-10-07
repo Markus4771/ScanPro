@@ -2,7 +2,7 @@
 
 ScanPro ist ein scannerunabhängiger Scan-Verarbeitungsserver.
 
-**Aktueller Stand: 1.0.0-dev**
+**Aktueller Stand: 1.1.0-dev**
 
 ## Grundprinzip
 
@@ -75,23 +75,20 @@ curl http://127.0.0.1:8100/health
 Erwartet:
 
 ```json
-{"status":"ok","version":"1.0.0-dev","schema_version":1}
+{"status":"ok","version":"1.1.0-dev","schema_version":2}
 ```
 
-Einmalig Samba-Passwort setzen:
-
-```bash
-sudo smbpasswd -a scanpro
-```
 
 ## Erster Test
 
-1. Verarbeitungsprofil anlegen.
-2. Scanziel anlegen.
-3. Scan-Eingang anlegen.
-4. Den angezeigten SMB-Pfad am Scanner als Scan-to-Network-Ziel eintragen.
-5. Eine PDF scannen.
-6. ScanJob im Webinterface kontrollieren.
+1. WebGUI öffnen und den ersten Administrator anlegen.
+2. Mit dem Administrator anmelden.
+3. Verarbeitungsprofil anlegen.
+4. Scanziel anlegen.
+5. Scan-Eingang anlegen.
+6. Die angezeigten persönlichen SMB-Zugangsdaten am Scanner eintragen.
+7. Eine PDF scannen.
+8. ScanJob im Webinterface kontrollieren.
 
 ## Aktuell umgesetzt
 
@@ -105,6 +102,10 @@ sudo smbpasswd -a scanpro
 - Paperless-Upload
 - Job- und Delivery-Protokoll
 - neue reduzierte Weboberfläche
+- WebGUI-Login und Benutzerverwaltung
+- getrennte Datenbereiche je Benutzer
+- eigene SMB-Zugangsdaten je Benutzer
+- SMB-Passwort im angemeldeten Benutzerbereich sichtbar
 - automatische Reparatur einer leeren, veralteten `scan_jobs`-Tabelle aus frühen 1.0-dev Builds
 - eindeutige Platzhalter in Profil-/Scanziel-Auswahl, solange noch nichts angelegt wurde
 

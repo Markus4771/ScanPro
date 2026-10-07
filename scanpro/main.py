@@ -198,9 +198,11 @@ def delete_profile(
 ):
     row = owned(db, ProcessingProfile, profile_id, user)
     if db.query(ScanInput).filter(
-        ScanInput.owner_id == user.id, ScanInput.profile_id == profile_id
+        ScanInput.owner_id == user.id,
+        ScanInput.profile_id == profile_id,
+        ScanInput.enabled.is_(True),
     ).first():
-        raise HTTPException(409, "Profil wird noch von einem Scan-Eingang verwendet.")
+        raise HTTPException(409, "Profil wird noch von einem aktiven Scan-Eingang verwendet.")
     db.delete(row); db.commit()
     return {"deleted": True}
 

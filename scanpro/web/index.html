@@ -164,6 +164,16 @@ function destinationConfig(){
   if(t==='smb')return {server:document.getElementById('dServer').value.trim(),share:document.getElementById('dShare').value.trim(),subfolder:document.getElementById('dSubfolder').value.trim(),username:document.getElementById('dUser').value.trim(),password:document.getElementById('dPassword').value,domain:document.getElementById('dDomain').value.trim()};
   return {base_url:document.getElementById('dPaperlessUrl').value.trim(),token:document.getElementById('dPaperlessToken').value,verify_ssl:document.getElementById('dVerify').checked};
 }
+async function deleteDestination(id,name){
+  if(!confirm('Scanziel "'+name+'" wirklich löschen?'))return;
+  try{
+    await api('/api/destinations/'+id,{method:'DELETE'});
+    await loadDestinations();
+    await loadInputs();
+  }catch(e){
+    alert(e.message);
+  }
+}
 async function createDestination(){
   const name=document.getElementById('dName').value.trim(); if(!name)return alert('Name fehlt.');
   await api('/api/destinations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,type:document.getElementById('dType').value,enabled:true,config:destinationConfig()})});
@@ -182,7 +192,8 @@ async function loadDestinations(){
   for(const d of destinations){
     if(d.enabled){const o=document.createElement('option');o.value=d.id;o.textContent=d.name;sel.appendChild(o);}
     const el=document.createElement('div');el.className='item';
-    el.innerHTML='<strong>'+esc(d.name)+'</strong> <span class="badge ok">'+esc(d.type.toUpperCase())+'</span>';
+    el.innerHTML='<strong>'+esc(d.name)+'</strong> <span class="badge ok">'+esc(d.type.toUpperCase())+'</span>'+
+      '<div class="actions"><button class="danger" onclick="deleteDestination('+d.id+',\''+esc(d.name).replace(/&#39;/g,"\\'")+'\')">Löschen</button></div>';
     box.appendChild(el);
   }
   if(!destinations.length)box.textContent='Noch kein Scanziel angelegt.';
@@ -196,13 +207,23 @@ async function createInput(){
   await api('/api/inputs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,share_name:share,profile_id,destination_id,enabled:true})});
   document.getElementById('iName').value='';document.getElementById('iShare').value='';await loadInputs();
 }
+async function deleteInput(id,name){
+  if(!confirm('Scan-Eingang "'+name+'" wirklich löschen?'))return;
+  try{
+    await api('/api/inputs/'+id,{method:'DELETE'});
+    await loadInputs();
+  }catch(e){
+    alert(e.message);
+  }
+}
 async function loadInputs(){
   const data=await api('/api/inputs');const box=document.getElementById('inputs');box.innerHTML='';
   for(const i of data){
     const el=document.createElement('div');el.className='item';
     el.innerHTML='<strong>'+esc(i.name)+'</strong> <span class="badge ok">aktiv</span>'+
       '<div>'+esc(i.network_path)+'</div>'+
-      '<div class="muted">Benutzer: '+esc(i.username)+' · Profil: '+esc(i.profile_name)+' · Ziel: '+esc(i.destination_name)+'</div>';
+      '<div class="muted">Benutzer: '+esc(i.username)+' · Profil: '+esc(i.profile_name)+' · Ziel: '+esc(i.destination_name)+'</div>'+
+      '<div class="actions"><button class="danger" onclick="deleteInput('+i.id+',\''+esc(i.name).replace(/&#39;/g,"\\'")+'\')">Löschen</button></div>';
     box.appendChild(el);
   }
   if(!data.length)box.textContent='Noch kein Scan-Eingang angelegt.';

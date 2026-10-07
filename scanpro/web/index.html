@@ -31,11 +31,10 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 
 <section id="setupBox" class="card auth hidden">
 <h2>Ersteinrichtung</h2>
-<p class="muted">Lege den ersten Administrator an. WebGUI- und SMB-Passwort sind getrennt.</p>
+<p class="muted">Lege den ersten Administrator für die ScanPro-WebGUI an.</p>
 <label>Benutzername<input id="setupUser" value="admin"></label>
 <label>Anzeigename<input id="setupName" placeholder="Administrator"></label>
 <label>WebGUI-Passwort<input id="setupPassword" type="password" placeholder="mindestens 10 Zeichen"></label>
-<label>SMB-Passwort für Scanner/Freigaben<input id="setupSmbPassword" type="text" placeholder="mindestens 8 Zeichen"></label>
 <div class="actions"><button onclick="setup()">ScanPro einrichten</button></div>
 </section>
 
@@ -51,14 +50,8 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <h2>Mein Konto</h2>
 <div class="grid">
 <div><strong>WebGUI-Benutzer</strong><div id="meUser"></div></div>
-<div><strong>SMB-Benutzer</strong><div id="meSmbUser" class="secret"></div></div>
-<div><strong>SMB-Passwort</strong><div id="meSmbPassword" class="secret"></div></div>
 </div>
-<p class="muted">Diese SMB-Zugangsdaten werden am Scanner für deine persönlichen Scan-Freigaben eingetragen.</p>
-<div class="grid">
-<label>Neues SMB-Passwort<input id="newSmbPassword" type="text" placeholder="mindestens 8 Zeichen"></label>
-</div>
-<div class="actions"><button class="secondary" onclick="changeSmbPassword()">SMB-Passwort ändern</button></div>
+<p class="muted">SMB-Zugangsdaten werden für jede Scan-Freigabe separat vergeben.</p>
 </section>
 
 <section id="adminCard" class="card hidden">
@@ -67,7 +60,6 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <label>Benutzername<input id="uUsername"></label>
 <label>Anzeigename<input id="uDisplay"></label>
 <label>WebGUI-Passwort<input id="uPassword" type="password"></label>
-<label>SMB-Passwort<input id="uSmbPassword" type="text"></label>
 <label class="check"><input id="uAdmin" type="checkbox"> Administrator</label>
 </div>
 <div class="actions"><button onclick="createUser()">Benutzer anlegen</button></div>
@@ -127,6 +119,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <label>Freigabe<input id="iShare" placeholder="Rechnungen"></label>
 <label>Verarbeitungsprofil<select id="iProfile"></select></label>
 <label>Scanziel<select id="iDestination"></select></label>
+<label>SMB-Passwort<input id="iSmbPassword" type="text" placeholder="mindestens 8 Zeichen"></label>
 </div>
 <div class="actions"><button onclick="createInput()">Scan-Eingang anlegen</button></div>
 <div id="inputs" class="muted">Lade…</div>
@@ -161,7 +154,7 @@ async function boot(){
   try{me=await api('/api/me');await showApp();}catch(e){q('loginBox').classList.remove('hidden');}
 }
 async function setup(){
-  me=await jsonPost('/api/setup',{username:q('setupUser').value.trim(),display_name:q('setupName').value.trim(),password:q('setupPassword').value,smb_password:q('setupSmbPassword').value,is_admin:true,enabled:true});
+  me=await jsonPost('/api/setup',{username:q('setupUser').value.trim(),display_name:q('setupName').value.trim(),password:q('setupPassword').value,is_admin:true,enabled:true});
   q('setupBox').classList.add('hidden');await showApp();
 }
 async function login(){
@@ -172,28 +165,21 @@ async function logout(){await api('/api/logout',{method:'POST'});location.reload
 async function showApp(){
   q('app').classList.remove('hidden');q('sessionBox').classList.remove('hidden');
   q('who').textContent=me.display_name||me.username;q('meUser').textContent=me.username;
-  q('meSmbUser').textContent=me.smb_username;q('meSmbPassword').textContent=me.smb_password;
   if(me.is_admin){q('adminCard').classList.remove('hidden');await loadUsers();}
   await Promise.all([loadProfiles(),loadDestinations(),loadInputs(),loadJobs()]);
-}
-async function changeSmbPassword(){
-  const p=q('newSmbPassword').value;
-  me=await api('/api/me/smb-password',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({smb_password:p})});
-  q('meSmbPassword').textContent=me.smb_password;q('newSmbPassword').value='';await loadInputs();
 }
 async function loadUsers(){
   const rows=await api('/api/users');q('users').innerHTML='';
   for(const u of rows){
     const el=document.createElement('div');el.className='item';
     el.innerHTML='<strong>'+esc(u.display_name)+'</strong> <span class="badge">'+esc(u.username)+'</span>'+
-      (u.is_admin?' <span class="badge ok">Admin</span>':'')+
-      '<div>SMB: <span class="secret">'+esc(u.smb_username)+' / '+esc(u.smb_password)+'</span></div>';
+      (u.is_admin?' <span class="badge ok">Admin</span>':'');
     q('users').appendChild(el);
   }
 }
 async function createUser(){
-  await jsonPost('/api/users',{username:q('uUsername').value.trim(),display_name:q('uDisplay').value.trim(),password:q('uPassword').value,smb_password:q('uSmbPassword').value,is_admin:q('uAdmin').checked,enabled:true});
-  q('uUsername').value='';q('uDisplay').value='';q('uPassword').value='';q('uSmbPassword').value='';q('uAdmin').checked=false;await loadUsers();
+  await jsonPost('/api/users',{username:q('uUsername').value.trim(),display_name:q('uDisplay').value.trim(),password:q('uPassword').value,is_admin:q('uAdmin').checked,enabled:true});
+  q('uUsername').value='';q('uDisplay').value='';q('uPassword').value='';q('uAdmin').checked=false;await loadUsers();
 }
 async function loadProfiles(){
   profiles=await api('/api/profiles');q('profiles').innerHTML='';q('iProfile').innerHTML='<option value="">'+(profiles.length?'-- Profil wählen --':'-- zuerst Profil anlegen --')+'</option>';
@@ -220,12 +206,13 @@ async function loadDestinations(){
   if(!destinations.length)q('destinations').textContent='Noch kein Scanziel angelegt.';
 }
 async function deleteDestination(id,name){if(!confirm('Scanziel "'+name+'" wirklich löschen?'))return;try{await api('/api/destinations/'+id,{method:'DELETE'});await loadDestinations();}catch(e){alert(e.message);}}
-async function createInput(){const name=q('iName').value.trim(),share=q('iShare').value.trim()||name,profile_id=Number(q('iProfile').value),destination_id=Number(q('iDestination').value);if(!name||!profile_id||!destination_id)return alert('Name, Profil und Ziel sind erforderlich.');await jsonPost('/api/inputs',{name,share_name:share,profile_id,destination_id,enabled:true});q('iName').value='';q('iShare').value='';await loadInputs();}
+async function createInput(){const name=q('iName').value.trim(),share=q('iShare').value.trim()||name,profile_id=Number(q('iProfile').value),destination_id=Number(q('iDestination').value),smb_password=q('iSmbPassword').value;if(!name||!profile_id||!destination_id)return alert('Name, Profil und Ziel sind erforderlich.');if(smb_password.length<8)return alert('SMB-Passwort muss mindestens 8 Zeichen lang sein.');await jsonPost('/api/inputs',{name,share_name:share,profile_id,destination_id,smb_password,enabled:true});q('iName').value='';q('iShare').value='';q('iSmbPassword').value='';await loadInputs();}
 async function loadInputs(){
   const data=await api('/api/inputs');q('inputs').innerHTML='';
   for(const i of data){const el=document.createElement('div');el.className='item';el.innerHTML='<strong>'+esc(i.name)+'</strong> <span class="badge ok">aktiv</span><div class="secret">'+esc(i.network_path)+'</div><div class="muted">SMB-Benutzer: '+esc(i.username)+' · SMB-Passwort: '+esc(i.password)+'</div><div class="muted">Profil: '+esc(i.profile_name)+' · Ziel: '+esc(i.destination_name)+'</div><div class="actions"><button class="danger">Löschen</button></div>';el.querySelector('button').onclick=()=>deleteInput(i.id,i.name);q('inputs').appendChild(el);}
   if(!data.length)q('inputs').textContent='Noch kein Scan-Eingang angelegt.';
 }
+async function changeInputSmbPassword(id){const password=prompt('Neues SMB-Passwort (mindestens 8 Zeichen):');if(password===null)return;if(password.length<8)return alert('SMB-Passwort muss mindestens 8 Zeichen lang sein.');try{await api('/api/inputs/'+id+'/smb-password',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({smb_password:password})});await loadInputs();}catch(e){alert(e.message);}}
 async function deleteInput(id,name){if(!confirm('Scan-Eingang "'+name+'" wirklich löschen?'))return;try{await api('/api/inputs/'+id,{method:'DELETE'});await loadInputs();}catch(e){alert(e.message);}}
 async function loadJobs(){
   const data=await api('/api/jobs');q('jobs').innerHTML='';

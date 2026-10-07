@@ -34,42 +34,40 @@ def configure_sqlite(dbapi_connection, connection_record):
 
 
 SCAN_JOBS_COLUMNS = {
-    "id",
-    "input_id",
-    "profile_id",
-    "destination_id",
-    "status",
-    "source_path",
-    "working_path",
-    "error",
-    "created_at",
-    "completed_at",
+    "id", "input_id", "profile_id", "destination_id", "status",
+    "source_path", "working_path", "error", "created_at", "completed_at",
 }
 
 
-def _repair_legacy_scan_jobs(connection: sqlite3.Connection) -> None:
-    table = connection.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='scan_jobs'"
-    ).fetchone()
-    if not table:
-        return
+def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
+    return {row[1] for row in connection.execute(f"PRAGMA table_info({table})").fetchall()}
 
-    columns = {
-        row[1] for row in connection.execute("PRAGMA table_info(scan_jobs)").fetchall()
-    }
+
+def _table_exists(connection: sqlite3.Connection, table: str) -> bool:
+    return connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone() is not None
+
+
+def _repair_legacy_scan_jobs(connection: sqlite3.Connection) -> None:
+    if not _table_exists(connection, "scan_jobs"):
+        return
+    columns = _columns(connection, "scan_jobs")
     if SCAN_JOBS_COLUMNS.issubset(columns):
         return
-
     count = connection.execute("SELECT COUNT(*) FROM scan_jobs").fetchone()[0]
     if count:
         raise RuntimeError(
             "Alte scan_jobs-Tabelle erkannt. Sie enthält bereits "
             f"{count} Job(s) und wird aus Sicherheitsgründen nicht automatisch ersetzt."
         )
-
-    # Frühere 1.0-dev Builds hatten hier noch workflow_id/input_path/output_path.
-    # Ist die Tabelle leer, kann SQLAlchemy sie anschließend korrekt neu anlegen.
     connection.execute("DROP TABLE scan_jobs")
+
+
+def _add_owner_columns(connection: sqlite3.Connection) -> None:
+    for table in ("processing_profiles", "destinations", "scan_inputs", "scan_jobs"):
+        if _table_exists(connection, table) and "owner_id" not in _columns(connection, table):
+            connection.execute(f"ALTER TABLE {table} ADD COLUMN owner_id INTEGER")
 
 
 def initialize_database():
@@ -80,12 +78,28 @@ def initialize_database():
         connection = sqlite3.connect(path, timeout=30)
         try:
             connection.execute("PRAGMA journal_mode=WAL")
-            # Vor dem Aktivieren der Foreign Keys eine leere Legacy-Tabelle reparieren.
             _repair_legacy_scan_jobs(connection)
+            _add_owner_columns(connection)
             connection.execute("PRAGMA foreign_keys=ON")
             connection.commit()
         finally:
             connection.close()
+
+
+def claim_unowned_rows(user_id: int) -> None:
+    if not DATABASE_URL.startswith("sqlite:///"):
+        return
+    path = Path(DATABASE_URL.removeprefix("sqlite:///"))
+    connection = sqlite3.connect(path, timeout=30)
+    try:
+        for table in ("processing_profiles", "destinations", "scan_inputs", "scan_jobs"):
+            if _table_exists(connection, table) and "owner_id" in _columns(connection, table):
+                connection.execute(
+                    f"UPDATE {table} SET owner_id=? WHERE owner_id IS NULL", (user_id,)
+                )
+        connection.commit()
+    finally:
+        connection.close()
 
 
 def get_db():

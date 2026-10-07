@@ -197,14 +197,30 @@ def delete_profile(
     user: User = Depends(current_user),
 ):
     row = owned(db, ProcessingProfile, profile_id, user)
+
     if db.query(ScanInput).filter(
         ScanInput.owner_id == user.id,
         ScanInput.profile_id == profile_id,
         ScanInput.enabled.is_(True),
     ).first():
         raise HTTPException(409, "Profil wird noch von einem aktiven Scan-Eingang verwendet.")
-    db.delete(row); db.commit()
-    return {"deleted": True}
+
+    has_jobs = db.query(ScanJob).filter(
+        ScanJob.owner_id == user.id,
+        ScanJob.profile_id == profile_id,
+    ).first() is not None
+
+    if has_jobs:
+        # Für alte ScanJobs erhalten, aber aus der Benutzeroberfläche entfernen.
+        original_name = row.name
+        row.name = f"[gelöscht #{row.id}] {original_name}"
+        row.owner_id = None
+        db.commit()
+    else:
+        db.delete(row)
+        db.commit()
+
+    return {"deleted": True, "history_preserved": has_jobs}
 
 
 @app.get("/api/destinations")

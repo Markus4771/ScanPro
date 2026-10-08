@@ -312,13 +312,26 @@ def list_destinations(db: Session = Depends(get_db), user: User = Depends(curren
         Destination.owner_id == user.id
     ).order_by(Destination.name).all()
     result = []
+    changed = False
     for r in rows:
         cfg = json.loads(r.config_json or "{}")
-        if "password" in cfg and cfg["password"]:
-            cfg["password"] = "********"
-        if "token" in cfg and cfg["token"]:
-            cfg["token"] = "********"
-        result.append({"id": r.id, "name": r.name, "type": r.type, "enabled": r.enabled, "config": cfg})
+        if r.type == "smb" and str(cfg.get("share", "")).strip() != "Ausgang":
+            old_share = str(cfg.get("share", "")).strip()
+            if not str(cfg.get("subfolder", "")).strip():
+                cfg["subfolder"] = old_share or r.name
+            cfg["share"] = "Ausgang"
+            r.config_json = json.dumps(cfg, ensure_ascii=False)
+            changed = True
+
+        visible_cfg = dict(cfg)
+        if "password" in visible_cfg and visible_cfg["password"]:
+            visible_cfg["password"] = "********"
+        if "token" in visible_cfg and visible_cfg["token"]:
+            visible_cfg["token"] = "********"
+        result.append({"id": r.id, "name": r.name, "type": r.type, "enabled": r.enabled, "config": visible_cfg})
+
+    if changed:
+        db.commit()
     return result
 
 
@@ -334,12 +347,47 @@ def create_destination(
         Destination.owner_id == user.id, Destination.name == payload.name
     ).first():
         raise HTTPException(409, "Scanziel existiert bereits.")
+    config = dict(payload.config)
+    if payload.type == "smb":
+        old_share = str(config.get("share", "")).strip()
+        subfolder = str(config.get("subfolder", "")).strip()
+        config["share"] = "Ausgang"
+        if not subfolder:
+            config["subfolder"] = old_share or payload.name.strip()
     row = Destination(
         owner_id=user.id, name=payload.name, type=payload.type,
-        enabled=payload.enabled, config_json=json.dumps(payload.config, ensure_ascii=False),
+        enabled=payload.enabled, config_json=json.dumps(config, ensure_ascii=False),
     )
     db.add(row); db.commit(); db.refresh(row)
     return {"id": row.id, "name": row.name, "type": row.type, "enabled": row.enabled}
+
+
+@app.get("/api/destinations/{destination_id}/connection-details")
+def destination_connection_details(
+    destination_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    row = owned(db, Destination, destination_id, user)
+    cfg = json.loads(row.config_json or "{}")
+    if row.type == "smb":
+        return {
+            "type": "smb",
+            "server": cfg.get("server", ""),
+            "share": cfg.get("share", "Ausgang"),
+            "subfolder": cfg.get("subfolder", ""),
+            "username": cfg.get("username", ""),
+            "password": cfg.get("password", ""),
+            "domain": cfg.get("domain", ""),
+        }
+    if row.type == "paperless":
+        return {
+            "type": "paperless",
+            "base_url": cfg.get("base_url", ""),
+            "token": cfg.get("token", ""),
+            "verify_ssl": bool(cfg.get("verify_ssl", True)),
+        }
+    return {"type": row.type, "path": cfg.get("path", "")}
 
 
 @app.post("/api/destinations/{destination_id}/remove")
@@ -433,7 +481,7 @@ def create_input(
     )
     db.add(row); db.flush()
     row.smb_username = f"scanpro_s{row.id}"
-    row.path = str(input_path(row.id))
+    row.path = str(input_path(row.id, row.share_name))
     try:
         set_samba_password(row.smb_username, payload.smb_password)
     except ShareError as exc:

@@ -11,7 +11,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-echo "== ScanPro 1.4.0-dev Neuinstallation/Update =="
+echo "== ScanPro 1.5.0-dev Neuinstallation/Update =="
 
 systemctl stop scanpro.service 2>/dev/null || true
 systemctl stop scanpro-inbox.service 2>/dev/null || true
@@ -20,7 +20,7 @@ systemctl stop scanpro-samba-reload.path 2>/dev/null || true
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   python3 python3-venv python3-pip nginx samba smbclient sqlite3 rsync sudo \
-  ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
+  ocrmypdf poppler-utils tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
 
 if ! id scanpro >/dev/null 2>&1; then
   useradd --system --home "$DATA_ROOT" --shell /usr/sbin/nologin scanpro
@@ -114,7 +114,7 @@ runuser -u scanpro -- env \
   SCANPRO_DATA_ROOT="$DATA_ROOT" \
   SCANPRO_DATABASE_URL="sqlite:///$DB_FILE" \
   "$APP_DIR/.venv/bin/python" -c \
-  'from scanpro.db import Base, engine, initialize_database; import scanpro.models; initialize_database(); Base.metadata.create_all(bind=engine); print("ScanPro 1.1 Datenbank bereit.")'
+  'from scanpro.db import Base, engine, initialize_database; import scanpro.models; initialize_database(); Base.metadata.create_all(bind=engine); print("ScanPro Datenbank/Schema bereit.")'
 
 nginx -t
 testparm -s >/dev/null
@@ -127,7 +127,7 @@ systemctl enable --now scanpro-inbox.service
 systemctl enable --now scanpro-samba-reload.path
 
 echo
-echo "ScanPro 1.4.0-dev läuft über http://<server>/"
+echo "ScanPro 1.5.0-dev läuft über http://<server>/"
 echo "Beim ersten Aufruf wird der erste Administrator angelegt."
 echo "Jede Scan-Freigabe erhält eigene Samba-Zugangsdaten; WebGUI-Benutzer bleiben davon getrennt."
 echo "Bestehende ScanPro-Daten werden beim Anlegen des ersten Administrators diesem Konto zugeordnet."

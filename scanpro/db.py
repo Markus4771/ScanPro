@@ -87,7 +87,7 @@ def _add_profile_processing_columns(connection: sqlite3.Connection) -> None:
     additions = {
         "pdfa_enabled": "BOOLEAN NOT NULL DEFAULT 0",
         "color_mode": "VARCHAR(20) NOT NULL DEFAULT 'keep'",
-        "dpi": "INTEGER NOT NULL DEFAULT 300",
+        "dpi": "INTEGER NOT NULL DEFAULT 0",
         "normalize_a4": "BOOLEAN NOT NULL DEFAULT 0",
         "blank_threshold": "INTEGER NOT NULL DEFAULT 99",
         "subfolder_template": "VARCHAR(255) NOT NULL DEFAULT ''",

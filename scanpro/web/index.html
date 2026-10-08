@@ -118,7 +118,8 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <div id="dLocalSmb" style="display:none" class="grid">
 <label>Freigabe<input value="Ausgang" readonly></label>
 <label>Unterordner<input id="dLocalSmbFolder" readonly placeholder="wird aus dem Namen erzeugt"></label>
-<label>SMB-Passwort<input id="dLocalSmbPassword" type="text" placeholder="mindestens 8 Zeichen"></label>
+<label>SMB-Benutzer<input id="dLocalSmbUser" placeholder="scanpro_drechnungen" autocomplete="off"></label>
+<label>SMB-Passwort<input id="dLocalSmbPassword" type="password" placeholder="mindestens 8 Zeichen" autocomplete="new-password"></label>
 </div>
 <div id="dSmb" style="display:none" class="grid">
 <label>Server<input id="dServer" placeholder="192.168.0.20"></label>
@@ -328,8 +329,8 @@ async function createProfile(){
 }
 async function deleteProfile(id,name){if(!confirm('Verarbeitungsprofil "'+name+'" wirklich löschen?'))return;try{await api('/api/profiles/'+id+'/remove',{method:'POST'});await loadProfiles();}catch(e){alert(e.message);}}
 function toggleDestination(){const t=q('dType').value;q('dLocal').style.display=t==='local'?'block':'none';q('dLocalSmb').style.display=t==='local_smb'?'grid':'none';q('dSmb').style.display=t==='smb'?'grid':'none';q('dPaperless').style.display=t==='paperless'?'grid':'none';if(t==='local_smb')q('dLocalSmbFolder').value=q('dName').value.trim();}
-function destinationConfig(){const t=q('dType').value;if(t==='local')return {path:q('dLocalPath').value.trim()};if(t==='local_smb')return {share:'Ausgang',subfolder:q('dName').value.trim(),password:q('dLocalSmbPassword').value};if(t==='smb')return {server:q('dServer').value.trim(),share:'Ausgang',subfolder:q('dSubfolder').value.trim()||q('dName').value.trim(),username:q('dUser').value.trim(),password:q('dPassword').value,domain:q('dDomain').value.trim()};return {base_url:q('dPaperlessUrl').value.trim(),token:q('dPaperlessToken').value,verify_ssl:q('dVerify').checked};}
-async function createDestination(){const name=q('dName').value.trim(),type=q('dType').value;if(!name)return alert('Name fehlt.');if(type==='local_smb'&&q('dLocalSmbPassword').value.length<8)return alert('SMB-Passwort muss mindestens 8 Zeichen lang sein.');await jsonPost('/api/destinations',{name,type,enabled:true,config:destinationConfig()});q('dName').value='';q('dLocalSmbPassword').value='';await loadDestinations();}
+function destinationConfig(){const t=q('dType').value;if(t==='local')return {path:q('dLocalPath').value.trim()};if(t==='local_smb')return {share:'Ausgang',subfolder:q('dName').value.trim(),username:q('dLocalSmbUser').value.trim(),password:q('dLocalSmbPassword').value};if(t==='smb')return {server:q('dServer').value.trim(),share:'Ausgang',subfolder:q('dSubfolder').value.trim()||q('dName').value.trim(),username:q('dUser').value.trim(),password:q('dPassword').value,domain:q('dDomain').value.trim()};return {base_url:q('dPaperlessUrl').value.trim(),token:q('dPaperlessToken').value,verify_ssl:q('dVerify').checked};}
+async function createDestination(){const name=q('dName').value.trim(),type=q('dType').value;if(!name)return alert('Name fehlt.');if(type==='local_smb'&&q('dLocalSmbUser').value.trim()&&!/^scanpro_d[a-z0-9_]{3,30}$/.test(q('dLocalSmbUser').value.trim()))return alert('SMB-Benutzer muss mit scanpro_d beginnen (Kleinbuchstaben, Zahlen, _).');if(type==='local_smb'&&q('dLocalSmbPassword').value.length<8)return alert('SMB-Passwort muss mindestens 8 Zeichen lang sein.');await jsonPost('/api/destinations',{name,type,enabled:true,config:destinationConfig()});q('dName').value='';q('dLocalSmbUser').value='';q('dLocalSmbPassword').value='';await loadDestinations();}
 async function loadDestinations(){
   destinations=await api('/api/destinations');
   q('destinations').innerHTML='';

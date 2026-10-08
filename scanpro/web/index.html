@@ -56,6 +56,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 
 <section id="adminCard" class="card hidden">
 <h2>Benutzerverwaltung</h2>
+<p class="muted">Hier legst du Benutzer für die ScanPro-WebGUI an und vergibst bei Bedarf Administratorrechte.</p>
 <div class="grid">
 <label>Benutzername<input id="uUsername"></label>
 <label>Anzeigename<input id="uDisplay"></label>
@@ -68,7 +69,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 
 <section class="card">
 <h2>1. Verarbeitungsprofile</h2>
-<p class="muted">Nur deine eigenen Profile werden angezeigt.</p>
+<p class="muted">Hier legst du fest, wie eingehende Dokumente verarbeitet werden, z. B. OCR, Sprache, Leerseiten, Ausrichtung und Dateiname. Jeder Benutzer sieht nur seine eigenen Profile.</p>
 <div class="grid">
 <label>Name<input id="pName" placeholder="Rechnungen"></label>
 <label>OCR-Sprache<select id="pLang"><option value="deu">Deutsch</option><option value="eng">Englisch</option><option value="deu+eng">Deutsch + Englisch</option></select></label>
@@ -88,7 +89,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 
 <section class="card">
 <h2>2. Scanziele</h2>
-<p class="muted">Nur deine eigenen Ziele werden angezeigt.</p>
+<p class="muted">Hier bestimmst du, wohin fertig verarbeitete Dokumente gespeichert oder übertragen werden, z. B. in einen lokalen Ordner, eine SMB-Freigabe oder nach Paperless-ngx.</p>
 <div class="grid">
 <label>Name<input id="dName" placeholder="Paperless"></label>
 <label>Typ<select id="dType" onchange="toggleDestination()"><option value="local">Lokaler Ordner</option><option value="smb">SMB</option><option value="paperless">Paperless-ngx</option></select></label>
@@ -113,7 +114,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 
 <section class="card">
 <h2>3. Scan-Eingänge / SMB-Freigaben</h2>
-<p class="muted">Jede hier angelegte Freigabe gehört nur deinem Benutzer.</p>
+<p class="muted">Hier erstellst du die SMB-Freigaben, in die der Scanner scannt. Jede Freigabe bekommt ein eigenes SMB-Passwort und wird mit einem Verarbeitungsprofil und einem Scanziel verknüpft.</p>
 <div class="grid">
 <label>Name<input id="iName" placeholder="Rechnungen"></label>
 <label>Freigabe<input id="iShare" placeholder="Rechnungen"></label>
@@ -127,6 +128,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 
 <section class="card">
 <h2>4. Letzte ScanJobs</h2>
+<p class="muted">Hier siehst du die zuletzt verarbeiteten Dokumente, ihren Status sowie das verwendete Profil und Scanziel. Fehler bei Verarbeitung oder Übertragung werden ebenfalls angezeigt.</p>
 <div class="actions"><button class="secondary" onclick="loadJobs()">Aktualisieren</button></div>
 <div id="jobs" class="muted">Lade…</div>
 </section>

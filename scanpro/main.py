@@ -284,6 +284,8 @@ def list_inputs(
     rows = db.query(ScanInput).filter(
         ScanInput.owner_id == user.id,
         ScanInput.enabled.is_(True),
+        ~ScanInput.name.startswith("[gelöscht"),
+        ~ScanInput.share_name.startswith("__deleted_"),
     ).order_by(ScanInput.name).all()
     result = []
     for r in rows:
@@ -376,25 +378,29 @@ def delete_input(
         ScanJob.owner_id == user.id, ScanJob.input_id == input_id
     ).first() is not None
 
-    # Zuerst immer deaktivieren und aus der Samba-Konfiguration entfernen.
+    # Immer zuerst aus dem aktiven Betrieb nehmen. Das ist absichtlich
+    # idempotent, damit auch Einträge aus älteren fehlerhaften Builds
+    # erneut "gelöscht" werden können.
     row.enabled = False
-    db.commit()
-    sync_samba_config(db)
-    reload_samba()
-    delete_samba_user(samba_username)
+    row.smb_username = None
+    row.smb_password = None
 
     if has_jobs:
-        # Historischen Datensatz behalten, aber so markieren, dass er weder
-        # angezeigt noch erneut als Freigabe verwendet wird.
-        original_name = row.name
-        row.name = f"[gelöscht #{row.id}] {original_name}"
+        row.name = f"[gelöscht #{row.id}]"
         row.share_name = f"__deleted_{row.id}"
-        row.smb_username = None
-        row.smb_password = None
         db.commit()
     else:
         db.delete(row)
         db.commit()
+
+    # Samba-Bereinigung darf das erfolgreiche Entfernen aus der WebGUI
+    # nicht mehr verhindern.
+    try:
+        sync_samba_config(db)
+        reload_samba()
+        delete_samba_user(samba_username)
+    except Exception:
+        pass
 
     return {"deleted": True, "history_preserved": has_jobs}
 

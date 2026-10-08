@@ -214,8 +214,8 @@ def delete_profile(
     ).first():
         raise HTTPException(409, "Profil wird noch von einem aktiven Scan-Eingang verwendet.")
 
+    # Auch alte Jobs ohne owner_id müssen die Historie schützen.
     has_jobs = db.query(ScanJob).filter(
-        ScanJob.owner_id == user.id,
         ScanJob.profile_id == profile_id,
     ).first() is not None
 
@@ -385,8 +385,10 @@ def delete_input(
 ):
     row = owned(db, ScanInput, input_id, user)
     samba_username = row.smb_username
+    # Bei Altbeständen kann owner_id in alten Jobs fehlen. Entscheidend ist,
+    # ob irgendein historischer Job auf diesen Eingang verweist.
     has_jobs = db.query(ScanJob).filter(
-        ScanJob.owner_id == user.id, ScanJob.input_id == input_id
+        ScanJob.input_id == input_id
     ).first() is not None
 
     # Immer zuerst aus dem aktiven Betrieb nehmen. Das ist absichtlich

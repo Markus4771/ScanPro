@@ -35,7 +35,15 @@ def health():
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return (Path(__file__).parent / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parent / "web" / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(
+        html,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 @app.get("/api/setup-status")
@@ -190,6 +198,7 @@ def create_profile(
     return profile_json(row)
 
 
+@app.post("/api/profiles/{profile_id}/remove")
 @app.delete("/api/profiles/{profile_id}")
 def delete_profile(
     profile_id: int,
@@ -259,6 +268,7 @@ def create_destination(
     return {"id": row.id, "name": row.name, "type": row.type, "enabled": row.enabled}
 
 
+@app.post("/api/destinations/{destination_id}/remove")
 @app.delete("/api/destinations/{destination_id}")
 def delete_destination(
     destination_id: int,
@@ -366,6 +376,7 @@ def change_input_smb_password(
     return {"id": row.id, "username": row.smb_username, "password": row.smb_password}
 
 
+@app.post("/api/inputs/{input_id}/remove")
 @app.delete("/api/inputs/{input_id}")
 def delete_input(
     input_id: int,

@@ -14,7 +14,7 @@ from .models import (
     User, UserSession,
 )
 from .schemas import (
-    DestinationPayload, LoginPayload, ProfilePayload, ScanInputPayload,
+    DestinationPayload, LoginPayload, PasswordChangePayload, ProfilePayload, ScanInputPayload,
     SmbPasswordPayload, UserPayload,
 )
 from .services.shares import (
@@ -118,6 +118,24 @@ def user_json(row: User) -> dict:
 @app.get("/api/me")
 def me(user: User = Depends(current_user)):
     return user_json(user)
+
+
+@app.post("/api/me/password")
+def change_own_password(
+    payload: PasswordChangePayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(400, "Das aktuelle Passwort ist falsch.")
+    if payload.current_password == payload.new_password:
+        raise HTTPException(400, "Das neue Passwort muss sich vom aktuellen Passwort unterscheiden.")
+    try:
+        user.password_hash = hash_password(payload.new_password)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    db.commit()
+    return {"changed": True}
 
 
 @app.get("/api/users")

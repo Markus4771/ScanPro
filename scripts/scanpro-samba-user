@@ -22,6 +22,19 @@ case "$action" in
     printf '%s\n%s\n' "$password" "$password" | smbpasswd -s -a "$username" >/dev/null
     smbpasswd -e "$username" >/dev/null
     ;;
+  prepare-input)
+    path="${3:-}"
+    case "$path" in
+      /var/lib/scanpro-v1/Eingang/*) ;;
+      *)
+        echo "Ungültiger Eingangsordner." >&2
+        exit 4
+        ;;
+    esac
+    mkdir -p "$path"
+    chown "$username":scanpro "$path"
+    chmod 0770 "$path"
+    ;;
   delete)
     smbpasswd -x "$username" >/dev/null 2>&1 || true
     userdel "$username" >/dev/null 2>&1 || true

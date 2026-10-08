@@ -442,7 +442,7 @@ def list_inputs(
         destination = db.get(Destination, r.destination_id)
         result.append({
             "id": r.id, "name": r.name, "share_name": r.share_name, "path": r.path,
-            "network_path": f"\\\\{host}\\{r.share_name}",
+            "network_path": f"\\\\{host}\\Eingang\\{r.share_name}",
             "profile_id": r.profile_id, "profile_name": profile.name if profile else None,
             "destination_id": r.destination_id,
             "destination_name": destination.name if destination else None,
@@ -635,6 +635,10 @@ def document_file(
 def system_status(db: Session = Depends(get_db), user: User = Depends(current_user)):
     return {
         "version": __version__, "data_root": str(DATA_ROOT),
+        "input_root": str(DATA_ROOT / "Eingang"),
+        "processing_root": str(DATA_ROOT / "Verarbeitung"),
+        "output_root": str(DATA_ROOT / "Ausgang"),
+        "archive_root": str(DATA_ROOT / "Archiv"),
         "profiles": db.query(ProcessingProfile).filter(ProcessingProfile.owner_id == user.id).count(),
         "destinations": db.query(Destination).filter(Destination.owner_id == user.id).count(),
         "inputs": db.query(ScanInput).filter(ScanInput.owner_id == user.id).count(),

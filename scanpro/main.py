@@ -30,7 +30,7 @@ app = FastAPI(title="ScanPro", version=__version__)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": __version__, "schema_version": 2}
+    return {"status": "ok", "version": __version__, "schema_version": 3}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -263,6 +263,10 @@ def profile_json(row: ProcessingProfile) -> dict:
         "ocr_language": row.ocr_language, "remove_blank_pages": row.remove_blank_pages,
         "auto_rotate": row.auto_rotate, "deskew": row.deskew, "auto_crop": row.auto_crop,
         "split_method": row.split_method, "filename_template": row.filename_template,
+        "pdfa_enabled": row.pdfa_enabled, "color_mode": row.color_mode,
+        "dpi": row.dpi, "normalize_a4": row.normalize_a4,
+        "blank_threshold": row.blank_threshold,
+        "subfolder_template": row.subfolder_template,
     }
 
 
@@ -292,6 +296,15 @@ def create_profile(
         ProcessingProfile.name == payload.name,
     ).first():
         raise HTTPException(409, "Profil existiert bereits.")
+    if payload.color_mode not in {"keep", "gray", "bw"}:
+        raise HTTPException(400, "Farbmodus ist ungültig.")
+    if payload.dpi not in {150, 200, 300, 400, 600}:
+        raise HTTPException(400, "DPI muss 150, 200, 300, 400 oder 600 sein.")
+    if payload.blank_threshold < 90 or payload.blank_threshold > 100:
+        raise HTTPException(400, "Leerseiten-Schwellwert muss zwischen 90 und 100 liegen.")
+    if payload.pdfa_enabled and not payload.ocr_enabled:
+        raise HTTPException(400, "PDF/A benötigt in ScanPro derzeit aktiviertes OCR.")
+
     row = ProcessingProfile(owner_id=user.id, **payload.model_dump())
     db.add(row); db.commit(); db.refresh(row)
     return profile_json(row)

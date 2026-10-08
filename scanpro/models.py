@@ -42,7 +42,7 @@ class ProcessingProfile(Base):
     filename_template: Mapped[str] = mapped_column(String(255), default="{date}_{input}_{job}_{document}")
     pdfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     color_mode: Mapped[str] = mapped_column(String(20), default="keep")
-    dpi: Mapped[int] = mapped_column(Integer, default=300)
+    dpi: Mapped[int] = mapped_column(Integer, default=0)
     normalize_a4: Mapped[bool] = mapped_column(Boolean, default=False)
     blank_threshold: Mapped[int] = mapped_column(Integer, default=99)
     subfolder_template: Mapped[str] = mapped_column(String(255), default="")

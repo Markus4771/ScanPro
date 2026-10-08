@@ -31,6 +31,13 @@ Datenbank: `/var/lib/scanpro-v1/scanpro-v1.db`
 - Handgezeichnetes Dreieck als PDF-Trennzeichen: Position, Mindestgröße und Entfernen der Trennseite einstellbar
 - Job- und Delivery-Protokoll
 
+## Änderung: lokales Samba-Scanziel (8.10.2026)
+
+- Bei `local_smb` kann im Formular ein individueller Samba-Benutzer angegeben werden (`scanpro_d...`), andernfalls vergibt ScanPro weiterhin automatisch `scanpro_d<ID>`.
+- Benutzername und Passwort werden weiterhin über die nur für den angemeldeten Eigentümer erreichbare Scanziel-Verbindungsansicht angezeigt.
+- Beim Anlegen wird der SMB-Benutzer mit dem eingegebenen Passwort über den vorhandenen Samba-Helper eingerichtet.
+- Vor der Inbetriebnahme die Funktion auf dem Linux-Server testen; kein erfolgreicher Laufzeittest ausgeführt.
+
 ## Offen / noch zu prüfen
 
 1. **Auto-Crop**: Profiloption ist vorhanden, im eingesehenen `processor.py` aber noch nicht in die Verarbeitung eingebunden.

@@ -82,7 +82,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <label>Dateiname<input id="pFilename" value="{date}_{input}_{job}_{document}"></label>
 <label class="check"><input type="checkbox" id="pUseSubfolder" onchange="toggleProfileSubfolder()"> Unterordner verwenden</label>
 <label>Unterordner<input id="pSubfolder" placeholder="{year}/{month}" disabled></label>
-<label>Trennung<select id="pSplit"><option value="none">Keine</option><option value="blank-page">Leerseite</option><option value="qr">QR-Code</option><option value="barcode">Barcode</option></select></label>
+<label>Trennung<select id="pSplit" onchange="toggleTriangleOptions()"><option value="none">Keine</option><option value="blank-page">Leerseite</option><option value="qr">QR-Code</option><option value="barcode">Barcode</option><option value="triangle">Handgezeichnetes Dreieck</option></select></label>
 <label>Farbmodus<select id="pColorMode"><option value="keep">Original beibehalten</option><option value="gray">Graustufen</option><option value="bw">Schwarzweiß</option></select></label>
 <label>DPI<select id="pDpi"><option value="0" selected>Original beibehalten</option><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300">300 dpi</option><option value="400">400 dpi</option><option value="600">600 dpi</option></select></label>
 <label>Leerseiten-Schwellwert<select id="pBlankThreshold"><option value="97">97 %</option><option value="98">98 %</option><option value="99" selected>99 %</option><option value="100">100 %</option></select></label>
@@ -97,6 +97,12 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <label class="check"><input type="checkbox" id="pA4"> Auf A4 normalisieren</label>
 </div>
 <p class="muted">Unterordner unterstützt z. B. {year}, {month}, {day}, {date}, {input}, {profile} und {job}. PDF/A benötigt aktiviertes OCR.</p>
+<div id="pTriangleOptions" class="grid hidden">
+<label>Position<select id="pTrianglePosition"><option value="any">Überall auf der Seite</option><option value="top_left">Oben links</option><option value="top_right">Oben rechts</option><option value="bottom_left">Unten links</option><option value="bottom_right">Unten rechts</option></select></label>
+<label>Mindestgröße<select id="pTriangleSize"><option value="8">8 mm</option><option value="12" selected>12 mm</option><option value="15">15 mm</option><option value="20">20 mm</option><option value="30">30 mm</option><option value="40">40 mm</option></select></label>
+<label class="check"><input type="checkbox" id="pTriangleRemove" checked> Trennseite entfernen</label>
+</div>
+<p id="pTriangleHint" class="muted hidden">Das Dreieck darf frei mit schwarzem oder dunklem Stift gezeichnet sein. Eine feste Position reduziert Fehldetektionen.</p>
 <div class="actions"><button onclick="createProfile()">Profil anlegen</button></div>
 <div id="profiles" class="muted">Lade…</div>
 </section>
@@ -267,6 +273,12 @@ async function deleteUser(id,name){
     await loadUsers();
   }catch(e){alert(e.message);}
 }
+function toggleTriangleOptions(){
+  const enabled=q('pSplit').value==='triangle';
+  q('pTriangleOptions').classList.toggle('hidden',!enabled);
+  q('pTriangleHint').classList.toggle('hidden',!enabled);
+}
+
 function toggleProfileSubfolder(){
   const enabled=q('pUseSubfolder').checked;
   q('pSubfolder').disabled=!enabled;
@@ -283,6 +295,7 @@ async function loadProfiles(){
       '<div class="muted">'+esc(p.ocr_language)+' · '+esc(p.color_mode)+' · '+(p.dpi?esc(p.dpi)+' dpi':'DPI Original')+(p.normalize_a4?' · A4':'')+'</div>'+
       '<div class="muted">Datei: '+esc(p.filename_template)+(p.subfolder_template?' · Unterordner: '+esc(p.subfolder_template):'')+'</div>'+
       (p.remove_blank_pages?'<div class="muted">Leerseiten entfernen ab '+esc(p.blank_threshold)+' % Weißanteil</div>':'')+
+      (p.split_method==='triangle'?'<div class="muted">Trennung: Dreieck · '+esc(p.triangle_position)+' · min. '+esc(p.triangle_min_size_mm)+' mm · Trennseite '+(p.triangle_remove_page?'entfernen':'behalten')+'</div>':'')+
       '<div class="actions"><button class="danger" data-id="'+p.id+'">Löschen</button></div>';
     el.querySelector('button').onclick=()=>deleteProfile(p.id,p.name);q('profiles').appendChild(el);
   }
@@ -306,9 +319,12 @@ async function createProfile(){
     dpi:Number(q('pDpi').value),
     normalize_a4:q('pA4').checked,
     blank_threshold:Number(q('pBlankThreshold').value),
-    subfolder_template:q('pUseSubfolder').checked?q('pSubfolder').value.trim():''
+    subfolder_template:q('pUseSubfolder').checked?q('pSubfolder').value.trim():'',
+    triangle_position:q('pTrianglePosition').value,
+    triangle_min_size_mm:Number(q('pTriangleSize').value),
+    triangle_remove_page:q('pTriangleRemove').checked
   });
-  q('pName').value='';q('pUseSubfolder').checked=false;q('pSubfolder').value='';toggleProfileSubfolder();await loadProfiles();
+  q('pName').value='';q('pUseSubfolder').checked=false;q('pSubfolder').value='';q('pSplit').value='none';toggleProfileSubfolder();toggleTriangleOptions();await loadProfiles();
 }
 async function deleteProfile(id,name){if(!confirm('Verarbeitungsprofil "'+name+'" wirklich löschen?'))return;try{await api('/api/profiles/'+id+'/remove',{method:'POST'});await loadProfiles();}catch(e){alert(e.message);}}
 function toggleDestination(){const t=q('dType').value;q('dLocal').style.display=t==='local'?'block':'none';q('dLocalSmb').style.display=t==='local_smb'?'grid':'none';q('dSmb').style.display=t==='smb'?'grid':'none';q('dPaperless').style.display=t==='paperless'?'grid':'none';if(t==='local_smb')q('dLocalSmbFolder').value=q('dName').value.trim();}

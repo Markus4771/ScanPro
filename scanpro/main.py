@@ -30,7 +30,7 @@ app = FastAPI(title="ScanPro", version=__version__)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": __version__, "schema_version": 3}
+    return {"status": "ok", "version": __version__, "schema_version": 4}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -267,6 +267,9 @@ def profile_json(row: ProcessingProfile) -> dict:
         "dpi": row.dpi, "normalize_a4": row.normalize_a4,
         "blank_threshold": row.blank_threshold,
         "subfolder_template": row.subfolder_template,
+        "triangle_position": row.triangle_position,
+        "triangle_min_size_mm": row.triangle_min_size_mm,
+        "triangle_remove_page": row.triangle_remove_page,
     }
 
 
@@ -304,6 +307,11 @@ def create_profile(
         raise HTTPException(400, "Leerseiten-Schwellwert muss zwischen 90 und 100 liegen.")
     if payload.pdfa_enabled and not payload.ocr_enabled:
         raise HTTPException(400, "PDF/A benötigt in ScanPro derzeit aktiviertes OCR.")
+    if payload.split_method == "triangle":
+        if payload.triangle_position not in {"any", "top_left", "top_right", "bottom_left", "bottom_right"}:
+            raise HTTPException(400, "Dreieck-Position ist ungültig.")
+        if payload.triangle_min_size_mm < 5 or payload.triangle_min_size_mm > 80:
+            raise HTTPException(400, "Dreieck-Mindestgröße muss zwischen 5 und 80 mm liegen.")
 
     row = ProcessingProfile(owner_id=user.id, **payload.model_dump())
     db.add(row); db.commit(); db.refresh(row)

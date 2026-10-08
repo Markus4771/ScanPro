@@ -442,7 +442,7 @@ def list_inputs(
         destination = db.get(Destination, r.destination_id)
         result.append({
             "id": r.id, "name": r.name, "share_name": r.share_name, "path": r.path,
-            "network_path": f"\\\\{host}\\{r.share_name}",
+            "network_path": f"\\\\{host}\\Eingang\\{r.share_name}",
             "profile_id": r.profile_id, "profile_name": profile.name if profile else None,
             "destination_id": r.destination_id,
             "destination_name": destination.name if destination else None,

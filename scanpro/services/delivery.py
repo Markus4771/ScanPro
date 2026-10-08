@@ -19,7 +19,9 @@ def config(destination: Destination) -> dict:
         raise DeliveryError("Ungültige Zielkonfiguration.") from exc
 
 
-def deliver(destination: Destination, source: Path, final_name: str) -> str:
+def deliver(destination: Destination, source: Path, final_name: str, relative_name: str | None = None) -> str:
+    relative_name = (relative_name or final_name).replace("\\", "/").lstrip("/")
+
     cfg = config(destination)
 
     if destination.type == "local":
@@ -27,7 +29,8 @@ def deliver(destination: Destination, source: Path, final_name: str) -> str:
         if not str(root):
             raise DeliveryError("Lokaler Zielpfad fehlt.")
         root.mkdir(parents=True, exist_ok=True)
-        target = root / final_name
+        target = root / Path(relative_name)
+        target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
         return str(target)
 
@@ -44,7 +47,7 @@ def deliver(destination: Destination, source: Path, final_name: str) -> str:
         if not server or not share or not username:
             raise DeliveryError("SMB-Ziel ist unvollständig.")
         remote = f"//{server}/{share}"
-        remote_name = f"{subfolder}/{final_name}" if subfolder else final_name
+        remote_name = f"{subfolder}/{relative_name}" if subfolder else relative_name
         user = f"{domain}\\{username}" if domain else username
         result = subprocess.run(
             ["smbclient", remote, "-U", f"{user}%{password}", "-c", f'put "{source}" "{remote_name}"'],

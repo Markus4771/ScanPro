@@ -31,6 +31,9 @@ def deliver(destination: Destination, source: Path, final_name: str) -> str:
         shutil.copy2(source, target)
         return str(target)
 
+    if destination.type == "local_smb":
+        return str(source)
+
     if destination.type == "smb":
         server = str(cfg.get("server", "")).strip()
         share = str(cfg.get("share", "")).strip()

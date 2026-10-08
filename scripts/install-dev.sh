@@ -11,7 +11,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-echo "== ScanPro 1.3.3-dev Neuinstallation/Update =="
+echo "== ScanPro 1.4.0-dev Neuinstallation/Update =="
 
 systemctl stop scanpro.service 2>/dev/null || true
 systemctl stop scanpro-inbox.service 2>/dev/null || true
@@ -127,7 +127,7 @@ systemctl enable --now scanpro-inbox.service
 systemctl enable --now scanpro-samba-reload.path
 
 echo
-echo "ScanPro 1.3.3-dev läuft über http://<server>/"
+echo "ScanPro 1.4.0-dev läuft über http://<server>/"
 echo "Beim ersten Aufruf wird der erste Administrator angelegt."
 echo "Jede Scan-Freigabe erhält eigene Samba-Zugangsdaten; WebGUI-Benutzer bleiben davon getrennt."
 echo "Bestehende ScanPro-Daten werden beim Anlegen des ersten Administrators diesem Konto zugeordnet."

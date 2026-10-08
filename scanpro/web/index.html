@@ -60,10 +60,11 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <div class="grid">
 <label>Benutzername<input id="uUsername"></label>
 <label>Anzeigename<input id="uDisplay"></label>
-<label>WebGUI-Passwort<input id="uPassword" type="password"></label>
+<label>WebGUI-Passwort<input id="uPassword" type="password" minlength="10" placeholder="mindestens 10 Zeichen"></label>
 <label class="check"><input id="uAdmin" type="checkbox"> Administrator</label>
 </div>
-<div class="actions"><button onclick="createUser()">Benutzer anlegen</button></div>
+<div class="actions"><button type="button" onclick="createUser()">Benutzer anlegen</button></div>
+<div id="userStatus" class="muted"></div>
 <div id="users" class="muted"></div>
 </section>
 
@@ -171,21 +172,47 @@ async function showApp(){
   await Promise.all([loadProfiles(),loadDestinations(),loadInputs(),loadJobs()]);
 }
 async function loadUsers(){
-  const rows=await api('/api/users');q('users').innerHTML='';
-  for(const u of rows){
-    const el=document.createElement('div');el.className='item';
-    el.innerHTML='<strong>'+esc(u.display_name)+'</strong> <span class="badge">'+esc(u.username)+'</span>'+
-      (u.is_admin?' <span class="badge ok">Admin</span>':'')+
-      (u.id===me.id?' <span class="badge">angemeldet</span>':'')+
-      (u.id!==me.id?'<div class="actions"><button type="button" class="danger del-user">Benutzer löschen</button></div>':'');
-    const btn=el.querySelector('.del-user');
-    if(btn)btn.onclick=()=>deleteUser(u.id,u.display_name||u.username);
-    q('users').appendChild(el);
+  q('userStatus').textContent='Lade Benutzer…';
+  try{
+    const rows=await api('/api/users');
+    q('users').innerHTML='';
+    for(const u of rows){
+      const el=document.createElement('div');el.className='item';
+      el.innerHTML='<strong>'+esc(u.display_name)+'</strong> <span class="badge">'+esc(u.username)+'</span>'+
+        (u.is_admin?' <span class="badge ok">Admin</span>':'')+
+        (u.enabled?' <span class="badge ok">aktiv</span>':' <span class="badge">deaktiviert</span>')+
+        (u.id===me.id?' <span class="badge">angemeldet</span>':'')+
+        (u.id!==me.id?'<div class="actions"><button type="button" class="danger del-user">Benutzer löschen</button></div>':'');
+      const btn=el.querySelector('.del-user');
+      if(btn)btn.onclick=()=>deleteUser(u.id,u.display_name||u.username);
+      q('users').appendChild(el);
+    }
+    q('userStatus').textContent=rows.length?rows.length+' Benutzer vorhanden.':'Noch kein Benutzer vorhanden.';
+  }catch(e){
+    q('userStatus').innerHTML='<span class="err">'+esc(e.message)+'</span>';
   }
 }
 async function createUser(){
-  await jsonPost('/api/users',{username:q('uUsername').value.trim(),display_name:q('uDisplay').value.trim(),password:q('uPassword').value,is_admin:q('uAdmin').checked,enabled:true});
-  q('uUsername').value='';q('uDisplay').value='';q('uPassword').value='';q('uAdmin').checked=false;await loadUsers();
+  const username=q('uUsername').value.trim();
+  const display_name=q('uDisplay').value.trim();
+  const password=q('uPassword').value;
+  if(!username){
+    q('userStatus').innerHTML='<span class="err">Benutzername fehlt.</span>';
+    return;
+  }
+  if(password.length<10){
+    q('userStatus').innerHTML='<span class="err">WebGUI-Passwort muss mindestens 10 Zeichen lang sein.</span>';
+    return;
+  }
+  q('userStatus').textContent='Benutzer wird angelegt…';
+  try{
+    await jsonPost('/api/users',{username,display_name,password,is_admin:q('uAdmin').checked,enabled:true});
+    q('uUsername').value='';q('uDisplay').value='';q('uPassword').value='';q('uAdmin').checked=false;
+    q('userStatus').textContent='Benutzer wurde angelegt.';
+    await loadUsers();
+  }catch(e){
+    q('userStatus').innerHTML='<span class="err">'+esc(e.message)+'</span>';
+  }
 }
 async function deleteUser(id,name){
   if(!confirm('Benutzer "'+name+'" wirklich löschen?\n\nDie Anmeldung wird entfernt. Eigene Scan-Freigaben werden deaktiviert. Historische ScanJobs bleiben erhalten.'))return;

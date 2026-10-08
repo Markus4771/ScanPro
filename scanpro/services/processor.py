@@ -102,11 +102,12 @@ def raster_normalize_pdf(source: Path, profile: ProcessingProfile) -> Path:
     if source.suffix.lower() != ".pdf":
         return source
     color_mode = (profile.color_mode or "keep").lower()
-    needs_raster = color_mode in {"gray", "bw"} or bool(profile.normalize_a4)
+    selected_dpi = int(profile.dpi or 0)
+    needs_raster = color_mode in {"gray", "bw"} or bool(profile.normalize_a4) or selected_dpi > 0
     if not needs_raster:
         return source
 
-    dpi = max(72, min(600, int(profile.dpi or 300)))
+    dpi = max(72, min(600, selected_dpi or 300))
     target = source.with_name(source.stem + "-normalized.pdf")
     with tempfile.TemporaryDirectory(prefix="scanpro-normalize-") as tmp:
         prefix = Path(tmp) / "page"

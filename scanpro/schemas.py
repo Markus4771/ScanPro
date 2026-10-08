@@ -35,7 +35,7 @@ class ProfilePayload(BaseModel):
     filename_template: str = "{date}_{input}_{job}_{document}"
     pdfa_enabled: bool = False
     color_mode: str = "keep"
-    dpi: int = 300
+    dpi: int = 0
     normalize_a4: bool = False
     blank_threshold: int = 99
     subfolder_template: str = ""

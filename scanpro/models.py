@@ -46,6 +46,9 @@ class ProcessingProfile(Base):
     normalize_a4: Mapped[bool] = mapped_column(Boolean, default=False)
     blank_threshold: Mapped[int] = mapped_column(Integer, default=99)
     subfolder_template: Mapped[str] = mapped_column(String(255), default="")
+    triangle_position: Mapped[str] = mapped_column(String(20), default="any")
+    triangle_min_size_mm: Mapped[int] = mapped_column(Integer, default=12)
+    triangle_remove_page: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class Destination(Base):

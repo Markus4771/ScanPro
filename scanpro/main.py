@@ -158,6 +158,80 @@ def create_user(
     return user_json(row)
 
 
+@app.post("/api/users/{user_id}/remove")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(admin_user),
+):
+    row = db.get(User, user_id)
+    if not row:
+        raise HTTPException(404, "Benutzer nicht gefunden.")
+    if row.id == admin.id:
+        raise HTTPException(400, "Der aktuell angemeldete Benutzer kann sich nicht selbst löschen.")
+
+    if row.is_admin and row.enabled:
+        other_admins = db.query(User).filter(
+            User.id != row.id,
+            User.is_admin.is_(True),
+            User.enabled.is_(True),
+        ).count()
+        if other_admins == 0:
+            raise HTTPException(400, "Der letzte aktive Administrator kann nicht gelöscht werden.")
+
+    # Aktive SMB-Freigaben des Benutzers stilllegen und Samba-Konten merken.
+    samba_users = []
+    inputs = db.query(ScanInput).filter(ScanInput.owner_id == row.id).all()
+    for item in inputs:
+        if item.smb_username:
+            samba_users.append(item.smb_username)
+        item.enabled = False
+        item.smb_username = None
+        item.smb_password = None
+        item.name = f"[gelöscht Benutzer {row.id} / Eingang {item.id}]"
+        item.share_name = f"__deleted_user_{row.id}_input_{item.id}"
+        item.owner_id = None
+
+    # Profile und Ziele bleiben als historische Referenzen erhalten,
+    # sind aber keinem aktiven Benutzer mehr zugeordnet.
+    for profile in db.query(ProcessingProfile).filter(ProcessingProfile.owner_id == row.id).all():
+        profile.name = f"[gelöscht Benutzer {row.id} / Profil {profile.id}]"
+        profile.owner_id = None
+
+    for destination in db.query(Destination).filter(Destination.owner_id == row.id).all():
+        destination.name = f"[gelöscht Benutzer {row.id} / Ziel {destination.id}]"
+        destination.enabled = False
+        destination.owner_id = None
+
+    # Historische Jobs bleiben bestehen, verlieren aber den Benutzerbezug.
+    db.query(ScanJob).filter(ScanJob.owner_id == row.id).update(
+        {ScanJob.owner_id: None}, synchronize_session=False
+    )
+
+    # Alle Sitzungen des Benutzers entfernen und anschließend den Benutzer löschen.
+    db.query(UserSession).filter(UserSession.user_id == row.id).delete(
+        synchronize_session=False
+    )
+    db.delete(row)
+    db.commit()
+
+    # Samba nach dem DB-Commit bereinigen. Fehler dort dürfen die bereits
+    # erfolgreiche Benutzerlöschung nicht zurückrollen.
+    try:
+        sync_samba_config(db)
+        reload_samba()
+        for samba_username in samba_users:
+            delete_samba_user(samba_username)
+    except Exception:
+        pass
+
+    return {
+        "deleted": True,
+        "preserved_jobs": db.query(ScanJob).filter(ScanJob.owner_id.is_(None)).count(),
+        "disabled_shares": len(inputs),
+    }
+
+
 def profile_json(row: ProcessingProfile) -> dict:
     return {
         "id": row.id, "name": row.name, "ocr_enabled": row.ocr_enabled,

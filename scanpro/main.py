@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -409,6 +410,15 @@ def create_destination(
         password = str(config.get("password", ""))
         if len(password) < 8:
             raise HTTPException(400, "SMB-Passwort muss mindestens 8 Zeichen lang sein.")
+        requested_user = str(config.get("username", "")).strip().lower()
+        if requested_user:
+            if not re.fullmatch(r"scanpro_d[a-z0-9_]{3,30}", requested_user):
+                raise HTTPException(400, "Benutzer muss mit scanpro_d beginnen; erlaubt sind Kleinbuchstaben, Zahlen und _.")
+            for existing in db.query(Destination).filter(Destination.type == "local_smb").all():
+                existing_user = str(json.loads(existing.config_json or "{}").get("username", "")).lower()
+                if requested_user == existing_user:
+                    raise HTTPException(409, "Dieser Samba-Benutzer wird bereits von einem Scanziel verwendet.")
+            config["username"] = requested_user
         config["share"] = "Ausgang"
         config["subfolder"] = payload.name.strip()
 
@@ -420,7 +430,7 @@ def create_destination(
     db.flush()
 
     if payload.type == "local_smb":
-        config["username"] = f"scanpro_d{row.id}"
+        config["username"] = config.get("username") or f"scanpro_d{row.id}"
         row.config_json = json.dumps(config, ensure_ascii=False)
         try:
             set_samba_password(config["username"], config["password"])

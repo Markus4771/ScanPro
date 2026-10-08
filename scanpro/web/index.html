@@ -83,7 +83,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <label>Unterordner<input id="pSubfolder" placeholder="{year}/{month}"></label>
 <label>Trennung<select id="pSplit"><option value="none">Keine</option><option value="blank-page">Leerseite</option><option value="qr">QR-Code</option><option value="barcode">Barcode</option></select></label>
 <label>Farbmodus<select id="pColorMode"><option value="keep">Original beibehalten</option><option value="gray">Graustufen</option><option value="bw">Schwarzweiß</option></select></label>
-<label>DPI<select id="pDpi"><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300" selected>300 dpi</option><option value="400">400 dpi</option><option value="600">600 dpi</option></select></label>
+<label>DPI<select id="pDpi"><option value="0" selected>Original beibehalten</option><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300">300 dpi</option><option value="400">400 dpi</option><option value="600">600 dpi</option></select></label>
 <label>Leerseiten-Schwellwert<select id="pBlankThreshold"><option value="97">97 %</option><option value="98">98 %</option><option value="99" selected>99 %</option><option value="100">100 %</option></select></label>
 </div>
 <div class="grid">
@@ -273,7 +273,7 @@ async function loadProfiles(){
     const el=document.createElement('div');el.className='item';
     el.innerHTML='<strong>'+esc(p.name)+'</strong> <span class="badge '+(p.ocr_enabled?'ok':'')+'">OCR '+(p.ocr_enabled?'an':'aus')+'</span>'+
       (p.pdfa_enabled?' <span class="badge ok">PDF/A</span>':'')+
-      '<div class="muted">'+esc(p.ocr_language)+' · '+esc(p.color_mode)+' · '+esc(p.dpi)+' dpi'+(p.normalize_a4?' · A4':'')+'</div>'+
+      '<div class="muted">'+esc(p.ocr_language)+' · '+esc(p.color_mode)+' · '+(p.dpi?esc(p.dpi)+' dpi':'DPI Original')+(p.normalize_a4?' · A4':'')+'</div>'+
       '<div class="muted">Datei: '+esc(p.filename_template)+(p.subfolder_template?' · Unterordner: '+esc(p.subfolder_template):'')+'</div>'+
       (p.remove_blank_pages?'<div class="muted">Leerseiten entfernen ab '+esc(p.blank_threshold)+' % Weißanteil</div>':'')+
       '<div class="actions"><button class="danger" data-id="'+p.id+'">Löschen</button></div>';

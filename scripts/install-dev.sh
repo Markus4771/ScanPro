@@ -11,7 +11,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-echo "== ScanPro 1.3.0-dev Neuinstallation/Update =="
+echo "== ScanPro 1.3.1-dev Neuinstallation/Update =="
 
 systemctl stop scanpro.service 2>/dev/null || true
 systemctl stop scanpro-inbox.service 2>/dev/null || true
@@ -28,12 +28,45 @@ fi
 
 mkdir -p "$APP_DIR"   "$DATA_ROOT/Eingang"   "$DATA_ROOT/Verarbeitung/jobs"   "$DATA_ROOT/Verarbeitung/temp"   "$DATA_ROOT/Verarbeitung/failed"   "$DATA_ROOT/Ausgang"   "$DATA_ROOT/Archiv"   "$DATA_ROOT/backups"
 
-# Alte Verzeichnisse in die neue ScanPro-Struktur übernehmen.
+# Alte Verzeichnisse sicher in die neue ScanPro-Struktur übernehmen.
+# Alte Eingänge waren nach numerischer ID organisiert (z. B. inputs/1).
+# Wenn die DB den Freigabenamen kennt, werden die Dateien in den benannten
+# Eingang (z. B. Eingang/PDF) übernommen.
 if [[ -d "$DATA_ROOT/inputs" ]]; then
-  rsync -a "$DATA_ROOT/inputs/" "$DATA_ROOT/Eingang/" || true
+  while IFS='|' read -r input_id share_name; do
+    [[ -n "$input_id" && -n "$share_name" ]] || continue
+    old_dir="$DATA_ROOT/inputs/$input_id"
+    new_dir="$DATA_ROOT/Eingang/$share_name"
+    if [[ -d "$old_dir" ]]; then
+      mkdir -p "$new_dir"
+      rsync -a "$old_dir/" "$new_dir/"
+      rm -rf "$old_dir"
+    fi
+  done < <(sqlite3 "$DB_FILE" "SELECT id,share_name FROM scan_inputs;" 2>/dev/null || true)
+
+  # Nicht zuordenbare Reste bleiben sicher im Archiv erhalten.
+  if find "$DATA_ROOT/inputs" -mindepth 1 -print -quit | grep -q .; then
+    mkdir -p "$DATA_ROOT/Archiv/Legacy-inputs"
+    rsync -a "$DATA_ROOT/inputs/" "$DATA_ROOT/Archiv/Legacy-inputs/"
+  fi
+  rm -rf "$DATA_ROOT/inputs"
 fi
+
+# Frühere Updates konnten bereits Eingang/<ID> erzeugt haben.
+while IFS='|' read -r input_id share_name; do
+  [[ -n "$input_id" && -n "$share_name" ]] || continue
+  old_dir="$DATA_ROOT/Eingang/$input_id"
+  new_dir="$DATA_ROOT/Eingang/$share_name"
+  if [[ "$old_dir" != "$new_dir" && -d "$old_dir" ]]; then
+    mkdir -p "$new_dir"
+    rsync -a "$old_dir/" "$new_dir/"
+    rm -rf "$old_dir"
+  fi
+done < <(sqlite3 "$DB_FILE" "SELECT id,share_name FROM scan_inputs;" 2>/dev/null || true)
+
 if [[ -d "$DATA_ROOT/jobs" ]]; then
-  rsync -a "$DATA_ROOT/jobs/" "$DATA_ROOT/Verarbeitung/jobs/" || true
+  rsync -a "$DATA_ROOT/jobs/" "$DATA_ROOT/Verarbeitung/jobs/"
+  rm -rf "$DATA_ROOT/jobs"
 fi
 
 chown -R scanpro:scanpro "$DATA_ROOT"
@@ -94,7 +127,7 @@ systemctl enable --now scanpro-inbox.service
 systemctl enable --now scanpro-samba-reload.path
 
 echo
-echo "ScanPro 1.3.0-dev läuft über http://<server>/"
+echo "ScanPro 1.3.1-dev läuft über http://<server>/"
 echo "Beim ersten Aufruf wird der erste Administrator angelegt."
 echo "Jede Scan-Freigabe erhält eigene Samba-Zugangsdaten; WebGUI-Benutzer bleiben davon getrennt."
 echo "Bestehende ScanPro-Daten werden beim Anlegen des ersten Administrators diesem Konto zugeordnet."

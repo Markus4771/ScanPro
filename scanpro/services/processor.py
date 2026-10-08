@@ -66,7 +66,7 @@ def process_job(db: Session, job: ScanJob) -> None:
         raise ProcessingError("Eingang, Profil oder Ziel fehlt.")
 
     source = Path(job.source_path)
-    work_dir = DATA_ROOT / "jobs" / str(job.id)
+    work_dir = DATA_ROOT / "Verarbeitung" / "jobs" / str(job.id)
     work_dir.mkdir(parents=True, exist_ok=True)
     work = work_dir / source.name
     shutil.move(str(source), work)
@@ -79,7 +79,19 @@ def process_job(db: Session, job: ScanJob) -> None:
         output = ocr_pdf(work, profile.ocr_language)
 
     name = final_name(profile, scan_input, job, output)
-    db.add(JobDocument(scan_job_id=job.id, sequence=1, path=str(output), final_name=name))
+
+    # Fertige Dokumente landen immer zuerst im internen Ausgang.
+    output_dir = DATA_ROOT / "Ausgang" / safe_name(destination.name)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    internal_output = output_dir / name
+    shutil.copy2(output, internal_output)
+
+    db.add(JobDocument(
+        scan_job_id=job.id,
+        sequence=1,
+        path=str(internal_output),
+        final_name=name,
+    ))
     db.commit()
 
     delivery = JobDelivery(scan_job_id=job.id, destination_id=destination.id, status="delivering")
@@ -87,7 +99,7 @@ def process_job(db: Session, job: ScanJob) -> None:
     db.commit()
 
     try:
-        delivery.target = deliver(destination, output, name)
+        delivery.target = deliver(destination, internal_output, name)
         delivery.status = "delivered"
         job.status = "delivered"
         job.error = None

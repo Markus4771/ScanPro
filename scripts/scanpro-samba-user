@@ -4,7 +4,7 @@ set -euo pipefail
 action="${1:-}"
 username="${2:-}"
 
-if [[ ! "$username" =~ ^scanpro_[us][0-9]+$ ]]; then
+if [[ ! "$username" =~ ^scanpro_[usd][0-9]+$ ]]; then
   echo "Ungültiger Samba-Benutzer." >&2
   exit 2
 fi
@@ -29,6 +29,19 @@ case "$action" in
       *)
         echo "Ungültiger Eingangsordner." >&2
         exit 4
+        ;;
+    esac
+    mkdir -p "$path"
+    chown "$username":scanpro "$path"
+    chmod 0770 "$path"
+    ;;
+  prepare-output)
+    path="${3:-}"
+    case "$path" in
+      /var/lib/scanpro-v1/Ausgang/*) ;;
+      *)
+        echo "Ungültiger Ausgangsordner." >&2
+        exit 5
         ;;
     esac
     mkdir -p "$path"

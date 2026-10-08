@@ -26,9 +26,18 @@ if ! id scanpro >/dev/null 2>&1; then
   useradd --system --home "$DATA_ROOT" --shell /usr/sbin/nologin scanpro
 fi
 
-mkdir -p "$APP_DIR" "$DATA_ROOT"/{inputs,jobs,backups}
+mkdir -p "$APP_DIR"   "$DATA_ROOT/Eingang"   "$DATA_ROOT/Verarbeitung/jobs"   "$DATA_ROOT/Verarbeitung/temp"   "$DATA_ROOT/Verarbeitung/failed"   "$DATA_ROOT/Ausgang"   "$DATA_ROOT/Archiv"   "$DATA_ROOT/backups"
+
+# Alte Verzeichnisse in die neue ScanPro-Struktur übernehmen.
+if [[ -d "$DATA_ROOT/inputs" ]]; then
+  rsync -a "$DATA_ROOT/inputs/" "$DATA_ROOT/Eingang/" || true
+fi
+if [[ -d "$DATA_ROOT/jobs" ]]; then
+  rsync -a "$DATA_ROOT/jobs/" "$DATA_ROOT/Verarbeitung/jobs/" || true
+fi
+
 chown -R scanpro:scanpro "$DATA_ROOT"
-chmod 0750 "$DATA_ROOT" "$DATA_ROOT/inputs" "$DATA_ROOT/jobs" "$DATA_ROOT/backups"
+chmod 0750   "$DATA_ROOT"   "$DATA_ROOT/Eingang"   "$DATA_ROOT/Verarbeitung"   "$DATA_ROOT/Verarbeitung/jobs"   "$DATA_ROOT/Verarbeitung/temp"   "$DATA_ROOT/Verarbeitung/failed"   "$DATA_ROOT/Ausgang"   "$DATA_ROOT/Archiv"   "$DATA_ROOT/backups"
 
 if [[ -f "$DB_FILE" ]]; then
   stamp=$(date +%Y%m%d-%H%M%S)

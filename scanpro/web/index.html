@@ -80,7 +80,8 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <label>Name<input id="pName" placeholder="Rechnungen"></label>
 <label>OCR-Sprache<select id="pLang"><option value="deu">Deutsch</option><option value="eng">Englisch</option><option value="deu+eng">Deutsch + Englisch</option></select></label>
 <label>Dateiname<input id="pFilename" value="{date}_{input}_{job}_{document}"></label>
-<label>Unterordner<input id="pSubfolder" placeholder="{year}/{month}"></label>
+<label class="check"><input type="checkbox" id="pUseSubfolder" onchange="toggleProfileSubfolder()"> Unterordner verwenden</label>
+<label>Unterordner<input id="pSubfolder" placeholder="{year}/{month}" disabled></label>
 <label>Trennung<select id="pSplit"><option value="none">Keine</option><option value="blank-page">Leerseite</option><option value="qr">QR-Code</option><option value="barcode">Barcode</option></select></label>
 <label>Farbmodus<select id="pColorMode"><option value="keep">Original beibehalten</option><option value="gray">Graustufen</option><option value="bw">Schwarzweiß</option></select></label>
 <label>DPI<select id="pDpi"><option value="0" selected>Original beibehalten</option><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300">300 dpi</option><option value="400">400 dpi</option><option value="600">600 dpi</option></select></label>
@@ -266,6 +267,12 @@ async function deleteUser(id,name){
     await loadUsers();
   }catch(e){alert(e.message);}
 }
+function toggleProfileSubfolder(){
+  const enabled=q('pUseSubfolder').checked;
+  q('pSubfolder').disabled=!enabled;
+  if(!enabled)q('pSubfolder').value='';
+}
+
 async function loadProfiles(){
   profiles=await api('/api/profiles');q('profiles').innerHTML='';q('iProfile').innerHTML='<option value="">'+(profiles.length?'-- Profil wählen --':'-- zuerst Profil anlegen --')+'</option>';
   for(const p of profiles){
@@ -299,9 +306,9 @@ async function createProfile(){
     dpi:Number(q('pDpi').value),
     normalize_a4:q('pA4').checked,
     blank_threshold:Number(q('pBlankThreshold').value),
-    subfolder_template:q('pSubfolder').value.trim()
+    subfolder_template:q('pUseSubfolder').checked?q('pSubfolder').value.trim():''
   });
-  q('pName').value='';q('pSubfolder').value='';await loadProfiles();
+  q('pName').value='';q('pUseSubfolder').checked=false;q('pSubfolder').value='';toggleProfileSubfolder();await loadProfiles();
 }
 async function deleteProfile(id,name){if(!confirm('Verarbeitungsprofil "'+name+'" wirklich löschen?'))return;try{await api('/api/profiles/'+id+'/remove',{method:'POST'});await loadProfiles();}catch(e){alert(e.message);}}
 function toggleDestination(){const t=q('dType').value;q('dLocal').style.display=t==='local'?'block':'none';q('dLocalSmb').style.display=t==='local_smb'?'grid':'none';q('dSmb').style.display=t==='smb'?'grid':'none';q('dPaperless').style.display=t==='paperless'?'grid':'none';if(t==='local_smb')q('dLocalSmbFolder').value=q('dName').value.trim();}

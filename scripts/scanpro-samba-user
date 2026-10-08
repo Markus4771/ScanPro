@@ -4,7 +4,7 @@ set -euo pipefail
 action="${1:-}"
 username="${2:-}"
 
-if [[ ! "$username" =~ ^scanpro_[usd][0-9]+$ ]]; then
+if [[ ! "$username" =~ ^scanpro_([us][0-9]+|d[a-z0-9_]{1,30})$ ]]; then
   echo "Ungültiger Samba-Benutzer." >&2
   exit 2
 fi

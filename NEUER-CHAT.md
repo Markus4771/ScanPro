@@ -1,87 +1,61 @@
 # ScanPro – Neuer Chat
 
-## Aktueller Stand
+## Aktueller Entwicklungsstand (8. Oktober 2026)
 
-Repository:
+Repository: `Markus4771/ScanPro`
 
-```text
-Markus4771/ScanPro
-```
+Version laut README: **1.1.0-dev**, Datenbankschema: **2**.
 
-Version:
+Die alte Version 0.9.2 liegt im Branch `archive/scanpro-0.9.2`.
 
-```text
-1.0.0-dev
-```
-
-ScanPro wurde nach 0.9.2 fachlich komplett neu gestartet.
-
-Alter Stand:
+## Architektur
 
 ```text
-archive/scanpro-0.9.2
+Scanner → SMB-Scan-Eingang → Verarbeitungsprofil → Scanziel
 ```
 
-## Neue Architektur
+ScanPro arbeitet scannerunabhängig, ohne NAPS2 und ohne Scannerverwaltung im Kern.
 
-```text
-Scanner
-  ↓
-SMB-Freigabe
-  ↓
-ScanInput
-  ↓
-ProcessingProfile
-  ↓
-Destination
+Datenbank: `/var/lib/scanpro-v1/scanpro-v1.db`
+
+## Bereits im Code vorhanden (nicht zwingend auf dem Server getestet)
+
+- WebGUI mit Anmeldung, Benutzerverwaltung und eigener Passwortänderung
+- Benutzerbezogene Profile, Ziele und Scan-Eingänge
+- Dynamische SMB-Eingänge und Inbox-Worker
+- OCR/PDF-A, Auto-Rotation und Deskew über OCRmyPDF
+- Entfernen von PDF-Leerseiten über Bildanalyse
+- Farbmodus, DPI und A4-Normalisierung
+- Lokale Ziele, lokale SMB-Ziele, externe SMB-Ziele und Paperless-Upload
+- Optionale Unterordner mit Vorlagen wie `{year}/{month}` (leere Vorlage = kein Unterordner)
+- Handgezeichnetes Dreieck als PDF-Trennzeichen: Position, Mindestgröße und Entfernen der Trennseite einstellbar
+- Job- und Delivery-Protokoll
+
+## Offen / noch zu prüfen
+
+1. **Auto-Crop**: Profiloption ist vorhanden, im eingesehenen `processor.py` aber noch nicht in die Verarbeitung eingebunden.
+2. **Leerseiten als Trennzeichen, QR und Barcode**: im Profil auswählbar; im eingesehenen `processor.py` wird bisher nur `split_method == "triangle"` verarbeitet.
+3. **SMB-Zielverhalten**: Unterordner und Zielpfade mit echten SMB-Freigaben testen, Fehlerbehandlung und sicheres Anlegen von Zielordnern überprüfen.
+4. **Dreieck-Trennung**: Erkennung an echten Scans testen (handgezeichnet, gedruckt, Falschpositive, erste/letzte Seite).
+5. **Benutzerverwaltung und eigene Passwortänderung**: WebGUI und Backend sind vorhanden, Funktion auf dem installierten Server prüfen.
+6. Secret Store, Retention/Cleanup, Paperless-Metadaten und umfassende automatisierte Tests.
+7. Tatsächliche Version des installierten Servers mit `/health` gegen GitHub abgleichen.
+
+## Empfehlung für den nächsten Entwicklungsschritt
+
+Die noch fehlenden Trennverfahren (Leerseiten, QR, Barcode) als echte Pipeline ergänzen, mit Tests absichern und danach Auto-Crop aktivieren. Bestehende Dreieck-Trennung und optionale Unterordner dabei unverändert erhalten.
+
+## Deployment / Test
+
+```bash
+cd ~/ScanPro
+git pull
+sudo bash scripts/install-dev.sh
+curl http://127.0.0.1:8100/health
 ```
 
-Keine Scannerverwaltung und kein NAPS2 mehr im Kern.
+Vor Updates an produktionsnahen Daten stets eine Sicherung der Datenbank und Konfiguration erstellen.
 
-## Neue Datenbank
+## Einstieg in einen neuen Chat
 
-```text
-/var/lib/scanpro-v1/scanpro-v1.db
-```
-
-Tabellen:
-
-- processing_profiles
-- destinations
-- scan_inputs
-- scan_jobs
-- job_documents
-- job_deliveries
-
-Schema-Version: 1.
-
-## Aktuell umgesetzt
-
-- Profil-CRUD-Basis
-- Ziel-CRUD-Basis
-- Scan-Eingänge mit dynamischen Samba-Freigaben
-- Inbox-Worker
-- OCR für PDF
-- Dateinamen
-- Local/SMB/Paperless Delivery
-- Jobanzeige
-
-## Nächster Schritt
-
-Die gespeicherten Profiloptionen für:
-
-- Leerseiten
-- Rotation
-- Deskew
-- Auto-Crop
-- QR/Barcode-Trennung
-
-müssen als echte Verarbeitungspipeline neu implementiert und getestet werden.
-
-Danach Secret Store und Retention.
-
-## Einstieg
-
-```text
-Lies bitte NEUER-CHAT.md aus Markus4771/ScanPro und entwickle ScanPro 1.0-dev ab diesem Stand weiter.
-```
+Lies `NEUER-CHAT.md` im Repository `Markus4771/ScanPro` und führe die Entwicklung ab dem dokumentierten Stand weiter.

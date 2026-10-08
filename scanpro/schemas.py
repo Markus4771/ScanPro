@@ -39,6 +39,9 @@ class ProfilePayload(BaseModel):
     normalize_a4: bool = False
     blank_threshold: int = 99
     subfolder_template: str = ""
+    triangle_position: str = "any"
+    triangle_min_size_mm: int = 12
+    triangle_remove_page: bool = True
 
 
 class DestinationPayload(BaseModel):

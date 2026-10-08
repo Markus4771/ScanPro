@@ -276,12 +276,29 @@ def delete_destination(
     user: User = Depends(current_user),
 ):
     row = owned(db, Destination, destination_id, user)
+
     if db.query(ScanInput).filter(
-        ScanInput.owner_id == user.id, ScanInput.destination_id == destination_id
+        ScanInput.owner_id == user.id,
+        ScanInput.destination_id == destination_id,
+        ScanInput.enabled.is_(True),
     ).first():
-        raise HTTPException(409, "Scanziel wird noch von einem Scan-Eingang verwendet.")
-    db.delete(row); db.commit()
-    return {"deleted": True}
+        raise HTTPException(409, "Scanziel wird noch von einem aktiven Scan-Eingang verwendet.")
+
+    has_jobs = db.query(ScanJob).filter(
+        ScanJob.destination_id == destination_id,
+    ).first() is not None
+
+    if has_jobs:
+        original_name = row.name
+        row.name = f"[gelöscht #{row.id}] {original_name}"
+        row.owner_id = None
+        row.enabled = False
+        db.commit()
+    else:
+        db.delete(row)
+        db.commit()
+
+    return {"deleted": True, "history_preserved": has_jobs}
 
 
 @app.get("/api/inputs")

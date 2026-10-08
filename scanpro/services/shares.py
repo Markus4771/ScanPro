@@ -1,3 +1,4 @@
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -117,7 +118,7 @@ def sync_samba_config(db: Session) -> None:
     output_users = []
     for row in output_rows:
         try:
-            cfg = __import__("json").loads(row.config_json or "{}")
+            cfg = json.loads(row.config_json or "{}")
         except Exception:
             cfg = {}
         username = str(cfg.get("username", "")).strip()

@@ -214,8 +214,32 @@ function toggleDestination(){const t=q('dType').value;q('dLocal').style.display=
 function destinationConfig(){const t=q('dType').value;if(t==='local')return {path:q('dLocalPath').value.trim()};if(t==='smb')return {server:q('dServer').value.trim(),share:q('dShare').value.trim(),subfolder:q('dSubfolder').value.trim(),username:q('dUser').value.trim(),password:q('dPassword').value,domain:q('dDomain').value.trim()};return {base_url:q('dPaperlessUrl').value.trim(),token:q('dPaperlessToken').value,verify_ssl:q('dVerify').checked};}
 async function createDestination(){const name=q('dName').value.trim();if(!name)return alert('Name fehlt.');await jsonPost('/api/destinations',{name,type:q('dType').value,enabled:true,config:destinationConfig()});q('dName').value='';await loadDestinations();}
 async function loadDestinations(){
-  destinations=await api('/api/destinations');q('destinations').innerHTML='';const enabled=destinations.filter(d=>d.enabled);q('iDestination').innerHTML='<option value="">'+(enabled.length?'-- Scanziel wählen --':'-- zuerst Scanziel anlegen --')+'</option>';
-  for(const d of destinations){if(d.enabled)q('iDestination').insertAdjacentHTML('beforeend','<option value="'+d.id+'">'+esc(d.name)+'</option>');const el=document.createElement('div');el.className='item';el.innerHTML='<strong>'+esc(d.name)+'</strong> <span class="badge ok">'+esc(d.type.toUpperCase())+'</span><div class="actions"><button class="danger">Löschen</button></div>';el.querySelector('button').onclick=()=>deleteDestination(d.id,d.name);q('destinations').appendChild(el);}
+  destinations=await api('/api/destinations');
+  q('destinations').innerHTML='';
+  const enabled=destinations.filter(d=>d.enabled);
+  q('iDestination').innerHTML='<option value="">'+(enabled.length?'-- Scanziel wählen --':'-- zuerst Scanziel anlegen --')+'</option>';
+  for(const d of destinations){
+    if(d.enabled)q('iDestination').insertAdjacentHTML('beforeend','<option value="'+d.id+'">'+esc(d.name)+'</option>');
+    const cfg=d.config||{};
+    const el=document.createElement('div');el.className='item';
+    let details='';
+    if(d.type==='smb'){
+      const unc='\\\\'+(cfg.server||'')+'\\'+(cfg.share||'')+(cfg.subfolder?'\\'+cfg.subfolder:'');
+      details=
+        '<div class="secret">'+esc(unc)+'</div>'+
+        '<div class="muted">Server: '+esc(cfg.server||'')+' · Freigabe: '+esc(cfg.share||'')+' · Unterordner: '+esc(cfg.subfolder||'')+'</div>'+
+        '<div class="muted">Benutzer: '+esc(cfg.username||'')+' · Domäne: '+esc(cfg.domain||'')+'</div>';
+    }else if(d.type==='paperless'){
+      details=
+        '<div class="secret">'+esc(cfg.base_url||'')+'</div>'+
+        '<div class="muted">TLS prüfen: '+(cfg.verify_ssl?'ja':'nein')+'</div>';
+    }else{
+      details='<div class="secret">'+esc(cfg.path||'')+'</div>';
+    }
+    el.innerHTML='<strong>'+esc(d.name)+'</strong> <span class="badge ok">'+esc(d.type.toUpperCase())+'</span>'+details+'<div class="actions"><button type="button" class="danger">Löschen</button></div>';
+    el.querySelector('button').onclick=()=>deleteDestination(d.id,d.name);
+    q('destinations').appendChild(el);
+  }
   if(!destinations.length)q('destinations').textContent='Noch kein Scanziel angelegt.';
 }
 async function deleteDestination(id,name){if(!confirm('Scanziel "'+name+'" wirklich löschen?'))return;try{await api('/api/destinations/'+id+'/remove',{method:'POST'});await loadDestinations();}catch(e){alert(e.message);}}

@@ -4,7 +4,7 @@
 
 Repository: `Markus4771/ScanPro`
 
-Version laut README: **1.1.0-dev**, Datenbankschema: **2**.
+Version laut pyproject.toml: **1.6.0.dev0**; `/health` meldet im aktuellen Code Schema **4**. README hat einen älteren Stand.
 
 Die alte Version 0.9.2 liegt im Branch `archive/scanpro-0.9.2`.
 
@@ -34,7 +34,7 @@ Datenbank: `/var/lib/scanpro-v1/scanpro-v1.db`
 ## Offen / noch zu prüfen
 
 1. **Auto-Crop**: Profiloption ist vorhanden, im eingesehenen `processor.py` aber noch nicht in die Verarbeitung eingebunden.
-2. **Leerseiten als Trennzeichen, QR und Barcode**: im Profil auswählbar; im eingesehenen `processor.py` wird bisher nur `split_method == "triangle"` verarbeitet.
+2. **Leerseite / QR / Barcode als Trennzeichen**: am 8.10.2026 im Worker ergänzt (`split_marker_pdf`), `zxing-cpp` als Abhängigkeit aufgenommen; ein Regressionstest liegt unter `tests/test_separator_split.py`. Noch kein erfolgreicher Testlauf gegen die tatsächliche Serverumgebung erfolgt. Trennseiten werden dabei entfernt. Bei QR/Barcode löst aktuell jeder erkannte Code des ausgewählten Typs eine Trennung aus; explizite Markerwerte wären als weitere Absicherung sinnvoll.
 3. **SMB-Zielverhalten**: Unterordner und Zielpfade mit echten SMB-Freigaben testen, Fehlerbehandlung und sicheres Anlegen von Zielordnern überprüfen.
 4. **Dreieck-Trennung**: Erkennung an echten Scans testen (handgezeichnet, gedruckt, Falschpositive, erste/letzte Seite).
 5. **Benutzerverwaltung und eigene Passwortänderung**: WebGUI und Backend sind vorhanden, Funktion auf dem installierten Server prüfen.
@@ -43,7 +43,7 @@ Datenbank: `/var/lib/scanpro-v1/scanpro-v1.db`
 
 ## Empfehlung für den nächsten Entwicklungsschritt
 
-Die noch fehlenden Trennverfahren (Leerseiten, QR, Barcode) als echte Pipeline ergänzen, mit Tests absichern und danach Auto-Crop aktivieren. Bestehende Dreieck-Trennung und optionale Unterordner dabei unverändert erhalten.
+Die neu implementierten Trennverfahren mit realen Scans und `pytest -q tests/test_separator_split.py` testen; danach Markerwerte für QR/Barcode konfigurieren und Auto-Crop implementieren. Bestehende Dreieck-Trennung und optionale Unterordner dabei unverändert erhalten.
 
 ## Deployment / Test
 
@@ -55,6 +55,8 @@ curl http://127.0.0.1:8100/health
 ```
 
 Vor Updates an produktionsnahen Daten stets eine Sicherung der Datenbank und Konfiguration erstellen.
+
+**Aktuelle GitHub-Änderungen:** `4adaed9` (Trennlogik), `b80837d` (zxing-cpp), `c68d271` (Regressionstest). Da die Testumgebung GitHub nicht klonen konnte, wurden die Tests nicht lokal ausgeführt.
 
 ## Einstieg in einen neuen Chat
 

@@ -80,6 +80,25 @@ def _add_share_credentials(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE scan_inputs ADD COLUMN smb_password TEXT")
 
 
+def _add_profile_processing_columns(connection: sqlite3.Connection) -> None:
+    if not _table_exists(connection, "processing_profiles"):
+        return
+    columns = _columns(connection, "processing_profiles")
+    additions = {
+        "pdfa_enabled": "BOOLEAN NOT NULL DEFAULT 0",
+        "color_mode": "VARCHAR(20) NOT NULL DEFAULT 'keep'",
+        "dpi": "INTEGER NOT NULL DEFAULT 300",
+        "normalize_a4": "BOOLEAN NOT NULL DEFAULT 0",
+        "blank_threshold": "INTEGER NOT NULL DEFAULT 99",
+        "subfolder_template": "VARCHAR(255) NOT NULL DEFAULT ''",
+    }
+    for name, definition in additions.items():
+        if name not in columns:
+            connection.execute(
+                f"ALTER TABLE processing_profiles ADD COLUMN {name} {definition}"
+            )
+
+
 def initialize_database():
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
     if DATABASE_URL.startswith("sqlite:///"):
@@ -91,6 +110,7 @@ def initialize_database():
             _repair_legacy_scan_jobs(connection)
             _add_owner_columns(connection)
             _add_share_credentials(connection)
+            _add_profile_processing_columns(connection)
             connection.execute("PRAGMA foreign_keys=ON")
             connection.commit()
         finally:

@@ -97,7 +97,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <div id="dLocal"><label>Pfad<input id="dLocalPath" placeholder="/srv/scans"></label></div>
 <div id="dSmb" style="display:none" class="grid">
 <label>Server<input id="dServer" placeholder="192.168.0.20"></label>
-<label>Freigabe<input id="dShare" placeholder="Dokumente"></label>
+<label>Freigabe<input id="dShare" value="Ausgang" readonly></label>
 <label>Unterordner<input id="dSubfolder"></label>
 <label>Benutzer<input id="dUser"></label>
 <label>Passwort<input id="dPassword" type="password"></label>
@@ -114,7 +114,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 
 <section class="card">
 <h2>3. Scan-Eingänge / SMB-Freigaben</h2>
-<p class="muted">Hier erstellst du die SMB-Freigaben, in die der Scanner scannt. Jede Freigabe bekommt ein eigenes SMB-Passwort und wird mit einem Verarbeitungsprofil und einem Scanziel verknüpft.</p>
+<p class="muted">Hier erstellst du die SMB-Freigaben, in die der Scanner scannt. Alle Scan-Eingänge liegen unter dem übergeordneten Bereich <strong>Eingang</strong>. Jede Freigabe bekommt ein eigenes SMB-Passwort und wird mit einem Verarbeitungsprofil und einem Scanziel verknüpft.</p>
 <div class="grid">
 <label>Name<input id="iName" placeholder="Rechnungen"></label>
 <label>Freigabe<input id="iShare" placeholder="Rechnungen"></label>
@@ -211,32 +211,40 @@ async function createProfile(){
 }
 async function deleteProfile(id,name){if(!confirm('Verarbeitungsprofil "'+name+'" wirklich löschen?'))return;try{await api('/api/profiles/'+id+'/remove',{method:'POST'});await loadProfiles();}catch(e){alert(e.message);}}
 function toggleDestination(){const t=q('dType').value;q('dLocal').style.display=t==='local'?'block':'none';q('dSmb').style.display=t==='smb'?'grid':'none';q('dPaperless').style.display=t==='paperless'?'grid':'none';}
-function destinationConfig(){const t=q('dType').value;if(t==='local')return {path:q('dLocalPath').value.trim()};if(t==='smb')return {server:q('dServer').value.trim(),share:q('dShare').value.trim(),subfolder:q('dSubfolder').value.trim(),username:q('dUser').value.trim(),password:q('dPassword').value,domain:q('dDomain').value.trim()};return {base_url:q('dPaperlessUrl').value.trim(),token:q('dPaperlessToken').value,verify_ssl:q('dVerify').checked};}
+function destinationConfig(){const t=q('dType').value;if(t==='local')return {path:q('dLocalPath').value.trim()};if(t==='smb')return {server:q('dServer').value.trim(),share:'Ausgang',subfolder:q('dSubfolder').value.trim()||q('dName').value.trim(),username:q('dUser').value.trim(),password:q('dPassword').value,domain:q('dDomain').value.trim()};return {base_url:q('dPaperlessUrl').value.trim(),token:q('dPaperlessToken').value,verify_ssl:q('dVerify').checked};}
 async function createDestination(){const name=q('dName').value.trim();if(!name)return alert('Name fehlt.');await jsonPost('/api/destinations',{name,type:q('dType').value,enabled:true,config:destinationConfig()});q('dName').value='';await loadDestinations();}
 async function loadDestinations(){
   destinations=await api('/api/destinations');
   q('destinations').innerHTML='';
   const enabled=destinations.filter(d=>d.enabled);
   q('iDestination').innerHTML='<option value="">'+(enabled.length?'-- Scanziel wählen --':'-- zuerst Scanziel anlegen --')+'</option>';
+
   for(const d of destinations){
     if(d.enabled)q('iDestination').insertAdjacentHTML('beforeend','<option value="'+d.id+'">'+esc(d.name)+'</option>');
-    const cfg=d.config||{};
     const el=document.createElement('div');el.className='item';
     let details='';
+
     if(d.type==='smb'){
-      const unc='\\\\'+(cfg.server||'')+'\\'+(cfg.share||'')+(cfg.subfolder?'\\'+cfg.subfolder:'');
+      let cfg=d.config||{};
+      try{cfg=await api('/api/destinations/'+d.id+'/connection-details');}catch(e){}
+      const unc='\\\\'+(cfg.server||'')+'\\Ausgang'+(cfg.subfolder?'\\'+cfg.subfolder:'');
       details=
         '<div class="secret">'+esc(unc)+'</div>'+
-        '<div class="muted">Server: '+esc(cfg.server||'')+' · Freigabe: '+esc(cfg.share||'')+' · Unterordner: '+esc(cfg.subfolder||'')+'</div>'+
-        '<div class="muted">Benutzer: '+esc(cfg.username||'')+' · Domäne: '+esc(cfg.domain||'')+'</div>';
+        '<div class="muted">Server: '+esc(cfg.server||'')+' · Freigabe: Ausgang · Unterordner: '+esc(cfg.subfolder||'')+'</div>'+
+        '<div class="muted">Benutzer: '+esc(cfg.username||'')+' · Passwort: '+esc(cfg.password||'')+' · Domäne: '+esc(cfg.domain||'')+'</div>';
     }else if(d.type==='paperless'){
+      let cfg=d.config||{};
+      try{cfg=await api('/api/destinations/'+d.id+'/connection-details');}catch(e){}
       details=
         '<div class="secret">'+esc(cfg.base_url||'')+'</div>'+
-        '<div class="muted">TLS prüfen: '+(cfg.verify_ssl?'ja':'nein')+'</div>';
+        '<div class="muted">API-Token: '+esc(cfg.token||'')+' · TLS prüfen: '+(cfg.verify_ssl?'ja':'nein')+'</div>';
     }else{
+      const cfg=d.config||{};
       details='<div class="secret">'+esc(cfg.path||'')+'</div>';
     }
-    el.innerHTML='<strong>'+esc(d.name)+'</strong> <span class="badge ok">'+esc(d.type.toUpperCase())+'</span>'+details+'<div class="actions"><button type="button" class="danger">Löschen</button></div>';
+
+    el.innerHTML='<strong>'+esc(d.name)+'</strong> <span class="badge ok">'+esc(d.type.toUpperCase())+'</span>'+details+
+      '<div class="actions"><button type="button" class="danger">Löschen</button></div>';
     el.querySelector('button').onclick=()=>deleteDestination(d.id,d.name);
     q('destinations').appendChild(el);
   }
@@ -246,7 +254,7 @@ async function deleteDestination(id,name){if(!confirm('Scanziel "'+name+'" wirkl
 async function createInput(){const name=q('iName').value.trim(),share=q('iShare').value.trim()||name,profile_id=Number(q('iProfile').value),destination_id=Number(q('iDestination').value),smb_password=q('iSmbPassword').value;if(!name||!profile_id||!destination_id)return alert('Name, Profil und Ziel sind erforderlich.');if(smb_password.length<8)return alert('SMB-Passwort muss mindestens 8 Zeichen lang sein.');await jsonPost('/api/inputs',{name,share_name:share,profile_id,destination_id,smb_password,enabled:true});q('iName').value='';q('iShare').value='';q('iSmbPassword').value='';await loadInputs();}
 async function loadInputs(){
   const data=await api('/api/inputs');q('inputs').innerHTML='';
-  for(const i of data){const el=document.createElement('div');el.className='item';el.innerHTML='<strong>'+esc(i.name)+'</strong> <span class="badge ok">aktiv</span><div class="secret">'+esc(i.network_path)+'</div><div class="muted">SMB-Benutzer: '+esc(i.username)+' · SMB-Passwort: '+esc(i.password)+'</div><div class="muted">Profil: '+esc(i.profile_name)+' · Ziel: '+esc(i.destination_name)+'</div><div class="actions"><button type="button" class="secondary smb">SMB-Passwort ändern</button><button type="button" class="danger del">Löschen</button></div>';el.querySelector('.smb').onclick=()=>changeInputSmbPassword(i.id);el.querySelector('.del').onclick=()=>deleteInput(i.id,i.name);q('inputs').appendChild(el);}
+  for(const i of data){const el=document.createElement('div');el.className='item';el.innerHTML='<strong>'+esc(i.name)+'</strong> <span class="badge ok">aktiv</span><div class="secret">'+esc(i.network_path)+'</div><div class="muted">Überordner: Eingang</div><div class="muted">SMB-Benutzer: '+esc(i.username)+' · SMB-Passwort: '+esc(i.password)+'</div><div class="muted">Profil: '+esc(i.profile_name)+' · Ziel: '+esc(i.destination_name)+'</div><div class="actions"><button type="button" class="secondary smb">SMB-Passwort ändern</button><button type="button" class="danger del">Löschen</button></div>';el.querySelector('.smb').onclick=()=>changeInputSmbPassword(i.id);el.querySelector('.del').onclick=()=>deleteInput(i.id,i.name);q('inputs').appendChild(el);}
   if(!data.length)q('inputs').textContent='Noch kein Scan-Eingang angelegt.';
 }
 async function changeInputSmbPassword(id){const password=prompt('Neues SMB-Passwort (mindestens 8 Zeichen):');if(password===null)return;if(password.length<8)return alert('SMB-Passwort muss mindestens 8 Zeichen lang sein.');try{await api('/api/inputs/'+id+'/smb-password',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({smb_password:password})});await loadInputs();}catch(e){alert(e.message);}}

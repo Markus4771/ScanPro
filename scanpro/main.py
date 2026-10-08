@@ -314,6 +314,10 @@ def list_destinations(db: Session = Depends(get_db), user: User = Depends(curren
     result = []
     for r in rows:
         cfg = json.loads(r.config_json or "{}")
+        if "password" in cfg and cfg["password"]:
+            cfg["password"] = "********"
+        if "token" in cfg and cfg["token"]:
+            cfg["token"] = "********"
         result.append({"id": r.id, "name": r.name, "type": r.type, "enabled": r.enabled, "config": cfg})
     return result
 

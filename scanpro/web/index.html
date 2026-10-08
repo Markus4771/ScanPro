@@ -50,7 +50,12 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <h2>Mein Konto</h2>
 <div class="grid">
 <div><strong>WebGUI-Benutzer</strong><div id="meUser"></div></div>
+<label>Aktuelles Passwort<input id="meCurrentPassword" type="password" autocomplete="current-password"></label>
+<label>Neues Passwort<input id="meNewPassword" type="password" minlength="10" placeholder="mindestens 10 Zeichen" autocomplete="new-password"></label>
+<label>Neues Passwort wiederholen<input id="meNewPassword2" type="password" minlength="10" autocomplete="new-password"></label>
 </div>
+<div class="actions"><button type="button" onclick="changeOwnPassword()">Passwort ändern</button></div>
+<div id="mePasswordStatus" class="muted"></div>
 <p class="muted">SMB-Zugangsdaten werden für jede Scan-Freigabe separat vergeben.</p>
 </section>
 
@@ -171,6 +176,34 @@ async function showApp(){
   if(me.is_admin){q('adminCard').classList.remove('hidden');await loadUsers();}
   await Promise.all([loadProfiles(),loadDestinations(),loadInputs(),loadJobs()]);
 }
+async function changeOwnPassword(){
+  const current_password=q('meCurrentPassword').value;
+  const new_password=q('meNewPassword').value;
+  const repeat=q('meNewPassword2').value;
+  q('mePasswordStatus').textContent='';
+  if(!current_password){
+    q('mePasswordStatus').innerHTML='<span class="err">Aktuelles Passwort fehlt.</span>';
+    return;
+  }
+  if(new_password.length<10){
+    q('mePasswordStatus').innerHTML='<span class="err">Das neue Passwort muss mindestens 10 Zeichen lang sein.</span>';
+    return;
+  }
+  if(new_password!==repeat){
+    q('mePasswordStatus').innerHTML='<span class="err">Die neuen Passwörter stimmen nicht überein.</span>';
+    return;
+  }
+  try{
+    await jsonPost('/api/me/password',{current_password,new_password});
+    q('meCurrentPassword').value='';
+    q('meNewPassword').value='';
+    q('meNewPassword2').value='';
+    q('mePasswordStatus').innerHTML='<span class="ok">Passwort wurde geändert.</span>';
+  }catch(e){
+    q('mePasswordStatus').innerHTML='<span class="err">'+esc(e.message)+'</span>';
+  }
+}
+
 async function loadUsers(){
   q('userStatus').textContent='Lade Benutzer…';
   try{

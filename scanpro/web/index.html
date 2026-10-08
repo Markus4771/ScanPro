@@ -80,15 +80,22 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <label>Name<input id="pName" placeholder="Rechnungen"></label>
 <label>OCR-Sprache<select id="pLang"><option value="deu">Deutsch</option><option value="eng">Englisch</option><option value="deu+eng">Deutsch + Englisch</option></select></label>
 <label>Dateiname<input id="pFilename" value="{date}_{input}_{job}_{document}"></label>
+<label>Unterordner<input id="pSubfolder" placeholder="{year}/{month}"></label>
 <label>Trennung<select id="pSplit"><option value="none">Keine</option><option value="blank-page">Leerseite</option><option value="qr">QR-Code</option><option value="barcode">Barcode</option></select></label>
+<label>Farbmodus<select id="pColorMode"><option value="keep">Original beibehalten</option><option value="gray">Graustufen</option><option value="bw">Schwarzweiß</option></select></label>
+<label>DPI<select id="pDpi"><option value="150">150 dpi</option><option value="200">200 dpi</option><option value="300" selected>300 dpi</option><option value="400">400 dpi</option><option value="600">600 dpi</option></select></label>
+<label>Leerseiten-Schwellwert<select id="pBlankThreshold"><option value="97">97 %</option><option value="98">98 %</option><option value="99" selected>99 %</option><option value="100">100 %</option></select></label>
 </div>
 <div class="grid">
 <label class="check"><input type="checkbox" id="pOcr" checked> OCR</label>
+<label class="check"><input type="checkbox" id="pPdfa"> PDF/A erzeugen</label>
 <label class="check"><input type="checkbox" id="pBlank"> Leerseiten entfernen</label>
 <label class="check"><input type="checkbox" id="pRotate"> Auto-Rotation</label>
 <label class="check"><input type="checkbox" id="pDeskew"> Deskew</label>
 <label class="check"><input type="checkbox" id="pCrop"> Auto-Crop</label>
+<label class="check"><input type="checkbox" id="pA4"> Auf A4 normalisieren</label>
 </div>
+<p class="muted">Unterordner unterstützt z. B. {year}, {month}, {day}, {date}, {input}, {profile} und {job}. PDF/A benötigt aktiviertes OCR.</p>
 <div class="actions"><button onclick="createProfile()">Profil anlegen</button></div>
 <div id="profiles" class="muted">Lade…</div>
 </section>
@@ -264,15 +271,37 @@ async function loadProfiles(){
   for(const p of profiles){
     q('iProfile').insertAdjacentHTML('beforeend','<option value="'+p.id+'">'+esc(p.name)+'</option>');
     const el=document.createElement('div');el.className='item';
-    el.innerHTML='<strong>'+esc(p.name)+'</strong> <span class="badge '+(p.ocr_enabled?'ok':'')+'">OCR '+(p.ocr_enabled?'an':'aus')+'</span><div class="muted">'+esc(p.ocr_language)+' · '+esc(p.filename_template)+'</div><div class="actions"><button class="danger" data-id="'+p.id+'">Löschen</button></div>';
+    el.innerHTML='<strong>'+esc(p.name)+'</strong> <span class="badge '+(p.ocr_enabled?'ok':'')+'">OCR '+(p.ocr_enabled?'an':'aus')+'</span>'+
+      (p.pdfa_enabled?' <span class="badge ok">PDF/A</span>':'')+
+      '<div class="muted">'+esc(p.ocr_language)+' · '+esc(p.color_mode)+' · '+esc(p.dpi)+' dpi'+(p.normalize_a4?' · A4':'')+'</div>'+
+      '<div class="muted">Datei: '+esc(p.filename_template)+(p.subfolder_template?' · Unterordner: '+esc(p.subfolder_template):'')+'</div>'+
+      (p.remove_blank_pages?'<div class="muted">Leerseiten entfernen ab '+esc(p.blank_threshold)+' % Weißanteil</div>':'')+
+      '<div class="actions"><button class="danger" data-id="'+p.id+'">Löschen</button></div>';
     el.querySelector('button').onclick=()=>deleteProfile(p.id,p.name);q('profiles').appendChild(el);
   }
   if(!profiles.length)q('profiles').textContent='Noch kein Profil angelegt.';
 }
 async function createProfile(){
   const name=q('pName').value.trim();if(!name)return alert('Name fehlt.');
-  await jsonPost('/api/profiles',{name,ocr_enabled:q('pOcr').checked,ocr_language:q('pLang').value,remove_blank_pages:q('pBlank').checked,auto_rotate:q('pRotate').checked,deskew:q('pDeskew').checked,auto_crop:q('pCrop').checked,split_method:q('pSplit').value,filename_template:q('pFilename').value});
-  q('pName').value='';await loadProfiles();
+  if(q('pPdfa').checked&&!q('pOcr').checked)return alert('PDF/A benötigt aktiviertes OCR.');
+  await jsonPost('/api/profiles',{
+    name,
+    ocr_enabled:q('pOcr').checked,
+    ocr_language:q('pLang').value,
+    remove_blank_pages:q('pBlank').checked,
+    auto_rotate:q('pRotate').checked,
+    deskew:q('pDeskew').checked,
+    auto_crop:q('pCrop').checked,
+    split_method:q('pSplit').value,
+    filename_template:q('pFilename').value,
+    pdfa_enabled:q('pPdfa').checked,
+    color_mode:q('pColorMode').value,
+    dpi:Number(q('pDpi').value),
+    normalize_a4:q('pA4').checked,
+    blank_threshold:Number(q('pBlankThreshold').value),
+    subfolder_template:q('pSubfolder').value.trim()
+  });
+  q('pName').value='';q('pSubfolder').value='';await loadProfiles();
 }
 async function deleteProfile(id,name){if(!confirm('Verarbeitungsprofil "'+name+'" wirklich löschen?'))return;try{await api('/api/profiles/'+id+'/remove',{method:'POST'});await loadProfiles();}catch(e){alert(e.message);}}
 function toggleDestination(){const t=q('dType').value;q('dLocal').style.display=t==='local'?'block':'none';q('dLocalSmb').style.display=t==='local_smb'?'grid':'none';q('dSmb').style.display=t==='smb'?'grid':'none';q('dPaperless').style.display=t==='paperless'?'grid':'none';if(t==='local_smb')q('dLocalSmbFolder').value=q('dName').value.trim();}

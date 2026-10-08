@@ -89,7 +89,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 
 <section class="card">
 <h2>2. Scanziele</h2>
-<p class="muted">Hier bestimmst du, wohin fertig verarbeitete Dokumente gespeichert oder übertragen werden, z. B. in einen lokalen Ordner, eine SMB-Freigabe oder nach Paperless-ngx.</p>
+<p class="muted">Hier legst du den Ausgang eines Verarbeitungsprofils fest. Fertige Dokumente landen immer zuerst intern unter Ausgang/&lt;Scanziel&gt; und werden anschließend optional lokal, per SMB oder an Paperless-ngx übertragen.</p>
 <div class="grid">
 <label>Name<input id="dName" placeholder="Paperless"></label>
 <label>Typ<select id="dType" onchange="toggleDestination()"><option value="local">Lokaler Ordner</option><option value="smb">SMB</option><option value="paperless">Paperless-ngx</option></select></label>
@@ -114,7 +114,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 
 <section class="card">
 <h2>3. Scan-Eingänge / SMB-Freigaben</h2>
-<p class="muted">Hier erstellst du die SMB-Freigaben, in die der Scanner scannt. Alle Scan-Eingänge liegen unter dem übergeordneten Bereich <strong>Eingang</strong>. Jede Freigabe bekommt ein eigenes SMB-Passwort und wird mit einem Verarbeitungsprofil und einem Scanziel verknüpft.</p>
+<p class="muted">Hier legst du Scan-Eingänge an. Alle Eingänge liegen unter <strong>Eingang</strong>; SMB ist eine Transportart, über die der Scanner Dateien in den jeweiligen Unterordner schreibt. Jeder Eingang wird mit einem Verarbeitungsprofil und einem Scanziel verknüpft.</p>
 <div class="grid">
 <label>Name<input id="iName" placeholder="Rechnungen"></label>
 <label>Freigabe<input id="iShare" placeholder="Rechnungen"></label>
@@ -243,6 +243,7 @@ async function loadDestinations(){
       details='<div class="secret">'+esc(cfg.path||'')+'</div>';
     }
 
+    details='<div class="muted">Interner Ausgang: Ausgang/'+esc(d.name)+'</div>'+details;
     el.innerHTML='<strong>'+esc(d.name)+'</strong> <span class="badge ok">'+esc(d.type.toUpperCase())+'</span>'+details+
       '<div class="actions"><button type="button" class="danger">Löschen</button></div>';
     el.querySelector('button').onclick=()=>deleteDestination(d.id,d.name);

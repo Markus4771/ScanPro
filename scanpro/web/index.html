@@ -175,13 +175,24 @@ async function loadUsers(){
   for(const u of rows){
     const el=document.createElement('div');el.className='item';
     el.innerHTML='<strong>'+esc(u.display_name)+'</strong> <span class="badge">'+esc(u.username)+'</span>'+
-      (u.is_admin?' <span class="badge ok">Admin</span>':'');
+      (u.is_admin?' <span class="badge ok">Admin</span>':'')+
+      (u.id===me.id?' <span class="badge">angemeldet</span>':'')+
+      (u.id!==me.id?'<div class="actions"><button type="button" class="danger del-user">Benutzer löschen</button></div>':'');
+    const btn=el.querySelector('.del-user');
+    if(btn)btn.onclick=()=>deleteUser(u.id,u.display_name||u.username);
     q('users').appendChild(el);
   }
 }
 async function createUser(){
   await jsonPost('/api/users',{username:q('uUsername').value.trim(),display_name:q('uDisplay').value.trim(),password:q('uPassword').value,is_admin:q('uAdmin').checked,enabled:true});
   q('uUsername').value='';q('uDisplay').value='';q('uPassword').value='';q('uAdmin').checked=false;await loadUsers();
+}
+async function deleteUser(id,name){
+  if(!confirm('Benutzer "'+name+'" wirklich löschen?\n\nDie Anmeldung wird entfernt. Eigene Scan-Freigaben werden deaktiviert. Historische ScanJobs bleiben erhalten.'))return;
+  try{
+    await api('/api/users/'+id+'/remove',{method:'POST'});
+    await loadUsers();
+  }catch(e){alert(e.message);}
 }
 async function loadProfiles(){
   profiles=await api('/api/profiles');q('profiles').innerHTML='';q('iProfile').innerHTML='<option value="">'+(profiles.length?'-- Profil wählen --':'-- zuerst Profil anlegen --')+'</option>';

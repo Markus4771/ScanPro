@@ -217,6 +217,13 @@ def delete_user(
         profile.owner_id = None
 
     for destination in db.query(Destination).filter(Destination.owner_id == row.id).all():
+        if destination.type == "local_smb":
+            cfg = json.loads(destination.config_json or "{}")
+            if cfg.get("username"):
+                samba_users.append(str(cfg["username"]))
+            cfg["username"] = ""
+            cfg["password"] = ""
+            destination.config_json = json.dumps(cfg, ensure_ascii=False)
         destination.name = f"[gelöscht Benutzer {row.id} / Ziel {destination.id}]"
         destination.enabled = False
         destination.owner_id = None
@@ -359,8 +366,8 @@ def create_destination(
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    if payload.type not in {"local", "smb", "paperless"}:
-        raise HTTPException(400, "Zieltyp muss local, smb oder paperless sein.")
+    if payload.type not in {"local", "local_smb", "smb", "paperless"}:
+        raise HTTPException(400, "Zieltyp muss local, local_smb, smb oder paperless sein.")
     if db.query(Destination).filter(
         Destination.owner_id == user.id, Destination.name == payload.name
     ).first():
@@ -372,11 +379,39 @@ def create_destination(
         config["share"] = "Ausgang"
         if not subfolder:
             config["subfolder"] = old_share or payload.name.strip()
+
+    if payload.type == "local_smb":
+        try:
+            normalize_share_name(payload.name)
+        except ShareError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        password = str(config.get("password", ""))
+        if len(password) < 8:
+            raise HTTPException(400, "SMB-Passwort muss mindestens 8 Zeichen lang sein.")
+        config["share"] = "Ausgang"
+        config["subfolder"] = payload.name.strip()
+
     row = Destination(
         owner_id=user.id, name=payload.name, type=payload.type,
         enabled=payload.enabled, config_json=json.dumps(config, ensure_ascii=False),
     )
-    db.add(row); db.commit(); db.refresh(row)
+    db.add(row)
+    db.flush()
+
+    if payload.type == "local_smb":
+        config["username"] = f"scanpro_d{row.id}"
+        row.config_json = json.dumps(config, ensure_ascii=False)
+        try:
+            set_samba_password(config["username"], config["password"])
+        except ShareError as exc:
+            db.rollback()
+            raise HTTPException(500, str(exc)) from exc
+
+    db.commit()
+    db.refresh(row)
+    if payload.type == "local_smb":
+        sync_samba_config(db)
+        reload_samba()
     return {"id": row.id, "name": row.name, "type": row.type, "enabled": row.enabled}
 
 
@@ -398,6 +433,14 @@ def destination_connection_details(
             "password": cfg.get("password", ""),
             "domain": cfg.get("domain", ""),
         }
+    if row.type == "local_smb":
+        return {
+            "type": "local_smb",
+            "share": "Ausgang",
+            "subfolder": row.name,
+            "username": cfg.get("username", ""),
+            "password": cfg.get("password", ""),
+        }
     if row.type == "paperless":
         return {
             "type": "paperless",
@@ -408,6 +451,35 @@ def destination_connection_details(
     return {"type": row.type, "path": cfg.get("path", "")}
 
 
+@app.put("/api/destinations/{destination_id}/smb-password")
+def change_destination_smb_password(
+    destination_id: int,
+    payload: SmbPasswordPayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    row = owned(db, Destination, destination_id, user)
+    if row.type != "local_smb":
+        raise HTTPException(400, "Dieses Scanziel ist keine lokale SMB-Freigabe.")
+    if len(payload.smb_password) < 8:
+        raise HTTPException(400, "SMB-Passwort muss mindestens 8 Zeichen lang sein.")
+    cfg = json.loads(row.config_json or "{}")
+    username = str(cfg.get("username", "")).strip() or f"scanpro_d{row.id}"
+    try:
+        set_samba_password(username, payload.smb_password)
+    except ShareError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    cfg["username"] = username
+    cfg["password"] = payload.smb_password
+    cfg["share"] = "Ausgang"
+    cfg["subfolder"] = row.name
+    row.config_json = json.dumps(cfg, ensure_ascii=False)
+    db.commit()
+    sync_samba_config(db)
+    reload_samba()
+    return {"id": row.id, "username": username, "password": payload.smb_password}
+
+
 @app.post("/api/destinations/{destination_id}/remove")
 @app.delete("/api/destinations/{destination_id}")
 def delete_destination(
@@ -416,6 +488,8 @@ def delete_destination(
     user: User = Depends(current_user),
 ):
     row = owned(db, Destination, destination_id, user)
+    cfg = json.loads(row.config_json or "{}")
+    samba_username = str(cfg.get("username", "")).strip() if row.type == "local_smb" else ""
 
     if db.query(ScanInput).filter(
         ScanInput.owner_id == user.id,
@@ -433,10 +507,22 @@ def delete_destination(
         row.name = f"[gelöscht #{row.id}] {original_name}"
         row.owner_id = None
         row.enabled = False
+        if row.type == "local_smb":
+            cfg["username"] = ""
+            cfg["password"] = ""
+            row.config_json = json.dumps(cfg, ensure_ascii=False)
         db.commit()
     else:
         db.delete(row)
         db.commit()
+
+    if samba_username:
+        try:
+            sync_samba_config(db)
+            reload_samba()
+            delete_samba_user(samba_username)
+        except Exception:
+            pass
 
     return {"deleted": True, "history_preserved": has_jobs}
 

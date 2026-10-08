@@ -33,6 +33,12 @@ class ProfilePayload(BaseModel):
     auto_crop: bool = False
     split_method: str = "none"
     filename_template: str = "{date}_{input}_{job}_{document}"
+    pdfa_enabled: bool = False
+    color_mode: str = "keep"
+    dpi: int = 300
+    normalize_a4: bool = False
+    blank_threshold: int = 99
+    subfolder_template: str = ""
 
 
 class DestinationPayload(BaseModel):

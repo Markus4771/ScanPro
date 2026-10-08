@@ -420,7 +420,10 @@ def delete_input(
         row.share_name = f"__deleted_{row.id}"
         db.commit()
     else:
+        # Ohne historische Jobs kann der Datensatz vollständig entfernt werden.
+        # Explizites flush/commit macht das Verhalten für migrierte Altbestände eindeutig.
         db.delete(row)
+        db.flush()
         db.commit()
 
     # Samba-Bereinigung darf das erfolgreiche Entfernen aus der WebGUI
@@ -433,6 +436,28 @@ def delete_input(
         pass
 
     return {"deleted": True, "history_preserved": has_jobs}
+
+
+@app.get("/api/debug/inputs/{input_id}")
+def debug_input(
+    input_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    row = db.get(ScanInput, input_id)
+    if not row:
+        return {"exists": False}
+    return {
+        "exists": True,
+        "id": row.id,
+        "owner_id": row.owner_id,
+        "current_user_id": user.id,
+        "enabled": row.enabled,
+        "name": row.name,
+        "share_name": row.share_name,
+        "smb_username": row.smb_username,
+        "jobs": db.query(ScanJob).filter(ScanJob.input_id == input_id).count(),
+    }
 
 
 @app.get("/api/jobs")

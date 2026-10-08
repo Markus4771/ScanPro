@@ -14,6 +14,11 @@ class UserPayload(BaseModel):
     enabled: bool = True
 
 
+class PasswordChangePayload(BaseModel):
+    current_password: str
+    new_password: str
+
+
 class SmbPasswordPayload(BaseModel):
     smb_password: str
 

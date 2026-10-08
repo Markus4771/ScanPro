@@ -238,6 +238,99 @@ def split_triangle_pdf(source: Path, profile: ProcessingProfile) -> list[Path]:
     return outputs
 
 
+
+def _blank_marker(image_path: Path, threshold: int) -> bool:
+    """Classify a separator page using the same white-pixel metric as blank removal."""
+    with Image.open(image_path) as image:
+        gray = image.convert("L")
+        histogram = gray.histogram()
+        total = max(1, gray.width * gray.height)
+        white_ratio = sum(histogram[245:]) / total
+    return white_ratio >= max(90, min(100, int(threshold or 99))) / 100.0
+
+
+def _coded_marker(image_path: Path, method: str) -> bool:
+    """Detect QR or linear/matrix barcodes; recognition is restricted by profile method."""
+    import zxingcpp
+
+    with Image.open(image_path) as image:
+        rgb = np.asarray(image.convert("RGB"))
+    try:
+        results = zxingcpp.read_barcodes(rgb)
+    except Exception as exc:
+        raise ProcessingError(f"Barcode-Erkennung fehlgeschlagen: {exc}") from exc
+    for result in results:
+        fmt = str(result.format).lower()
+        is_qr = "qr" in fmt
+        if method == "qr" and is_qr:
+            return True
+        if method == "barcode" and not is_qr:
+            return True
+    return False
+
+
+def split_marker_pdf(source: Path, profile: ProcessingProfile) -> list[Path]:
+    """Split scanned PDFs at blank / QR / barcode marker pages.
+
+    Marker pages are removed; an initial or repeated marker doesn't create an
+    empty output. The original is returned unchanged if no markers were found.
+    """
+    method = profile.split_method
+    if method not in {"blank-page", "qr", "barcode"}:
+        raise ProcessingError(f"Unbekanntes Trennverfahren: {method}")
+    reader = PdfReader(str(source))
+    if len(reader.pages) <= 1:
+        return [source]
+
+    with tempfile.TemporaryDirectory(prefix="scanpro-marker-") as tmp:
+        prefix = Path(tmp) / "page"
+        dpi = 80 if method == "blank-page" else 200
+        result = subprocess.run(
+            ["pdftoppm", "-png", "-r", str(dpi), str(source), str(prefix)],
+            capture_output=True, text=True, timeout=600,
+        )
+        if result.returncode:
+            raise ProcessingError(result.stderr.strip() or "Trennseiten konnten nicht gerendert werden.")
+        images = sorted(Path(tmp).glob("page-*.png"))
+        if len(images) != len(reader.pages):
+            raise ProcessingError("Trennseitenanalyse ist unvollständig.")
+        markers = set()
+        for index, image_path in enumerate(images):
+            found = (
+                _blank_marker(image_path, profile.blank_threshold)
+                if method == "blank-page"
+                else _coded_marker(image_path, method)
+            )
+            if found:
+                markers.add(index)
+
+    if not markers:
+        return [source]
+    groups = []
+    current = []
+    for index in range(len(reader.pages)):
+        if index in markers:
+            if current:
+                groups.append(current)
+                current = []
+        else:
+            current.append(index)
+    if current:
+        groups.append(current)
+    if not groups:
+        raise ProcessingError("Alle Seiten wurden als Trennseiten erkannt.")
+    outputs = []
+    for sequence, indexes in enumerate(groups, start=1):
+        target = source.with_name(f"{source.stem}-split-{sequence:03d}.pdf")
+        writer = PdfWriter()
+        for index in indexes:
+            writer.add_page(reader.pages[index])
+        with target.open("wb") as handle:
+            writer.write(handle)
+        outputs.append(target)
+    return outputs
+
+
 def remove_blank_pdf_pages(source: Path, threshold: int) -> Path:
     threshold = max(90, min(100, int(threshold or 99)))
     target = source.with_name(source.stem + "-noblank.pdf")
@@ -389,8 +482,11 @@ def process_job(db: Session, job: ScanJob) -> None:
     db.commit()
 
     documents = [work]
-    if work.suffix.lower() == ".pdf" and profile.split_method == "triangle":
-        documents = split_triangle_pdf(work, profile)
+    if work.suffix.lower() == ".pdf":
+        if profile.split_method == "triangle":
+            documents = split_triangle_pdf(work, profile)
+        elif profile.split_method in {"blank-page", "qr", "barcode"}:
+            documents = split_marker_pdf(work, profile)
 
     delivery_errors: list[str] = []
 

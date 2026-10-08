@@ -298,8 +298,8 @@ def create_profile(
         raise HTTPException(409, "Profil existiert bereits.")
     if payload.color_mode not in {"keep", "gray", "bw"}:
         raise HTTPException(400, "Farbmodus ist ungültig.")
-    if payload.dpi not in {150, 200, 300, 400, 600}:
-        raise HTTPException(400, "DPI muss 150, 200, 300, 400 oder 600 sein.")
+    if payload.dpi not in {0, 150, 200, 300, 400, 600}:
+        raise HTTPException(400, "DPI muss Original, 150, 200, 300, 400 oder 600 sein.")
     if payload.blank_threshold < 90 or payload.blank_threshold > 100:
         raise HTTPException(400, "Leerseiten-Schwellwert muss zwischen 90 und 100 liegen.")
     if payload.pdfa_enabled and not payload.ocr_enabled:

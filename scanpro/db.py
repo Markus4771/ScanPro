@@ -91,6 +91,9 @@ def _add_profile_processing_columns(connection: sqlite3.Connection) -> None:
         "normalize_a4": "BOOLEAN NOT NULL DEFAULT 0",
         "blank_threshold": "INTEGER NOT NULL DEFAULT 99",
         "subfolder_template": "VARCHAR(255) NOT NULL DEFAULT ''",
+        "triangle_position": "VARCHAR(20) NOT NULL DEFAULT 'any'",
+        "triangle_min_size_mm": "INTEGER NOT NULL DEFAULT 12",
+        "triangle_remove_page": "BOOLEAN NOT NULL DEFAULT 1",
     }
     for name, definition in additions.items():
         if name not in columns:

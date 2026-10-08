@@ -187,8 +187,9 @@ def process_job(db: Session, job: ScanJob) -> None:
 
     name = final_name(profile, scan_input, job, output)
 
+    folder_parts = subfolder_parts(profile, scan_input, job)
     output_dir = DATA_ROOT / "Ausgang" / safe_name(destination.name)
-    for part in subfolder_parts(profile, scan_input, job):
+    for part in folder_parts:
         output_dir /= part
     output_dir.mkdir(parents=True, exist_ok=True)
     internal_output = output_dir / name
@@ -207,7 +208,8 @@ def process_job(db: Session, job: ScanJob) -> None:
     db.commit()
 
     try:
-        delivery.target = deliver(destination, internal_output, name)
+        relative_name = "/".join(folder_parts + [name])
+        delivery.target = deliver(destination, internal_output, name, relative_name)
         delivery.status = "delivered"
         job.status = "delivered"
         job.error = None

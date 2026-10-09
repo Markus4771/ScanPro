@@ -149,7 +149,10 @@ def sync_samba_config(db: Session) -> None:
             "    hide unreadable = yes",
             "    access based share enum = yes",
             "    create mask = 0660",
+            "    force create mode = 0660",
             "    directory mask = 0770",
+            "    force directory mode = 0770",
+            "    force group = scanpro",
             "",
         ]
 

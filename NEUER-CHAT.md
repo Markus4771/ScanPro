@@ -131,3 +131,10 @@ Lies `NEUER-CHAT.md` im Repository `Markus4771/ScanPro` und führe die Entwicklu
 - Fehlende PDFs erscheinen in der WebGUI mit Hinweis statt ungültigem Downloadlink. Werden sie wiederhergestellt, erscheint der Link beim nächsten Abgleich erneut.
 - `queued`/`processing` werden zum Schutz vor unfertigen Dateien ausgelassen. Insbesondere historischer Job 2 (noch `processing`) wird dadurch nicht korrigiert; gesonderte Job-Wiederherstellung bleibt offen.
 - Änderungen noch nicht live getestet.
+
+## Projektstand am 9. Oktober 2026 – GitHub-Abgleich
+
+- **Praxistest bestätigt:** ScanJob 5 hatte `delivered`, Zustellung `delivered`, Ausgabedatei `/var/lib/scanpro-v1/Ausgang/PDF/2026-10-09_PDF_5_001.pdf` (601 KB). Damit ist die Strecke Brother → SMB-Eingang → Verarbeitung → lokaler Ausgang grundsätzlich funktionsfähig.
+- **Neu im Repository:** automatische Bestandsprüfung der in der Datenbank referenzierten Ausgangsdateien beim Worker-Start und alle fünf Minuten; manueller Admin-Button „Ausgang jetzt synchronisieren“; Dateistatus `file_present` und ausgeblendete Downloadlinks bei fehlenden Dateien. Die automatische Funktion muss auf dem Zielserver noch per Update und Lösch-/Wiederherstellungstest verifiziert werden.
+- **Historische Daten:** Jobs 1–4 nicht blind erneut starten oder löschen; ältere Ausgabedateien können schon existieren. Job 2 steht historisch auf `processing`.
+- **Update-Hinweis:** Vor Installation DB-Backup; `git status --short`, `git pull --ff-only`, `sudo bash scripts/install-dev.sh`; anschließend Weboberfläche hart aktualisieren.

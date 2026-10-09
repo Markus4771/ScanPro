@@ -615,13 +615,27 @@ def create_input(
         raise HTTPException(409, "Name wird bereits verwendet.")
     if len(payload.smb_password) < 8:
         raise HTTPException(400, "SMB-Passwort muss mindestens 8 Zeichen lang sein.")
+    requested_user = payload.smb_username.strip().lower()
+    if requested_user:
+        if not re.fullmatch(r"[a-z_][a-z0-9_-]{2,30}", requested_user):
+            raise HTTPException(400, "SMB-Benutzer: 3 bis 31 Zeichen, Kleinbuchstaben, Zahlen, _ oder -.")
+        if db.query(ScanInput).filter(ScanInput.smb_username == requested_user).first():
+            raise HTTPException(409, "SMB-Benutzer wird bereits von einem Scan-Eingang verwendet.")
+        for existing in db.query(Destination).filter(Destination.type == "local_smb").all():
+            cfg = json.loads(existing.config_json or "{}")
+            if str(cfg.get("username", "")).lower() == requested_user:
+                raise HTTPException(409, "SMB-Benutzer wird bereits von einem Scanziel verwendet.")
+        try:
+            ensure_samba_username_available(requested_user)
+        except ShareError as exc:
+            raise HTTPException(409, str(exc)) from exc
     row = ScanInput(
         owner_id=user.id, name=payload.name, share_name=share, path="",
-        smb_username=None, smb_password=payload.smb_password,
+        smb_username=requested_user or None, smb_password=payload.smb_password,
         profile_id=profile.id, destination_id=destination.id, enabled=payload.enabled,
     )
     db.add(row); db.flush()
-    row.smb_username = f"scanpro_s{row.id}"
+    row.smb_username = row.smb_username or f"scanpro_s{row.id}"
     row.path = str(input_path(row.id, row.share_name))
     try:
         set_samba_password(row.smb_username, payload.smb_password)

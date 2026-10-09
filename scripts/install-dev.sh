@@ -151,6 +151,15 @@ runuser -u scanpro -- env \
   "$APP_DIR/.venv/bin/python" -c \
   'from scanpro.db import Base, engine, initialize_database; import scanpro.models; initialize_database(); Base.metadata.create_all(bind=engine); print("ScanPro Datenbank/Schema bereit.")'
 
+# Rebuild all SMB directory ownerships and traverse ACLs on every upgrade.
+# Running this once at installation fixes older Eingänge whose users cannot
+# enter their configured subfolders (NT_STATUS_ACCESS_DENIED).
+runuser -u scanpro -- env \
+  SCANPRO_DATA_ROOT="$DATA_ROOT" \
+  SCANPRO_DATABASE_URL="sqlite:///$DB_FILE" \
+  "$APP_DIR/.venv/bin/python" -c \
+  'from scanpro.db import SessionLocal; from scanpro.services.shares import sync_samba_config; db = SessionLocal(); sync_samba_config(db); db.close(); print("ScanPro SMB-Freigaben und ACLs synchronisiert.")'
+
 nginx -t
 testparm -s >/dev/null
 

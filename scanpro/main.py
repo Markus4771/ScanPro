@@ -18,6 +18,7 @@ from .schemas import (
     DestinationPayload, LoginPayload, PasswordChangePayload, ProfilePayload, ScanInputPayload,
     SmbPasswordPayload, UserPayload,
 )
+from .services.output_sync import sync_output_files
 from .services.shares import (
     ShareError, delete_samba_user, ensure_samba_username_available, input_path, normalize_share_name, reload_samba,
     set_samba_password, sync_samba_config,
@@ -771,6 +772,14 @@ def debug_input(
     }
 
 
+@app.post("/api/output/sync")
+def sync_output_now(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    # Only admins may reconcile shared output file statuses for every user.
+    if not user.is_admin:
+        raise HTTPException(403, "Nur Administratoren dürfen den Ausgang abgleichen.")
+    return sync_output_files(db)
+
+
 @app.get("/api/jobs")
 def list_jobs(db: Session = Depends(get_db), user: User = Depends(current_user)):
     rows = db.query(ScanJob).filter(
@@ -794,7 +803,8 @@ def list_jobs(db: Session = Depends(get_db), user: User = Depends(current_user))
             "completed_at": job.completed_at,
             "documents": [
                 {"id": d.id, "sequence": d.sequence, "final_name": d.final_name,
-                 "file_url": f"/api/documents/{d.id}/file"}
+                 "file_present": d.file_present,
+                 "file_url": f"/api/documents/{d.id}/file" if d.file_present else None}
                 for d in documents
             ],
             "deliveries": [

@@ -62,6 +62,14 @@ Der Anwender bestätigte, dass die manuell korrigierte Freigabe wieder funktioni
 
 Auf dem Zielserver war die Samba-Anmeldung als `scanpro_s1` erfolgreich, jedoch scheiterte `cd PDF` mit `NT_STATUS_ACCESS_DENIED`. Ursache: Durchquerungsrecht des SMB-Kontos auf `/var/lib/scanpro-v1` fehlte. Der Samba-Helper setzt inzwischen `setfacl -m u:<konto>:--x` für Eingänge und Ausgänge. Zusätzlich ruft der Installer bei jedem Update `sync_samba_config` auf, um Besitzrechte, Freigabe-Konfiguration und Zugriffsrechte aller aktiven Eingangs- und Ausgangsziele erneut herzustellen (Commit `c9a6387`). Änderung noch nicht auf dem Zielserver getestet.
 
+## Scan-Eingänge: frei wählbarer Samba-Benutzer (9. Oktober 2026)
+
+- Scan-Eingangsformular unterstützt nun `SMB-Benutzer` zusätzlich zum Passwort.
+- Leer gelassen: bisheriger automatisch generierter Name `scanpro_s<ID>`; andernfalls frei wählbarer Name wie `scannerpdf` (3–31 Zeichen, Kleinbuchstaben, Zahlen, `_` und `-`).
+- Bei selbst gewähltem Namen wird gegen andere Eingänge, lokale SMB-Ziele sowie vorhandene Linux-/Samba-Konten geprüft; vorhandene Konten werden nicht übernommen.
+- Benutzername und Passwort werden wie bisher im angemeldeten Scan-Eingangsbereich angezeigt. Bestehende Eingänge werden nicht umbenannt.
+- Änderungen an Schema, API und WebGUI sind auf GitHub committed, aber ein Test auf dem Zielserver steht aus.
+
 ## Offen / noch zu prüfen
 
 1. **Auto-Crop**: Profiloption ist vorhanden, im eingesehenen `processor.py` aber noch nicht in die Verarbeitung eingebunden.

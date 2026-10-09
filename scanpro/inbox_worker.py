@@ -39,9 +39,12 @@ def handle(db, scan_input: ScanInput, path: Path):
     try:
         process_job(db, job)
     except Exception as exc:
-        job.status = "error"
-        job.error = str(exc)
-        db.commit()
+        db.rollback()
+        failed_job = db.get(ScanJob, job.id)
+        if failed_job is not None:
+            failed_job.status = "error"
+            failed_job.error = str(exc)
+            db.commit()
 
 
 def run():

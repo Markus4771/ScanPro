@@ -102,13 +102,48 @@ touch "$SAMBA_INCLUDE"
 chown scanpro:scanpro "$SAMBA_INCLUDE"
 chmod 0644 "$SAMBA_INCLUDE"
 
-sed -i '\|^include = /etc/samba/scanpro.conf$|d' /etc/samba/smb.conf
+# Always put the ScanPro include in [global], never under [print$].
+cp -a /etc/samba/smb.conf "/etc/samba/smb.conf.scanpro-backup-$(date +%Y%m%d-%H%M%S)"
+python3 - "$SAMBA_INCLUDE" <<'PY'
+from pathlib import Path
+import sys
+
+config = Path("/etc/samba/smb.conf")
+include = "include = " + sys.argv[1]
+lines = config.read_text(encoding="utf-8").splitlines()
+lines = [line for line in lines
+         if line.strip() not in {include, "include = /etc/samba/scanpro.conf"}]
+positions = [i for i, line in enumerate(lines) if line.strip().lower() == "[global]"]
+if len(positions) != 1:
+    raise SystemExit("Die smb.conf muss genau einen [global]-Abschnitt enthalten.")
+lines.insert(positions[0] + 1, include)
+config.write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
 rm -f /etc/samba/scanpro.conf
-if ! grep -Fq "include = $SAMBA_INCLUDE" /etc/samba/smb.conf; then
-  printf '\n# ScanPro dynamic per-user input shares\ninclude = %s\n' "$SAMBA_INCLUDE" >> /etc/samba/smb.conf
-fi
 
 chown -R scanpro:scanpro "$DATA_ROOT"
+# Root-only ownership markers must not remain writable by the app.
+if [[ -d "$DATA_ROOT/samba-managed-users" ]]; then
+  chown -R root:root "$DATA_ROOT/samba-managed-users"
+  chmod 0700 "$DATA_ROOT/samba-managed-users"
+  find "$DATA_ROOT/samba-managed-users" -type f -exec chmod 0600 {} +
+fi
+
+# Reapply minimal traverse-only ACLs to pre-existing SMB accounts.
+while IFS= read -r smb_user; do
+  [[ -n "$smb_user" ]] || continue
+  if id "$smb_user" >/dev/null 2>&1; then
+    setfacl -m "u:$smb_user:--x" "$DATA_ROOT"
+  fi
+done < <(sqlite3 "$DB_FILE" "
+  SELECT DISTINCT smb_username FROM scan_inputs
+  WHERE smb_username IS NOT NULL AND smb_username <> ''
+  UNION
+  SELECT DISTINCT json_extract(config_json, '$.username') FROM destinations
+  WHERE type='local_smb' AND json_valid(config_json)
+    AND json_extract(config_json, '$.username') IS NOT NULL
+    AND json_extract(config_json, '$.username') <> '';
+" 2>/dev/null || true)
 
 runuser -u scanpro -- env \
   SCANPRO_DATA_ROOT="$DATA_ROOT" \

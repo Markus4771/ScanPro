@@ -105,8 +105,13 @@ def _add_profile_processing_columns(connection: sqlite3.Connection) -> None:
 def _add_job_document_columns(connection: sqlite3.Connection) -> None:
     if not _table_exists(connection, "job_documents"):
         return
-    if "final_name" not in _columns(connection, "job_documents"):
+    columns = _columns(connection, "job_documents")
+    if "final_name" not in columns:
         connection.execute("ALTER TABLE job_documents ADD COLUMN final_name VARCHAR(255)")
+    if "split_method" not in columns:
+        connection.execute("ALTER TABLE job_documents ADD COLUMN split_method VARCHAR(30) NOT NULL DEFAULT 'none'")
+    if "created_at" not in columns:
+        connection.execute("ALTER TABLE job_documents ADD COLUMN created_at DATETIME")
     # Older entries only carried the output path.
     connection.execute(
         "UPDATE job_documents SET final_name = substr(path, length(rtrim(path, replace(path, '/', ''))) + 1) "

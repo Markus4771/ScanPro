@@ -1,3 +1,4 @@
+import logging
 import time
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from .services.processor import process_job
 from .services.shares import sync_samba_config
 
 ALLOWED_SUFFIXES = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
+logger = logging.getLogger(__name__)
 POLL_SECONDS = 2
 _seen: dict[str, tuple[int, int, int]] = {}
 
@@ -40,6 +42,7 @@ def handle(db, scan_input: ScanInput, path: Path):
     try:
         process_job(db, job)
     except Exception as exc:
+        logger.exception("ScanJob %s fehlgeschlagen (Quelldatei: %s)", job_id, path)
         db.rollback()
         failed_job = db.get(ScanJob, job_id)
         if failed_job is not None:
@@ -49,6 +52,7 @@ def handle(db, scan_input: ScanInput, path: Path):
 
 
 def run():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     initialize_database()
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:

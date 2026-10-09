@@ -58,6 +58,10 @@ Zusätzlich schützt der Installer die root-eigenen Samba-Konto-Markierungsdatei
 
 Der Anwender bestätigte, dass die manuell korrigierte Freigabe wieder funktioniert. **Der geänderte Installer wurde noch nicht auf dem Zielserver ausgeführt oder dort getestet.**
 
+### SMB-Eingang: Korrektur vom 9. Oktober 2026
+
+Auf dem Zielserver war die Samba-Anmeldung als `scanpro_s1` erfolgreich, jedoch scheiterte `cd PDF` mit `NT_STATUS_ACCESS_DENIED`. Ursache: Durchquerungsrecht des SMB-Kontos auf `/var/lib/scanpro-v1` fehlte. Der Samba-Helper setzt inzwischen `setfacl -m u:<konto>:--x` für Eingänge und Ausgänge. Zusätzlich ruft der Installer bei jedem Update `sync_samba_config` auf, um Besitzrechte, Freigabe-Konfiguration und Zugriffsrechte aller aktiven Eingangs- und Ausgangsziele erneut herzustellen (Commit `c9a6387`). Änderung noch nicht auf dem Zielserver getestet.
+
 ## Offen / noch zu prüfen
 
 1. **Auto-Crop**: Profiloption ist vorhanden, im eingesehenen `processor.py` aber noch nicht in die Verarbeitung eingebunden.

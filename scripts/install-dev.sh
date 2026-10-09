@@ -102,7 +102,7 @@ touch "$SAMBA_INCLUDE"
 chown scanpro:scanpro "$SAMBA_INCLUDE"
 chmod 0644 "$SAMBA_INCLUDE"
 
-# Always put the ScanPro include in [global], never under [print$].
+# Put the ScanPro include at the END of [global], not its beginning or under [print$].
 cp -a /etc/samba/smb.conf "/etc/samba/smb.conf.scanpro-backup-$(date +%Y%m%d-%H%M%S)"
 python3 - "$SAMBA_INCLUDE" <<'PY'
 from pathlib import Path
@@ -116,7 +116,9 @@ lines = [line for line in lines
 positions = [i for i, line in enumerate(lines) if line.strip().lower() == "[global]"]
 if len(positions) != 1:
     raise SystemExit("Die smb.conf muss genau einen [global]-Abschnitt enthalten.")
-lines.insert(positions[0] + 1, include)
+next_section = next((i for i in range(positions[0] + 1, len(lines))
+                     if lines[i].strip().startswith("[") and lines[i].strip().endswith("]")), len(lines))
+lines.insert(next_section, include)
 config.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
 rm -f /etc/samba/scanpro.conf

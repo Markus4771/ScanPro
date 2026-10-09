@@ -19,7 +19,7 @@ from .schemas import (
     SmbPasswordPayload, UserPayload,
 )
 from .services.shares import (
-    ShareError, delete_samba_user, input_path, normalize_share_name, reload_samba,
+    ShareError, delete_samba_user, ensure_samba_username_available, input_path, normalize_share_name, reload_samba,
     set_samba_password, sync_samba_config,
 )
 
@@ -412,12 +412,18 @@ def create_destination(
             raise HTTPException(400, "SMB-Passwort muss mindestens 8 Zeichen lang sein.")
         requested_user = str(config.get("username", "")).strip().lower()
         if requested_user:
-            if not re.fullmatch(r"scanpro_d[a-z0-9_]{3,30}", requested_user):
-                raise HTTPException(400, "Benutzer muss mit scanpro_d beginnen; erlaubt sind Kleinbuchstaben, Zahlen und _.")
+            if not re.fullmatch(r"[a-z_][a-z0-9_-]{2,30}", requested_user):
+                raise HTTPException(400, "Benutzer muss 3 bis 31 Zeichen haben; erlaubt sind Kleinbuchstaben, Zahlen, _ und -.")
             for existing in db.query(Destination).filter(Destination.type == "local_smb").all():
                 existing_user = str(json.loads(existing.config_json or "{}").get("username", "")).lower()
                 if requested_user == existing_user:
                     raise HTTPException(409, "Dieser Samba-Benutzer wird bereits von einem Scanziel verwendet.")
+            if db.query(ScanInput).filter(ScanInput.smb_username == requested_user).first():
+                raise HTTPException(409, "Dieser Samba-Benutzer wird bereits von einem Scan-Eingang verwendet.")
+            try:
+                ensure_samba_username_available(requested_user)
+            except ShareError as exc:
+                raise HTTPException(409, str(exc)) from exc
             config["username"] = requested_user
         config["share"] = "Ausgang"
         config["subfolder"] = payload.name.strip()

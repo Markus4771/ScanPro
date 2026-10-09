@@ -47,6 +47,17 @@ Datenbank: `/var/lib/scanpro-v1/scanpro-v1.db`
 - **Noch auf Debian testen:** Anlage, Rechte, SMB-Login, Passwortwechsel und Löschung; keine Laufzeittests durchgeführt. Alte vor dieser Änderung angelegte Konten ohne Markierungsdatei werden beim Löschen absichtlich nicht automatisch entfernt.
 - Bei einem bereits existierenden Linux- oder Samba-Konto `markus` muss ein anderer, noch freier SMB-Benutzername verwendet werden. Fremde Konten werden nicht übernommen.
 
+## Samba-Reparaturen (9. Oktober 2026)
+
+Zwei Fehler, die auf dem Debian-Server festgestellt wurden, sind im GitHub-Code behoben:
+
+1. `scripts/install-dev.sh` schreibt `include = /var/lib/scanpro-v1/samba-inputs.conf` nun in `[global]` statt ans Dateiende unter `[print$]`. Alte doppelte Zeilen werden entfernt; zuvor wird `smb.conf` gesichert.
+2. `scripts/scanpro-samba-user` setzt für **Ein- und Ausgang** je Samba-Benutzer ein ACL-Durchquerungsrecht (`--x`) am privaten `/var/lib/scanpro-v1`. Der Installer stellt dieses Recht auch bei bestehenden Konten wieder her. ACL-Paket wird installiert.
+
+Zusätzlich schützt der Installer die root-eigenen Samba-Konto-Markierungsdateien nach rekursiver Datenverzeichnis-Eigentümerkorrrektur vor versehentlicher Freigabe an den Dienst.
+
+Der Anwender bestätigte, dass die manuell korrigierte Freigabe wieder funktioniert. **Der geänderte Installer wurde noch nicht auf dem Zielserver ausgeführt oder dort getestet.**
+
 ## Offen / noch zu prüfen
 
 1. **Auto-Crop**: Profiloption ist vorhanden, im eingesehenen `processor.py` aber noch nicht in die Verarbeitung eingebunden.

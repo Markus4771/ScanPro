@@ -81,6 +81,7 @@ case "$action" in
     mkdir -p "$path"
     chown "$username":scanpro "$path"
     chmod 0770 "$path"
+    setfacl -m "u:$username:--x" /var/lib/scanpro-v1
     ;;
   delete)
     if [[ ! -f "$marker" ]]; then

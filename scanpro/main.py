@@ -319,6 +319,40 @@ def create_profile(
     return profile_json(row)
 
 
+@app.put("/api/profiles/{profile_id}")
+def update_profile(
+    profile_id: int,
+    payload: ProfilePayload,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    row = owned(db, ProcessingProfile, profile_id, user)
+    if db.query(ProcessingProfile).filter(
+        ProcessingProfile.owner_id == user.id,
+        ProcessingProfile.name == payload.name,
+        ProcessingProfile.id != profile_id,
+    ).first():
+        raise HTTPException(409, "Profil existiert bereits.")
+    if payload.color_mode not in {"keep", "gray", "bw"}:
+        raise HTTPException(400, "Farbmodus ist ungültig.")
+    if payload.dpi not in {0, 150, 200, 300, 400, 600}:
+        raise HTTPException(400, "DPI muss Original, 150, 200, 300, 400 oder 600 sein.")
+    if not 90 <= payload.blank_threshold <= 100:
+        raise HTTPException(400, "Leerseiten-Schwellwert muss zwischen 90 und 100 liegen.")
+    if payload.pdfa_enabled and not payload.ocr_enabled:
+        raise HTTPException(400, "PDF/A benötigt in ScanPro derzeit aktiviertes OCR.")
+    if payload.split_method == "triangle":
+        if payload.triangle_position not in {"any", "top_left", "top_right", "bottom_left", "bottom_right"}:
+            raise HTTPException(400, "Dreieck-Position ist ungültig.")
+        if not 5 <= payload.triangle_min_size_mm <= 80:
+            raise HTTPException(400, "Dreieck-Mindestgröße muss zwischen 5 und 80 mm liegen.")
+    for key, value in payload.model_dump().items():
+        setattr(row, key, value)
+    db.commit()
+    db.refresh(row)
+    return profile_json(row)
+
+
 @app.post("/api/profiles/{profile_id}/remove")
 @app.delete("/api/profiles/{profile_id}")
 def delete_profile(

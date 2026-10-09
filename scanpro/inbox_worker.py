@@ -6,10 +6,12 @@ from .db import Base, SessionLocal, engine, initialize_database
 from .models import ScanInput, ScanJob
 from .services.processor import process_job
 from .services.shares import sync_samba_config
+from .services.output_sync import sync_output_files
 
 ALLOWED_SUFFIXES = {".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff"}
 logger = logging.getLogger(__name__)
 POLL_SECONDS = 2
+OUTPUT_SYNC_SECONDS = 300
 _seen: dict[str, tuple[int, int, int]] = {}
 
 
@@ -57,7 +59,13 @@ def run():
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
         sync_samba_config(db)
+        try:
+            sync_output_files(db)
+        except Exception:
+            db.rollback()
+            logger.exception('Ausgangsabgleich beim Start fehlgeschlagen')
 
+    last_output_sync = time.monotonic()
     while True:
         with SessionLocal() as db:
             inputs = db.query(ScanInput).filter(ScanInput.enabled.is_(True)).all()
@@ -71,6 +79,13 @@ def run():
                         continue
                     _seen.pop(str(path), None)
                     handle(db, scan_input, path)
+        if time.monotonic() - last_output_sync >= OUTPUT_SYNC_SECONDS:
+            try:
+                with SessionLocal() as db:
+                    sync_output_files(db)
+            except Exception:
+                logger.exception('Regelmäßiger Ausgangsabgleich fehlgeschlagen')
+            last_output_sync = time.monotonic()
         time.sleep(POLL_SECONDS)
 
 

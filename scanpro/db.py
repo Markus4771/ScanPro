@@ -112,6 +112,8 @@ def _add_job_document_columns(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE job_documents ADD COLUMN split_method VARCHAR(30) NOT NULL DEFAULT 'none'")
     if "created_at" not in columns:
         connection.execute("ALTER TABLE job_documents ADD COLUMN created_at DATETIME")
+    if "file_present" not in columns:
+        connection.execute("ALTER TABLE job_documents ADD COLUMN file_present BOOLEAN NOT NULL DEFAULT 1")
     # Older entries only carried the output path.
     connection.execute(
         "UPDATE job_documents SET final_name = substr(path, length(rtrim(path, replace(path, '/', ''))) + 1) "

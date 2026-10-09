@@ -509,6 +509,7 @@ def process_job(db: Session, job: ScanJob) -> None:
                 sequence=sequence,
                 path=str(internal_output),
                 final_name=name,
+                split_method=profile.split_method or "none",
             )
         )
         db.commit()

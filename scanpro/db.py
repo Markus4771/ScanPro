@@ -102,6 +102,18 @@ def _add_profile_processing_columns(connection: sqlite3.Connection) -> None:
             )
 
 
+def _add_job_document_columns(connection: sqlite3.Connection) -> None:
+    if not _table_exists(connection, "job_documents"):
+        return
+    if "final_name" not in _columns(connection, "job_documents"):
+        connection.execute("ALTER TABLE job_documents ADD COLUMN final_name VARCHAR(255)")
+    # Older entries only carried the output path.
+    connection.execute(
+        "UPDATE job_documents SET final_name = substr(path, length(rtrim(path, replace(path, '/', ''))) + 1) "
+        "WHERE final_name IS NULL"
+    )
+
+
 def initialize_database():
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
     if DATABASE_URL.startswith("sqlite:///"):
@@ -114,6 +126,7 @@ def initialize_database():
             _add_owner_columns(connection)
             _add_share_credentials(connection)
             _add_profile_processing_columns(connection)
+            _add_job_document_columns(connection)
             connection.execute("PRAGMA foreign_keys=ON")
             connection.commit()
         finally:

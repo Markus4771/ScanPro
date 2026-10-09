@@ -19,7 +19,7 @@ systemctl stop scanpro-samba-reload.path 2>/dev/null || true
 
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  python3 python3-venv python3-pip nginx samba smbclient sqlite3 rsync sudo \
+  python3 python3-venv python3-pip nginx samba smbclient sqlite3 rsync sudo acl \
   ocrmypdf poppler-utils tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
 
 if ! id scanpro >/dev/null 2>&1; then

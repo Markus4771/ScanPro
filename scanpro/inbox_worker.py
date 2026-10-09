@@ -36,11 +36,12 @@ def handle(db, scan_input: ScanInput, path: Path):
     db.add(job)
     db.commit()
     db.refresh(job)
+    job_id = job.id
     try:
         process_job(db, job)
     except Exception as exc:
         db.rollback()
-        failed_job = db.get(ScanJob, job.id)
+        failed_job = db.get(ScanJob, job_id)
         if failed_job is not None:
             failed_job.status = "error"
             failed_job.error = str(exc)

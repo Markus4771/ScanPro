@@ -36,6 +36,15 @@ def input_path(input_id: int, share_name: str | None = None) -> Path:
     return path
 
 
+def ensure_samba_username_available(username: str) -> None:
+    result = subprocess.run(
+        ["sudo", SAMBA_HELPER, "check-available", username],
+        text=True, capture_output=True, timeout=15,
+    )
+    if result.returncode:
+        raise ShareError(result.stderr.strip() or "SMB-Benutzername ist bereits belegt.")
+
+
 def set_samba_password(username: str, password: str) -> None:
     result = subprocess.run(
         ["sudo", SAMBA_HELPER, "set-password", username],

@@ -56,5 +56,6 @@ class ScanInputPayload(BaseModel):
     share_name: str
     profile_id: int
     destination_id: int
+    smb_username: str = ""
     smb_password: str = ""
     enabled: bool = True

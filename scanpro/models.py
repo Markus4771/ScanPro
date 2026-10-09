@@ -99,6 +99,8 @@ class JobDocument(Base):
     sequence: Mapped[int] = mapped_column(Integer)
     path: Mapped[str] = mapped_column(Text)
     final_name: Mapped[str] = mapped_column(String(255))
+    split_method: Mapped[str] = mapped_column(String(30), default="none")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class JobDelivery(Base):

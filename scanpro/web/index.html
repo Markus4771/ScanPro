@@ -103,7 +103,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <label class="check"><input type="checkbox" id="pTriangleRemove" checked> Trennseite entfernen</label>
 </div>
 <p id="pTriangleHint" class="muted hidden">Das Dreieck darf frei mit schwarzem oder dunklem Stift gezeichnet sein. Eine feste Position reduziert Fehldetektionen.</p>
-<div class="actions"><button onclick="createProfile()">Profil anlegen</button></div>
+<div class="actions"><button id="pSaveButton" type="button" onclick="createProfile()">Profil anlegen</button><button id="pCancelButton" type="button" class="secondary hidden" onclick="cancelProfileEdit()">Abbrechen</button></div>
 <div id="profiles" class="muted">Lade…</div>
 </section>
 
@@ -287,6 +287,7 @@ function toggleProfileSubfolder(){
   if(!enabled)q('pSubfolder').value='';
 }
 
+let editingProfileId=null;
 async function loadProfiles(){
   profiles=await api('/api/profiles');q('profiles').innerHTML='';q('iProfile').innerHTML='<option value="">'+(profiles.length?'-- Profil wählen --':'-- zuerst Profil anlegen --')+'</option>';
   for(const p of profiles){
@@ -298,15 +299,34 @@ async function loadProfiles(){
       '<div class="muted">Datei: '+esc(p.filename_template)+(p.subfolder_template?' · Unterordner: '+esc(p.subfolder_template):'')+'</div>'+
       (p.remove_blank_pages?'<div class="muted">Leerseiten entfernen ab '+esc(p.blank_threshold)+' % Weißanteil</div>':'')+
       (p.split_method==='triangle'?'<div class="muted">Trennung: Dreieck · '+esc(p.triangle_position)+' · min. '+esc(p.triangle_min_size_mm)+' mm · Trennseite '+(p.triangle_remove_page?'entfernen':'behalten')+'</div>':'')+
-      '<div class="actions"><button class="danger" data-id="'+p.id+'">Löschen</button></div>';
-    el.querySelector('button').onclick=()=>deleteProfile(p.id,p.name);q('profiles').appendChild(el);
+      '<div class="actions"><button class="secondary edit">Bearbeiten</button><button class="danger del" data-id="'+p.id+'">Löschen</button></div>';
+    el.querySelector('.edit').onclick=()=>editProfile(p.id);el.querySelector('.del').onclick=()=>deleteProfile(p.id,p.name);q('profiles').appendChild(el);
   }
   if(!profiles.length)q('profiles').textContent='Noch kein Profil angelegt.';
+}
+function editProfile(id){
+  const p=profiles.find(p=>p.id===id);if(!p)return;
+  editingProfileId=id;
+  const fields={pName:p.name,pLang:p.ocr_language,pFilename:p.filename_template,pSplit:p.split_method,pColorMode:p.color_mode,pDpi:p.dpi,pBlankThreshold:p.blank_threshold,pSubfolder:p.subfolder_template||'',pTrianglePosition:p.triangle_position,pTriangleSize:p.triangle_min_size_mm};
+  for(const [key,value] of Object.entries(fields))q(key).value=value??'';
+  const flags={pOcr:p.ocr_enabled,pPdfa:p.pdfa_enabled,pBlank:p.remove_blank_pages,pRotate:p.auto_rotate,pDeskew:p.deskew,pCrop:p.auto_crop,pA4:p.normalize_a4,pTriangleRemove:p.triangle_remove_page,pUseSubfolder:!!p.subfolder_template};
+  for(const [key,value] of Object.entries(flags))q(key).checked=!!value;
+  toggleProfileSubfolder();toggleTriangleOptions();
+  q('pSaveButton').textContent='Änderungen speichern';
+  q('pCancelButton').classList.remove('hidden');
+  q('pName').focus();
+}
+function cancelProfileEdit(){
+  editingProfileId=null;
+  q('pSaveButton').textContent='Profil anlegen';
+  q('pCancelButton').classList.add('hidden');
+  q('pName').value='';q('pUseSubfolder').checked=false;q('pSubfolder').value='';q('pSplit').value='none';
+  toggleProfileSubfolder();toggleTriangleOptions();
 }
 async function createProfile(){
   const name=q('pName').value.trim();if(!name)return alert('Name fehlt.');
   if(q('pPdfa').checked&&!q('pOcr').checked)return alert('PDF/A benötigt aktiviertes OCR.');
-  await jsonPost('/api/profiles',{
+  await api(editingProfileId===null?'/api/profiles':'/api/profiles/'+editingProfileId,{method:editingProfileId===null?'POST':'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({
     name,
     ocr_enabled:q('pOcr').checked,
     ocr_language:q('pLang').value,
@@ -325,8 +345,8 @@ async function createProfile(){
     triangle_position:q('pTrianglePosition').value,
     triangle_min_size_mm:Number(q('pTriangleSize').value),
     triangle_remove_page:q('pTriangleRemove').checked
-  });
-  q('pName').value='';q('pUseSubfolder').checked=false;q('pSubfolder').value='';q('pSplit').value='none';toggleProfileSubfolder();toggleTriangleOptions();await loadProfiles();
+  })});
+  cancelProfileEdit();await loadProfiles();
 }
 async function deleteProfile(id,name){if(!confirm('Verarbeitungsprofil "'+name+'" wirklich löschen?'))return;try{await api('/api/profiles/'+id+'/remove',{method:'POST'});await loadProfiles();}catch(e){alert(e.message);}}
 function toggleDestination(){const t=q('dType').value;q('dLocal').style.display=t==='local'?'block':'none';q('dLocalSmb').style.display=t==='local_smb'?'grid':'none';q('dSmb').style.display=t==='smb'?'grid':'none';q('dPaperless').style.display=t==='paperless'?'grid':'none';if(t==='local_smb')q('dLocalSmbFolder').value=q('dName').value.trim();}

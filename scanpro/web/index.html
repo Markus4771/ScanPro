@@ -146,7 +146,8 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <label>Freigabe<input id="iShare" placeholder="Rechnungen"></label>
 <label>Verarbeitungsprofil<select id="iProfile"></select></label>
 <label>Scanziel<select id="iDestination"></select></label>
-<label>SMB-Passwort<input id="iSmbPassword" type="text" placeholder="mindestens 8 Zeichen"></label>
+<label>SMB-Benutzer<input id="iSmbUser" placeholder="scannerpdf (leer = automatisch)" autocomplete="off"></label>
+<label>SMB-Passwort<input id="iSmbPassword" type="password" placeholder="mindestens 8 Zeichen" autocomplete="new-password"></label>
 </div>
 <div class="actions"><button onclick="createInput()">Scan-Eingang anlegen</button></div>
 <div id="inputs" class="muted">Lade…</div>
@@ -391,7 +392,7 @@ async function changeDestinationSmbPassword(id){
   }catch(e){alert(e.message);}
 }
 async function deleteDestination(id,name){if(!confirm('Scanziel "'+name+'" wirklich löschen?'))return;try{await api('/api/destinations/'+id+'/remove',{method:'POST'});await loadDestinations();}catch(e){alert(e.message);}}
-async function createInput(){const name=q('iName').value.trim(),share=q('iShare').value.trim()||name,profile_id=Number(q('iProfile').value),destination_id=Number(q('iDestination').value),smb_password=q('iSmbPassword').value;if(!name||!profile_id||!destination_id)return alert('Name, Profil und Ziel sind erforderlich.');if(smb_password.length<8)return alert('SMB-Passwort muss mindestens 8 Zeichen lang sein.');await jsonPost('/api/inputs',{name,share_name:share,profile_id,destination_id,smb_password,enabled:true});q('iName').value='';q('iShare').value='';q('iSmbPassword').value='';await loadInputs();}
+async function createInput(){const name=q('iName').value.trim(),share=q('iShare').value.trim()||name,profile_id=Number(q('iProfile').value),destination_id=Number(q('iDestination').value),smb_password=q('iSmbPassword').value,smb_username=q('iSmbUser').value.trim().toLowerCase();if(smb_username&&!/^[a-z_][a-z0-9_-]{2,30}$/.test(smb_username))return alert('Ungültiger SMB-Benutzername (3–31 Zeichen).');if(!name||!profile_id||!destination_id)return alert('Name, Profil und Ziel sind erforderlich.');if(smb_password.length<8)return alert('SMB-Passwort muss mindestens 8 Zeichen lang sein.');await jsonPost('/api/inputs',{name,share_name:share,profile_id,destination_id,smb_username,smb_password,enabled:true});q('iName').value='';q('iShare').value='';q('iSmbUser').value='';q('iSmbPassword').value='';await loadInputs();}
 async function loadInputs(){
   const data=await api('/api/inputs');q('inputs').innerHTML='';
   for(const i of data){const el=document.createElement('div');el.className='item';el.innerHTML='<strong>'+esc(i.name)+'</strong> <span class="badge ok">aktiv</span><div class="secret">'+esc(i.network_path)+'</div><div class="muted">Überordner: Eingang</div><div class="muted">SMB-Benutzer: '+esc(i.username)+' · SMB-Passwort: '+esc(i.password)+'</div><div class="muted">Profil: '+esc(i.profile_name)+' · Ziel: '+esc(i.destination_name)+'</div><div class="actions"><button type="button" class="secondary smb">SMB-Passwort ändern</button><button type="button" class="danger del">Löschen</button></div>';el.querySelector('.smb').onclick=()=>changeInputSmbPassword(i.id);el.querySelector('.del').onclick=()=>deleteInput(i.id,i.name);q('inputs').appendChild(el);}

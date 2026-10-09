@@ -115,3 +115,10 @@ Lies `NEUER-CHAT.md` im Repository `Markus4771/ScanPro` und führe die Entwicklu
 - Samba-`include` muss **am Ende** von `[global]` stehen; damit verschwinden `Global parameter ... found in service section`-Warnungen (Commit `1c83985`).
 - Live-Datenbank: Job 1 `error` wegen Zugriffsrechten, Job 2 `processing` nach altem DB-Absturz, Jobs 3 und 4 `error` wegen fehlender Spalte `target`. Fertige PDF(s) liegen teilweise schon im Ausgang. **Nicht pauschal neu starten, um Duplikate zu vermeiden.** Neue ScanJobs mit aktualisiertem Code testen und ausgegebene Dateien gesondert prüfen.
 
+
+## Verarbeitungsprofile nachträglich bearbeiten (9.10.2026)
+
+- API `PUT /api/profiles/{profile_id}` aktualisiert alle Profilfelder unter Eigentümerprüfung, inklusive OCR, Dateinamen, Unterordnern und Trennmethoden. Bestehende Profil-ID und Verknüpfungen zu Scan-Eingängen bleiben erhalten.
+- WebGUI zeigt bei jedem Profil `Bearbeiten`; das Formular wird mit bestehenden Werten befüllt und bietet `Änderungen speichern` / `Abbrechen`.
+- Commits: `f7b1835`, `6faab4a`.
+- Noch nicht auf dem Zielserver funktional getestet.

@@ -70,6 +70,10 @@ Auf dem Zielserver war die Samba-Anmeldung als `scanpro_s1` erfolgreich, jedoch 
 - Benutzername und Passwort werden wie bisher im angemeldeten Scan-Eingangsbereich angezeigt. Bestehende Eingänge werden nicht umbenannt.
 - Änderungen an Schema, API und WebGUI sind auf GitHub committed, aber ein Test auf dem Zielserver steht aus.
 
+## Scan-Verarbeitung: Berechtigungsfehler (9. Oktober 2026)
+
+ScanJob 1 zeigte `InputFileError: [Errno 13] Permission denied` beim Lesen einer PDF unter `/var/lib/scanpro-v1/Verarbeitung/jobs/1`. Die Samba-Share-Konfiguration setzt jetzt für Eingänge/Ausgänge `force create mode = 0660`, `force directory mode = 0770` und `force group = scanpro`, damit zukünftige Dateien für den ScanPro-Worker lesbar bleiben (Commit `c9cc109`). Der bereits fehlgeschlagene Job wird **nicht** automatisch erneut gestartet; Datei und Rechte vor einem erneuten Import überprüfen. Änderung auf dem Zielserver noch nicht getestet.
+
 ## Offen / noch zu prüfen
 
 1. **Auto-Crop**: Profiloption ist vorhanden, im eingesehenen `processor.py` aber noch nicht in die Verarbeitung eingebunden.

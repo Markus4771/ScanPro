@@ -38,6 +38,15 @@ Datenbank: `/var/lib/scanpro-v1/scanpro-v1.db`
 - Beim Anlegen wird der SMB-Benutzer mit dem eingegebenen Passwort über den vorhandenen Samba-Helper eingerichtet.
 - Vor der Inbetriebnahme die Funktion auf dem Linux-Server testen; kein erfolgreicher Laufzeittest ausgeführt.
 
+## Frei wählbare lokale SMB-Benutzer (9. Oktober 2026)
+
+- Lokale SMB-Scanziele akzeptieren Benutzernamen wie `markus` (3–31 Zeichen, Kleinbuchstaben, Zahlen, Bindestrich, Unterstrich; erster Buchstabe bzw. Unterstrich).
+- Vor dem Anlegen erfolgt ein Konfliktcheck gegen Linux-/Samba-Konten, andere Scanziele und Scan-Eingänge.
+- Vom aktualisierten Samba-Helper neu angelegte Konten werden durch root-geschützte Markierungsdateien unter `/var/lib/scanpro-v1/samba-managed-users/` registriert. Nur markierte Konten dürfen durch den Helper gelöscht werden.
+- Benutzername und Passwort sind weiterhin nach Anmeldung über die vorhandene Scanziel-Verbindungsansicht sichtbar.
+- **Noch auf Debian testen:** Anlage, Rechte, SMB-Login, Passwortwechsel und Löschung; keine Laufzeittests durchgeführt. Alte vor dieser Änderung angelegte Konten ohne Markierungsdatei werden beim Löschen absichtlich nicht automatisch entfernt.
+- Bei einem bereits existierenden Linux- oder Samba-Konto `markus` muss ein anderer, noch freier SMB-Benutzername verwendet werden. Fremde Konten werden nicht übernommen.
+
 ## Offen / noch zu prüfen
 
 1. **Auto-Crop**: Profiloption ist vorhanden, im eingesehenen `processor.py` aber noch nicht in die Verarbeitung eingebunden.

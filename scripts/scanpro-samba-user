@@ -4,10 +4,30 @@ set -euo pipefail
 action="${1:-}"
 username="${2:-}"
 
-if [[ ! "$username" =~ ^scanpro_([us][0-9]+|d[a-z0-9_]{1,30})$ ]]; then
+if [[ ! "$username" =~ ^[a-z_][a-z0-9_-]{2,30}$ ]]; then
   echo "Ungültiger Samba-Benutzer." >&2
   exit 2
 fi
+
+# Account ownership is recorded in a root-only directory. Never take over an
+# unrelated existing Linux or Samba account.
+managed_root=/var/lib/scanpro-v1/samba-managed-users
+mkdir -p "$managed_root"
+chown root:root "$managed_root"
+chmod 0700 "$managed_root"
+marker="$managed_root/$username"
+legacy=false
+[[ "$username" =~ ^scanpro_([us][0-9]+|d[a-z0-9_]{1,30})$ ]] && legacy=true
+
+case "$action" in
+  check-available)
+    if id "$username" >/dev/null 2>&1 || pdbedit -L -u "$username" 2>/dev/null | grep -q . || [[ -e "$marker" ]]; then
+      echo "Benutzername ist bereits auf dem Server belegt." >&2
+      exit 6
+    fi
+    exit 0
+    ;;
+esac
 
 case "$action" in
   set-password)
@@ -16,8 +36,21 @@ case "$action" in
       echo "SMB-Passwort muss mindestens 8 Zeichen lang sein." >&2
       exit 3
     fi
-    if ! id "$username" >/dev/null 2>&1; then
-      useradd --system --no-create-home --shell /usr/sbin/nologin "$username"
+    if [[ ! -f "$marker" ]]; then
+      if id "$username" >/dev/null 2>&1; then
+        if [[ "$legacy" != true ]]; then
+          echo "Vorhandenes Linux-Konto wird nicht übernommen." >&2
+          exit 6
+        fi
+      else
+        if pdbedit -L -u "$username" 2>/dev/null | grep -q .; then
+          echo "Vorhandenes Samba-Konto wird nicht übernommen." >&2
+          exit 6
+        fi
+        useradd --system --no-create-home --shell /usr/sbin/nologin "$username"
+        touch "$marker"
+        chmod 0600 "$marker"
+      fi
     fi
     printf '%s\n%s\n' "$password" "$password" | smbpasswd -s -a "$username" >/dev/null
     smbpasswd -e "$username" >/dev/null
@@ -49,8 +82,13 @@ case "$action" in
     chmod 0770 "$path"
     ;;
   delete)
+    if [[ ! -f "$marker" ]]; then
+      echo "Konto ist nicht als ScanPro-verwaltet registriert, keine Löschung."
+      exit 0
+    fi
     smbpasswd -x "$username" >/dev/null 2>&1 || true
     userdel "$username" >/dev/null 2>&1 || true
+    rm -f "$marker"
     ;;
   *)
     echo "Unbekannte Aktion." >&2

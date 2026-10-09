@@ -104,3 +104,14 @@ Vor Updates an produktionsnahen Daten stets eine Sicherung der Datenbank und Kon
 ## Einstieg in einen neuen Chat
 
 Lies `NEUER-CHAT.md` im Repository `Markus4771/ScanPro` und führe die Entwicklung ab dem dokumentierten Stand weiter.
+
+## Fehlerkorrekturen vom 9. Oktober 2026: Live-Test Brother SMB / Datenbank
+
+- Brother → `Eingang/PDF` funktioniert. Frühere Dateien wurden als `scanpro_s1:scanpro_s1` statt `scanpro_s1:scanpro` abgelegt; Samba-Eingang erzwingt nun die Gruppe `scanpro` und Dateimodus 0660.
+- `job_documents` aus einer früheren Datenbank benötigt `split_method` und `created_at`; der aktuelle Code benötigt außerdem `final_name`. ORM und Migration wurden kompatibel gemacht.
+- `job_deliveries` aus früherer Datenbank hatte keine Spalte `target`; Migration ergänzt bei Bedarf `target`, `error` und `created_at`, ohne Datensätze zu löschen (Commit `ded1c16`).
+- Worker setzt nach DB-Fehler die Transaktion mit `rollback()` zurück statt mit `PendingRollbackError` abzustürzen; Fehlermeldungen werden nun im Journal protokolliert (Commit `438bde1`).
+- Regressionstest für alte DB-Schemata unter `tests/test_legacy_migrations.py` (Commit `15f14ce`); **auf Zielserver noch nicht ausgeführt**.
+- Samba-`include` muss **am Ende** von `[global]` stehen; damit verschwinden `Global parameter ... found in service section`-Warnungen (Commit `1c83985`).
+- Live-Datenbank: Job 1 `error` wegen Zugriffsrechten, Job 2 `processing` nach altem DB-Absturz, Jobs 3 und 4 `error` wegen fehlender Spalte `target`. Fertige PDF(s) liegen teilweise schon im Ausgang. **Nicht pauschal neu starten, um Duplikate zu vermeiden.** Neue ScanJobs mit aktualisiertem Code testen und ausgegebene Dateien gesondert prüfen.
+

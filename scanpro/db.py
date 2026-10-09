@@ -119,6 +119,23 @@ def _add_job_document_columns(connection: sqlite3.Connection) -> None:
     )
 
 
+
+def _add_job_delivery_columns(connection: sqlite3.Connection) -> None:
+    if not _table_exists(connection, "job_deliveries"):
+        return
+    columns = _columns(connection, "job_deliveries")
+    # Older databases stored delivery metadata using a different layout.
+    # Extend them in place without dropping historical delivery records.
+    additions = {
+        "target": "TEXT",
+        "error": "TEXT",
+        "created_at": "DATETIME",
+    }
+    for name, definition in additions.items():
+        if name not in columns:
+            connection.execute(f"ALTER TABLE job_deliveries ADD COLUMN {name} {definition}")
+
+
 def initialize_database():
     DATA_ROOT.mkdir(parents=True, exist_ok=True)
     if DATABASE_URL.startswith("sqlite:///"):
@@ -132,6 +149,7 @@ def initialize_database():
             _add_share_credentials(connection)
             _add_profile_processing_columns(connection)
             _add_job_document_columns(connection)
+            _add_job_delivery_columns(connection)
             connection.execute("PRAGMA foreign_keys=ON")
             connection.commit()
         finally:

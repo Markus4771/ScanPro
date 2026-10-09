@@ -122,3 +122,12 @@ Lies `NEUER-CHAT.md` im Repository `Markus4771/ScanPro` und führe die Entwicklu
 - WebGUI zeigt bei jedem Profil `Bearbeiten`; das Formular wird mit bestehenden Werten befüllt und bietet `Änderungen speichern` / `Abbrechen`.
 - Commits: `f7b1835`, `6faab4a`.
 - Noch nicht auf dem Zielserver funktional getestet.
+
+## Ausgang mit Datenbank synchronisieren (9. Oktober 2026)
+
+- `JobDocument.file_present` markiert, ob die bekannte lokale Ausgabedatei vorhanden ist; Migration ergänzt die Spalte bei älteren SQLite-Datenbanken.
+- `scanpro/services/output_sync.py` gleicht nur vorhandene Dokumenteinträge innerhalb des lokalen Ausgangs ab. Keine Dateilöschungen, keine neuen Jobs, keine Manipulation von ScanJob-/Delivery-Historie.
+- Abgleich beim Start des Inbox-Workers und alle 300 Sekunden. `POST /api/output/sync` ermöglicht Administratoren sofortigen Abgleich.
+- Fehlende PDFs erscheinen in der WebGUI mit Hinweis statt ungültigem Downloadlink. Werden sie wiederhergestellt, erscheint der Link beim nächsten Abgleich erneut.
+- `queued`/`processing` werden zum Schutz vor unfertigen Dateien ausgelassen. Insbesondere historischer Job 2 (noch `processing`) wird dadurch nicht korrigiert; gesonderte Job-Wiederherstellung bleibt offen.
+- Änderungen noch nicht live getestet.

@@ -251,7 +251,7 @@ def _blank_marker(image_path: Path, threshold: int) -> bool:
     return white_ratio >= max(90, min(100, int(threshold or 99))) / 100.0
 
 
-def _coded_marker(image_path: Path, method: str) -> bool:
+def _coded_marker(image_path: Path, method: str, qr_marker_content: str = "") -> bool:
     """Detect QR or linear/matrix barcodes; recognition is restricted by profile method."""
     import zxingcpp
 
@@ -265,7 +265,8 @@ def _coded_marker(image_path: Path, method: str) -> bool:
         fmt = str(result.format).lower()
         is_qr = "qr" in fmt
         if method == "qr" and is_qr:
-            return True
+            if not qr_marker_content or str(result.text) == qr_marker_content:
+                return True
         if method == "barcode" and not is_qr:
             return True
     return False
@@ -301,7 +302,7 @@ def split_marker_pdf(source: Path, profile: ProcessingProfile) -> list[Path]:
             found = (
                 _blank_marker(image_path, profile.blank_threshold)
                 if method == "blank-page"
-                else _coded_marker(image_path, method)
+                else _coded_marker(image_path, method, profile.qr_marker_content or "")
             )
             if found:
                 markers.add(index)

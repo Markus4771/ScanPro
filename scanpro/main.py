@@ -781,6 +781,24 @@ def sync_output_now(db: Session = Depends(get_db), user: User = Depends(current_
     return sync_output_files(db)
 
 
+@app.post("/api/jobs/{job_id}/retry")
+def retry_job(job_id: int, db: Session = Depends(get_db),
+              user: User = Depends(current_user)):
+    job = owned(db, ScanJob, job_id, user)
+    if job.status not in {"error", "interrupted"}:
+        raise HTTPException(409, "Nur fehlgeschlagene oder unterbrochene Jobs können wiederholt werden.")
+    if db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).first():
+        raise HTTPException(409, "Bereits erzeugte Dokumente vorhanden. Manuell prüfen, um Duplikate zu vermeiden.")
+    if job.working_path and Path(job.working_path).exists():
+        raise HTTPException(409, "Arbeitsdatei vorhanden. Manuelle Prüfung erforderlich, um Duplikate zu vermeiden.")
+    if not Path(job.source_path).is_file():
+        raise HTTPException(409, "Originaldatei nicht mehr im Eingang vorhanden. Keine sichere Wiederholung möglich.")
+    job.status = "retry_queued"
+    job.error = None
+    db.commit()
+    return {"id": job.id, "status": job.status}
+
+
 @app.get("/api/jobs")
 def list_jobs(db: Session = Depends(get_db), user: User = Depends(current_user)):
     rows = db.query(ScanJob).filter(

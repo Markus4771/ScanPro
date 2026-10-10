@@ -272,6 +272,7 @@ def profile_json(row: ProcessingProfile) -> dict:
         "triangle_position": row.triangle_position,
         "triangle_min_size_mm": row.triangle_min_size_mm,
         "triangle_remove_page": row.triangle_remove_page,
+        "qr_marker_content": row.qr_marker_content,
     }
 
 

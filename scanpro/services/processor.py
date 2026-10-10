@@ -437,6 +437,51 @@ def raster_normalize_pdf(source: Path, profile: ProcessingProfile) -> Path:
     return target
 
 
+def auto_crop_pdf(source: Path) -> Path:
+    """Conservatively crop large white margins; preserve 3 mm around content."""
+    target = source.with_name(source.stem + "-cropped.pdf")
+    reader = PdfReader(str(source))
+    writer = PdfWriter()
+    with tempfile.TemporaryDirectory(prefix="scanpro-crop-") as tmp:
+        prefix = Path(tmp) / "page"
+        result = subprocess.run(["pdftoppm", "-png", "-gray", "-r", "72",
+                                 str(source), str(prefix)],
+                                capture_output=True, text=True, timeout=600)
+        if result.returncode:
+            raise ProcessingError(result.stderr.strip() or "Auto-Crop fehlgeschlagen.")
+        images = sorted(Path(tmp).glob("page-*.png"))
+        if len(images) != len(reader.pages):
+            raise ProcessingError("Auto-Crop: Seitenzahl stimmt nicht überein.")
+        for idx, (page, image_path) in enumerate(zip(reader.pages, images)):
+            with Image.open(image_path) as image:
+                pixels = np.asarray(image.convert("L"))
+            h, w = pixels.shape
+            ex, ey = max(2, round(w * .012)), max(2, round(h * .012))
+            ys, xs = np.where(pixels[ey:h-ey, ex:w-ex] < 195)
+            if len(xs) < 50:
+                writer.add_page(page)
+                continue
+            pad = round(3 / 25.4 * 72)
+            left = max(0, int(xs.min()) + ex - pad)
+            right = min(w, int(xs.max()) + ex + pad + 1)
+            top = max(0, int(ys.min()) + ey - pad)
+            bottom = min(h, int(ys.max()) + ey + pad + 1)
+            margins = (left/w, (w-right)/w, top/h, (h-bottom)/h)
+            if max(margins) > .20 or all(m < .025 for m in margins):
+                writer.add_page(page)
+                continue
+            box = page.mediabox
+            x0, y0 = float(box.left), float(box.bottom)
+            pw, ph = float(box.width), float(box.height)
+            page.cropbox.lower_left = (x0 + pw*left/w, y0 + ph*(h-bottom)/h)
+            page.cropbox.upper_right = (x0 + pw*right/w, y0 + ph*(h-top)/h)
+            logger.info("Auto-Crop Seite %s: %d,%d,%d,%d", idx+1, left, top, right, bottom)
+            writer.add_page(page)
+    with target.open("wb") as file:
+        writer.write(file)
+    return target
+
+
 def ocr_pdf(source: Path, profile: ProcessingProfile) -> Path:
     target = source.with_name(source.stem + "-ocr.pdf")
     command = [
@@ -477,6 +522,8 @@ def prepare_document(source: Path, profile: ProcessingProfile) -> Path:
         if profile.remove_blank_pages:
             output = remove_blank_pdf_pages(output, profile.blank_threshold)
         output = raster_normalize_pdf(output, profile)
+        if profile.auto_crop:
+            output = auto_crop_pdf(output)
         if profile.ocr_enabled:
             output = ocr_pdf(output, profile)
     return output

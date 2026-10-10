@@ -145,3 +145,10 @@ Lies `NEUER-CHAT.md` im Repository `Markus4771/ScanPro` und führe die Entwicklu
 - Hinzu kommen `--rotate-pages --rotate-pages-threshold 2.0` und OCRmyPDF-Logausgaben im Dienstjournal. Ohne Auto-Rotation bleibt `--skip-text` wie zuvor.
 - Anlass: PDF `2026-10-09_PDF_2_001.pdf` mit nahezu leerer erster und um 180 Grad gedrehter zweiter Seite. Nach Änderung vollständigen Test mit diesem Dokument auf dem Zielserver durchführen; automatisierte Tests `tests/test_auto_rotation.py` prüfen die Befehlsparameter, nicht die tatsächliche Drehqualität.
 - OCR durch `--redo-ocr` kann langsamer sein. Änderungen auf GitHub, noch nicht auf dem Server getestet.
+
+## Leerseitenerkennung mit Scanner-Rand (10. Oktober 2026)
+
+- Anwender-PDF `2026-10-09_PDF_2_001.pdf`: Seite 1 ist optisch leer, hat aber dunkle Scan-Ränder; bisheriger Weißanteil bei 50 DPI nur 98,71 % und somit unter dem Grenzwert 99 %. Ohne 6 px Rand beträgt er 99,996 %. Seite 2 enthält Inhalt und soll erhalten bleiben.
+- `remove_blank_pdf_pages()` ignoriert jetzt die äußeren 1,5 % der gerenderten Seite bei der Weißanteilsmessung. Zusätzlich wird der Weißanteil je Seite ins Journal geschrieben (Commit `ae5017c`).
+- Regressionstest `tests/test_blank_page_border.py` mit schwarzem Scanrand und einer Inhaltsseite (Commit `755fa0c`).
+- **Noch nicht auf dem ScanPro-Server ausgeführt und mit echtem Scanner nachgetestet.** Im Profil muss die Option `Leerseiten entfernen` aktiviert sein.

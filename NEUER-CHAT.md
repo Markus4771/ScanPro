@@ -138,3 +138,10 @@ Lies `NEUER-CHAT.md` im Repository `Markus4771/ScanPro` und führe die Entwicklu
 - **Neu im Repository:** automatische Bestandsprüfung der in der Datenbank referenzierten Ausgangsdateien beim Worker-Start und alle fünf Minuten; manueller Admin-Button „Ausgang jetzt synchronisieren“; Dateistatus `file_present` und ausgeblendete Downloadlinks bei fehlenden Dateien. Die automatische Funktion muss auf dem Zielserver noch per Update und Lösch-/Wiederherstellungstest verifiziert werden.
 - **Historische Daten:** Jobs 1–4 nicht blind erneut starten oder löschen; ältere Ausgabedateien können schon existieren. Job 2 steht historisch auf `processing`.
 - **Update-Hinweis:** Vor Installation DB-Backup; `git status --short`, `git pull --ff-only`, `sudo bash scripts/install-dev.sh`; anschließend Weboberfläche hart aktualisieren.
+
+## OCR-Auto-Rotation für PDFs mit bestehender Textebene (10. Oktober 2026)
+
+- Bei aktivierter Auto-Rotation nutzt `ocr_pdf` nun `--redo-ocr` statt `--skip-text`; letzteres konnte bereits mit OCR versehene Seiten und somit deren Orientierungsprüfung überspringen.
+- Hinzu kommen `--rotate-pages --rotate-pages-threshold 2.0` und OCRmyPDF-Logausgaben im Dienstjournal. Ohne Auto-Rotation bleibt `--skip-text` wie zuvor.
+- Anlass: PDF `2026-10-09_PDF_2_001.pdf` mit nahezu leerer erster und um 180 Grad gedrehter zweiter Seite. Nach Änderung vollständigen Test mit diesem Dokument auf dem Zielserver durchführen; automatisierte Tests `tests/test_auto_rotation.py` prüfen die Befehlsparameter, nicht die tatsächliche Drehqualität.
+- OCR durch `--redo-ocr` kann langsamer sein. Änderungen auf GitHub, noch nicht auf dem Server getestet.

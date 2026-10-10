@@ -441,10 +441,9 @@ def ocr_pdf(source: Path, profile: ProcessingProfile) -> Path:
     target = source.with_name(source.stem + "-ocr.pdf")
     command = [
         "ocrmypdf",
-        # --skip-text skips pages with an existing text layer, including
-        # orientation correction. --redo-ocr reconstructs OCR and enables
-        # rotation on previously OCRed PDFs as well.
-        "--redo-ocr" if profile.auto_rotate else "--skip-text",
+        # --force-ocr also processes PDFs with an existing text layer and
+        # supports --deskew, unlike --redo-ocr. This rasterizes pages.
+        "--force-ocr" if profile.auto_rotate else "--skip-text",
         "--optimize",
         "1",
         "--language",

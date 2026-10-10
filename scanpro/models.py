@@ -49,6 +49,7 @@ class ProcessingProfile(Base):
     triangle_position: Mapped[str] = mapped_column(String(20), default="any")
     triangle_min_size_mm: Mapped[int] = mapped_column(Integer, default=12)
     triangle_remove_page: Mapped[bool] = mapped_column(Boolean, default=True)
+    qr_marker_content: Mapped[str] = mapped_column(Text, default="")
 
 
 class Destination(Base):

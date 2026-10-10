@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 
 from .db import Base, SessionLocal, engine, initialize_database
-from .models import ScanInput, ScanJob
+from .models import ScanInput, ScanJob, JobDocument
 from .services.processor import process_job
 from .services.shares import sync_samba_config
 from .services.output_sync import sync_output_files
@@ -53,11 +53,39 @@ def handle(db, scan_input: ScanInput, path: Path):
             db.commit()
 
 
+def mark_interrupted_jobs(db):
+    for job in db.query(ScanJob).filter(ScanJob.status.in_(['queued', 'processing'])).all():
+        job.status = 'interrupted'
+        job.error = 'Verarbeitung durch Neustart unterbrochen; Wiederholung nur nach Sicherheitsprüfung.'
+    db.commit()
+
+
+def process_retries(db):
+    jobs = db.query(ScanJob).filter(ScanJob.status == 'retry_queued').all()
+    for job in jobs:
+        source = Path(job.source_path)
+        if not source.is_file() or db.query(JobDocument).filter(JobDocument.scan_job_id == job.id).first():
+            job.status = 'interrupted'
+            job.error = 'Wiederholung gesperrt: Quelldatei fehlt oder Ausgabe bereits registriert.'
+            db.commit()
+            continue
+        try:
+            process_job(db, job)
+        except Exception as exc:
+            logger.exception('Wiederholung von ScanJob %s fehlgeschlagen', job.id)
+            db.rollback()
+            row = db.get(ScanJob, job.id)
+            row.status = 'error'
+            row.error = str(exc)
+            db.commit()
+
+
 def run():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     initialize_database()
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
+        mark_interrupted_jobs(db)
         sync_samba_config(db)
         try:
             sync_output_files(db)
@@ -68,6 +96,7 @@ def run():
     last_output_sync = time.monotonic()
     while True:
         with SessionLocal() as db:
+            process_retries(db)
             inputs = db.query(ScanInput).filter(ScanInput.enabled.is_(True)).all()
             for scan_input in inputs:
                 root = Path(scan_input.path)

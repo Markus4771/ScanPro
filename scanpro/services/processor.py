@@ -21,6 +21,7 @@ class ProcessingError(RuntimeError):
     pass
 
 
+logger = logging.getLogger(__name__)
 TRIANGLE_RENDER_DPI = 120
 
 
@@ -428,14 +429,17 @@ def ocr_pdf(source: Path, profile: ProcessingProfile) -> Path:
     target = source.with_name(source.stem + "-ocr.pdf")
     command = [
         "ocrmypdf",
-        "--skip-text",
+        # --skip-text skips pages with an existing text layer, including
+        # orientation correction. --redo-ocr reconstructs OCR and enables
+        # rotation on previously OCRed PDFs as well.
+        "--redo-ocr" if profile.auto_rotate else "--skip-text",
         "--optimize",
         "1",
         "--language",
         profile.ocr_language,
     ]
     if profile.auto_rotate:
-        command.append("--rotate-pages")
+        command += ["--rotate-pages", "--rotate-pages-threshold", "2.0"]
     if profile.deskew:
         command.append("--deskew")
     if profile.pdfa_enabled:
@@ -447,6 +451,8 @@ def ocr_pdf(source: Path, profile: ProcessingProfile) -> Path:
     result = subprocess.run(
         command, capture_output=True, text=True, timeout=900
     )
+    if result.stderr.strip():
+        logger.info("OCRmyPDF %s: %s", source.name, result.stderr.strip()[-6000:])
     if result.returncode not in {0, 6}:
         raise ProcessingError(
             result.stderr.strip() or result.stdout.strip() or "OCR fehlgeschlagen."

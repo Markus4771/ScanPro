@@ -42,6 +42,7 @@ class ProfilePayload(BaseModel):
     triangle_position: str = "any"
     triangle_min_size_mm: int = 12
     triangle_remove_page: bool = True
+    qr_marker_content: str = ""
 
 
 class DestinationPayload(BaseModel):

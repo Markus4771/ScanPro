@@ -152,3 +152,9 @@ Lies `NEUER-CHAT.md` im Repository `Markus4771/ScanPro` und führe die Entwicklu
 - `remove_blank_pdf_pages()` ignoriert jetzt die äußeren 1,5 % der gerenderten Seite bei der Weißanteilsmessung. Zusätzlich wird der Weißanteil je Seite ins Journal geschrieben (Commit `ae5017c`).
 - Regressionstest `tests/test_blank_page_border.py` mit schwarzem Scanrand und einer Inhaltsseite (Commit `755fa0c`).
 - **Noch nicht auf dem ScanPro-Server ausgeführt und mit echtem Scanner nachgetestet.** Im Profil muss die Option `Leerseiten entfernen` aktiviert sein.
+
+## QR-Trennseiten nach Inhalt filtern (10. Oktober 2026)
+
+- Neue Profiloption `qr_marker_content` (Datenbankmigration, ORM, API, WebGUI). Nur wenn Trennung = QR-Code ausgewählt ist, erscheint das Eingabefeld. Bestehende Profile erhalten `''`, sodass weiterhin jeder QR-Code als Trennmarker gilt.
+- Für nicht leeren Inhalt erfolgt ein exakter Vergleich mit dem decodierten QR-Text, inklusive Groß-/Kleinschreibung. Nicht passende QR-Codes im Dokument lösen keine Trennung aus. Marker-Seiten werden wie bisher entfernt.
+- Regressionstest `tests/test_qr_marker_content.py`; Änderungen auf GitHub, Praxistest auf ScanPro-Server noch offen.

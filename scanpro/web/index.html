@@ -97,6 +97,7 @@ button.secondary{background:#e5e7eb;color:#111827}button.danger{background:#b91c
 <label class="check"><input type="checkbox" id="pA4"> Auf A4 normalisieren</label>
 </div>
 <p class="muted">Unterordner unterstützt z. B. {year}, {month}, {day}, {date}, {input}, {profile} und {job}. PDF/A benötigt aktiviertes OCR.</p>
+<div id="pQrOptions" class="grid hidden"><label>QR-Code-Inhalt für Trennung<input id="pQrContent" placeholder="z. B. SCANPRO-TRENNSEITE"></label><p class="muted">Exakter Vergleich (Groß-/Kleinschreibung beachten). Leer = jeder QR-Code trennt.</p></div>
 <div id="pTriangleOptions" class="grid hidden">
 <label>Position<select id="pTrianglePosition"><option value="any">Überall auf der Seite</option><option value="top_left">Oben links</option><option value="top_right">Oben rechts</option><option value="bottom_left">Unten links</option><option value="bottom_right">Unten rechts</option></select></label>
 <label>Mindestgröße<select id="pTriangleSize"><option value="8">8 mm</option><option value="12" selected>12 mm</option><option value="15">15 mm</option><option value="20">20 mm</option><option value="30">30 mm</option><option value="40">40 mm</option></select></label>
@@ -279,6 +280,7 @@ function toggleTriangleOptions(){
   const enabled=q('pSplit').value==='triangle';
   q('pTriangleOptions').classList.toggle('hidden',!enabled);
   q('pTriangleHint').classList.toggle('hidden',!enabled);
+  q('pQrOptions').classList.toggle('hidden',q('pSplit').value!=='qr');
 }
 
 function toggleProfileSubfolder(){
@@ -298,6 +300,7 @@ async function loadProfiles(){
       '<div class="muted">'+esc(p.ocr_language)+' · '+esc(p.color_mode)+' · '+(p.dpi?esc(p.dpi)+' dpi':'DPI Original')+(p.normalize_a4?' · A4':'')+'</div>'+
       '<div class="muted">Datei: '+esc(p.filename_template)+(p.subfolder_template?' · Unterordner: '+esc(p.subfolder_template):'')+'</div>'+
       (p.remove_blank_pages?'<div class="muted">Leerseiten entfernen ab '+esc(p.blank_threshold)+' % Weißanteil</div>':'')+
+      (p.split_method==='qr'?'<div class="muted">QR-Trennung: '+esc(p.qr_marker_content||'beliebiger QR-Code')+'</div>':'')+
       (p.split_method==='triangle'?'<div class="muted">Trennung: Dreieck · '+esc(p.triangle_position)+' · min. '+esc(p.triangle_min_size_mm)+' mm · Trennseite '+(p.triangle_remove_page?'entfernen':'behalten')+'</div>':'')+
       '<div class="actions"><button class="secondary edit">Bearbeiten</button><button class="danger del" data-id="'+p.id+'">Löschen</button></div>';
     el.querySelector('.edit').onclick=()=>editProfile(p.id);el.querySelector('.del').onclick=()=>deleteProfile(p.id,p.name);q('profiles').appendChild(el);
@@ -307,7 +310,7 @@ async function loadProfiles(){
 function editProfile(id){
   const p=profiles.find(p=>p.id===id);if(!p)return;
   editingProfileId=id;
-  const fields={pName:p.name,pLang:p.ocr_language,pFilename:p.filename_template,pSplit:p.split_method,pColorMode:p.color_mode,pDpi:p.dpi,pBlankThreshold:p.blank_threshold,pSubfolder:p.subfolder_template||'',pTrianglePosition:p.triangle_position,pTriangleSize:p.triangle_min_size_mm};
+  const fields={pName:p.name,pLang:p.ocr_language,pFilename:p.filename_template,pSplit:p.split_method,pColorMode:p.color_mode,pDpi:p.dpi,pBlankThreshold:p.blank_threshold,pSubfolder:p.subfolder_template||'',pTrianglePosition:p.triangle_position,pTriangleSize:p.triangle_min_size_mm,pQrContent:p.qr_marker_content||''};
   for(const [key,value] of Object.entries(fields))q(key).value=value??'';
   const flags={pOcr:p.ocr_enabled,pPdfa:p.pdfa_enabled,pBlank:p.remove_blank_pages,pRotate:p.auto_rotate,pDeskew:p.deskew,pCrop:p.auto_crop,pA4:p.normalize_a4,pTriangleRemove:p.triangle_remove_page,pUseSubfolder:!!p.subfolder_template};
   for(const [key,value] of Object.entries(flags))q(key).checked=!!value;
@@ -320,7 +323,7 @@ function cancelProfileEdit(){
   editingProfileId=null;
   q('pSaveButton').textContent='Profil anlegen';
   q('pCancelButton').classList.add('hidden');
-  q('pName').value='';q('pUseSubfolder').checked=false;q('pSubfolder').value='';q('pSplit').value='none';
+  q('pName').value='';q('pUseSubfolder').checked=false;q('pSubfolder').value='';q('pQrContent').value='';q('pSplit').value='none';
   toggleProfileSubfolder();toggleTriangleOptions();
 }
 async function createProfile(){
@@ -344,7 +347,8 @@ async function createProfile(){
     subfolder_template:q('pUseSubfolder').checked?q('pSubfolder').value.trim():'',
     triangle_position:q('pTrianglePosition').value,
     triangle_min_size_mm:Number(q('pTriangleSize').value),
-    triangle_remove_page:q('pTriangleRemove').checked
+    triangle_remove_page:q('pTriangleRemove').checked,
+    qr_marker_content:q('pQrContent').value
   })});
   cancelProfileEdit();await loadProfiles();
 }

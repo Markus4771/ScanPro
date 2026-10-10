@@ -164,3 +164,11 @@ Lies `NEUER-CHAT.md` im Repository `Markus4771/ScanPro` und führe die Entwicklu
 - Jobs 10/11 scheiterten mit `--redo-ocr is not currently compatible with --deskew, --clean-final, and --remove-background`; deshalb erschienen keine neuen Dateien im Ausgang.
 - ScanPro verwendet bei aktivierter Auto-Rotation jetzt `--force-ocr` statt `--redo-ocr`, damit `--deskew` kombinierbar ist. Ohne Auto-Rotation bleibt `--skip-text`; `--force-ocr` rastert bestehende PDF-Seiten und kann deren Vektor-/Textebene verändern.
 - Regressionstest `tests/test_auto_rotation.py` ergänzt für gleichzeitige Aktivierung von Auto-Rotation und Deskew. Auf ScanPro-Server noch nicht getestet. Jobs 10/11 bleiben Fehlerhistorie; neuen Testscan durchführen.
+
+## Auto-Crop und sichere Job-Wiederholung (10. Oktober 2026)
+
+- Auto-Crop ist jetzt in `prepare_document()` eingebunden. `auto_crop_pdf()` ermittelt je Seite mit `pdftoppm`/Graustufen den Inhaltsbereich, ignoriert schmale Scanränder und lässt 3 mm Sicherheitsrand. Bei unklarer Erkennung, fast leerer Seite oder mehr als 20 % Zuschnitt an einer Seite bleibt die Seite unverändert. Es wird die PDF-CropBox gesetzt (nicht der eigentliche Seiteninhalt gelöscht), deshalb können PDF-Viewer / nachfolgende OCR-Verarbeitung unterschiedlich reagieren.
+- Worker setzt beim Start alte `queued`-/`processing`-Jobs auf `interrupted` und bewahrt die Historie. Erneute Verarbeitung wird **nicht automatisch** gestartet.
+- In der WebGUI gibt es bei `error`/`interrupted` den Button „Sicher erneut versuchen“. API `POST /api/jobs/{job_id}/retry` verlangt, dass die Originaldatei noch im Eingang liegt, die Arbeitsdatei nicht existiert und keine JobDocument-Ausgabe gespeichert ist. Andernfalls wird ein Retry wegen Duplikatgefahr verweigert. Freigegebene Jobs werden vom Worker als `retry_queued` abgearbeitet.
+- Bestehende Jobs, deren Datei bereits ins Arbeitsverzeichnis verschoben wurde (z. B. historische Fehlerjobs), sind bewusst NICHT automatisch wiederholbar; zunächst manuell prüfen.
+- Test `tests/test_auto_crop_and_recovery.py` ergänzt; Tests und tatsächliche OCR-/PDF-Ausgabe auf dem Server noch nicht ausgeführt.

@@ -94,6 +94,7 @@ def _add_profile_processing_columns(connection: sqlite3.Connection) -> None:
         "triangle_position": "VARCHAR(20) NOT NULL DEFAULT 'any'",
         "triangle_min_size_mm": "INTEGER NOT NULL DEFAULT 12",
         "triangle_remove_page": "BOOLEAN NOT NULL DEFAULT 1",
+        "qr_marker_content": "TEXT NOT NULL DEFAULT ''",
     }
     for name, definition in additions.items():
         if name not in columns:

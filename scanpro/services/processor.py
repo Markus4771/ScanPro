@@ -358,10 +358,20 @@ def remove_blank_pdf_pages(source: Path, threshold: int) -> Path:
         cutoff = threshold / 100.0
         for index, image_path in enumerate(images):
             with Image.open(image_path).convert("L") as image:
-                histogram = image.histogram()
-                pixels = max(1, image.width * image.height)
+                # Ignore thin dark scan borders when checking blank pages.
+                margin_x = max(1, round(image.width * 0.015))
+                margin_y = max(1, round(image.height * 0.015))
+                if image.width > 2 * margin_x and image.height > 2 * margin_y:
+                    region = image.crop((margin_x, margin_y,
+                                         image.width - margin_x, image.height - margin_y))
+                else:
+                    region = image
+                histogram = region.histogram()
+                pixels = max(1, region.width * region.height)
                 white_pixels = sum(histogram[245:])
                 white_ratio = white_pixels / pixels
+                logger.info("Leerseitenprüfung %s Seite %s: %.3f%% Weißanteil (Grenze %s%%)",
+                            source.name, index + 1, white_ratio * 100, threshold)
             if white_ratio < cutoff:
                 keep.append(index)
 

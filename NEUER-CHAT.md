@@ -158,3 +158,9 @@ Lies `NEUER-CHAT.md` im Repository `Markus4771/ScanPro` und führe die Entwicklu
 - Neue Profiloption `qr_marker_content` (Datenbankmigration, ORM, API, WebGUI). Nur wenn Trennung = QR-Code ausgewählt ist, erscheint das Eingabefeld. Bestehende Profile erhalten `''`, sodass weiterhin jeder QR-Code als Trennmarker gilt.
 - Für nicht leeren Inhalt erfolgt ein exakter Vergleich mit dem decodierten QR-Text, inklusive Groß-/Kleinschreibung. Nicht passende QR-Codes im Dokument lösen keine Trennung aus. Marker-Seiten werden wie bisher entfernt.
 - Regressionstest `tests/test_qr_marker_content.py`; Änderungen auf GitHub, Praxistest auf ScanPro-Server noch offen.
+
+## OCRmyPDF Auto-Rotation + Deskew korrigiert (10. Oktober 2026)
+
+- Jobs 10/11 scheiterten mit `--redo-ocr is not currently compatible with --deskew, --clean-final, and --remove-background`; deshalb erschienen keine neuen Dateien im Ausgang.
+- ScanPro verwendet bei aktivierter Auto-Rotation jetzt `--force-ocr` statt `--redo-ocr`, damit `--deskew` kombinierbar ist. Ohne Auto-Rotation bleibt `--skip-text`; `--force-ocr` rastert bestehende PDF-Seiten und kann deren Vektor-/Textebene verändern.
+- Regressionstest `tests/test_auto_rotation.py` ergänzt für gleichzeitige Aktivierung von Auto-Rotation und Deskew. Auf ScanPro-Server noch nicht getestet. Jobs 10/11 bleiben Fehlerhistorie; neuen Testscan durchführen.

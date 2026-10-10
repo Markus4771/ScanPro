@@ -432,9 +432,15 @@ async function syncOutputNow(){
     await loadJobs();
   }catch(e){q('outputSyncStatus').textContent='Abgleich fehlgeschlagen: '+e.message;}
 }
+async function retryScanJob(id){
+  if(!confirm('Job '+id+' nur erneut versuchen, wenn keine Ausgabe vorhanden ist? ScanPro prüft dies zusätzlich.'))return;
+  try{await api('/api/jobs/'+id+'/retry',{method:'POST'});await loadJobs();}
+  catch(e){alert(e.message);}
+}
 async function loadJobs(){
   const data=await api('/api/jobs');q('jobs').innerHTML='';
-  for(const j of data){const el=document.createElement('div');el.className='item';el.innerHTML='<strong>Job '+j.id+'</strong> <span class="badge '+(j.status==='delivered'?'ok':'')+'">'+esc(j.status)+'</span><div class="muted">'+esc(j.input_name)+' → '+esc(j.profile_name)+' → '+esc(j.destination_name)+'</div>'+(j.error?'<div class="err">'+esc(j.error)+'</div>':'')+(j.documents||[]).map(d=>d.file_present?'<div><a class="btn" href="'+esc(d.file_url)+'" target="_blank">'+esc(d.final_name)+'</a></div>':'<div class="muted">'+esc(d.final_name)+' (im Ausgang nicht mehr vorhanden)</div>').join('');q('jobs').appendChild(el);}
+  for(const j of data){const el=document.createElement('div');el.className='item';el.innerHTML='<strong>Job '+j.id+'</strong> <span class="badge '+(j.status==='delivered'?'ok':'')+'">'+esc(j.status)+'</span><div class="muted">'+esc(j.input_name)+' → '+esc(j.profile_name)+' → '+esc(j.destination_name)+'</div>'+(j.error?'<div class="err">'+esc(j.error)+'</div>':'')+(['error','interrupted'].includes(j.status)?'<div class="actions"><button class="secondary retry">Sicher erneut versuchen</button></div>':'')+(j.documents||[]).map(d=>d.file_present?'<div><a class="btn" href="'+esc(d.file_url)+'" target="_blank">'+esc(d.final_name)+'</a></div>':'<div class="muted">'+esc(d.final_name)+' (im Ausgang nicht mehr vorhanden)</div>').join('');if(['error','interrupted'].includes(j.status))el.querySelector('.retry').onclick=()=>retryScanJob(j.id);
+    q('jobs').appendChild(el);}
   if(!data.length)q('jobs').textContent='Noch keine ScanJobs.';
 }
 boot().catch(e=>alert(e.message));

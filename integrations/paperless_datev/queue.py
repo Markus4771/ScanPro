@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS invoices (
  paperless_id INTEGER NOT NULL UNIQUE,
  company_id TEXT NOT NULL,
  status TEXT NOT NULL DEFAULT 'AVAILABLE'
- CHECK(status IN ('AVAILABLE','CLAIMED','STAGED','UNCERTAIN','CONFIRMED','FAILED')),
+ CHECK(status IN ('AVAILABLE','CLAIMED','STAGING','STAGED','UNCERTAIN','CONFIRMED','FAILED')),
  claimed_by TEXT,
  token_hash TEXT,
  claimed_at INTEGER,
@@ -110,7 +110,7 @@ class Queue:
         IMPORTANT: CONFIRMED may only be called by trusted server-side DATEV
         reconciliation, never directly based on a Windows agent's self-report.
         """
-        if action not in ("RENEW","STAGED","UNCERTAIN"):
+        if action not in ("RENEW","STAGING","STAGED","UNCERTAIN"):
             raise ValueError("Unsupported client transition")
         if not token:
             raise Conflict("Missing claim token")
@@ -126,14 +126,21 @@ class Queue:
                 if row["status"] != "CLAIMED" or row["lease_until"] <= now:
                     raise Conflict("Lease expired or already staged")
                 db.execute("UPDATE invoices SET lease_until=? WHERE id=?", (now+300,invoice_id))
-            elif action == "STAGED":
+            elif action == "STAGING":
                 if row["status"] != "CLAIMED" or row["lease_until"] <= now:
-                    raise Conflict("Cannot stage without active lease")
-                db.execute("UPDATE invoices SET status='STAGED',staged_at=?,lease_until=NULL WHERE id=?",
+                    raise Conflict("Cannot begin staging without active lease")
+                # Write-ahead marker before touching DATEV's watched directory.
+                # A crash here leaves the invoice blocked for reconciliation.
+                db.execute("UPDATE invoices SET status='STAGING',lease_until=NULL WHERE id=?",
+                           (invoice_id,))
+            elif action == "STAGED":
+                if row["status"] != "STAGING":
+                    raise Conflict("Must mark STAGING before touching DATEV directory")
+                db.execute("UPDATE invoices SET status='STAGED',staged_at=? WHERE id=?",
                            (now,invoice_id))
             else:
-                if row["status"] != "STAGED":
-                    raise Conflict("Only staged invoices may become uncertain")
+                if row["status"] not in ("STAGING","STAGED"):
+                    raise Conflict("Only staging/staged invoices may become uncertain")
                 db.execute("UPDATE invoices SET status='UNCERTAIN' WHERE id=?", (invoice_id,))
             db.execute("INSERT INTO events(invoice_id,at,client_id,event) VALUES(?,?,?,?)",
                        (invoice_id,now,client_id,action))
